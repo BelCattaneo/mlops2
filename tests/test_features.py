@@ -8,16 +8,10 @@ import pandas as pd
 import pytest
 
 from arrest_model.features import MODEL_FEATURES, to_features, transform
-from arrest_model.model import load_bundle
 from arrest_model.schemas import CrimeReport
 
 CASES = Path(__file__).parent / "data" / "encoding_cases.csv"
 DISTANCE = "Distance Crime To Police Station_standardized"
-
-
-@pytest.fixture(scope="module")
-def bundle() -> dict[str, Any]:
-    return load_bundle()
 
 
 @pytest.fixture(scope="module")

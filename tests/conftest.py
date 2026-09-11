@@ -4,6 +4,8 @@ from typing import Any
 
 import pytest
 
+from arrest_model.model import load_bundle
+
 
 @pytest.fixture
 def valid_payload() -> dict[str, Any]:
@@ -16,3 +18,9 @@ def valid_payload() -> dict[str, Any]:
         "latitude": 41.771470188,
         "longitude": -87.59074212,
     }
+
+
+@pytest.fixture(scope="session")
+def bundle() -> dict[str, Any]:
+    """El modelo empaquetado en model/model.pkl."""
+    return load_bundle()

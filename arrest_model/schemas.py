@@ -14,3 +14,12 @@ class CrimeReport(BaseModel):
     date: datetime = Field(examples=["2024-12-31T23:58:00"])
     latitude: float = Field(examples=[41.771470188])
     longitude: float = Field(examples=[-87.59074212])
+
+
+class PredictionOut(BaseModel):
+    """Predicción y versión del modelo que la produjo."""
+
+    arrest: int = Field(ge=0, le=1)
+    probability: float = Field(ge=0.0, le=1.0)
+    model_name: str
+    model_version: int
