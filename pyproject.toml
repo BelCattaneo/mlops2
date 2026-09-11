@@ -5,6 +5,7 @@ description = "Mini-TPs de Operaciones de Aprendizaje Automático II (CEIA-FIUBA
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "joblib>=1.6.0",
     "numpy>=2.5.3",
     "pandas>=3.0.5",
     "pydantic>=2.13.5",
@@ -38,6 +39,7 @@ markers = ["neo4j: requiere Neo4j corriendo en localhost:7687"]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "ipykernel>=7.3.0",
     "jupyter>=1.1.1",
     "pytest>=9.1.1",
