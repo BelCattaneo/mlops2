@@ -1,0 +1,17 @@
+# Entorno
+.venv/
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# MLflow local (se regenera con model/train.py)
+mlflow.db
+mlruns/
+
+# Secretos
+.env
+
+# macOS
+.DS_Store

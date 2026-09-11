@@ -1,0 +1,61 @@
+[project]
+name = "mlops2-minitps"
+version = "0.1.0"
+description = "Mini-TPs de Operaciones de Aprendizaje Automático II (CEIA-FIUBA): modelo de arrestos de Chicago servido por REST, GraphQL y gRPC."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "pandas>=3.0.5",
+    "pydantic>=2.13.5",
+    "pyproj>=3.8.0",
+    "scikit-learn>=1.9.1",
+    "tzdata>=2026.3",
+    "xgboost>=3.4.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["arrest_model", "tp1_rest", "tp2_graphql", "tp3_grpc"]
+
+[tool.uv]
+default-groups = "all"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/*_pb2.py", "**/*_pb2_grpc.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["neo4j: requiere Neo4j corriendo en localhost:7687"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "pytest>=9.1.1",
+    "requests>=2.34.2",
+    "ruff>=0.16.7",
+]
+graphql = [
+    "strawberry-graphql[fastapi]>=0.327.7",
+]
+grpc = [
+    "grpcio>=1.83.1",
+    "grpcio-tools>=1.83.1",
+]
+rest = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+]
+tracking = [
+    "mlflow>=3.16.0",
+    "neo4j>=6.3.0",
+]
