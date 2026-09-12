@@ -14,7 +14,14 @@ VALID = {
     "latitude": 41.771470188,
     "longitude": -87.59074212,
 }
-WITHOUT_DATE = {key: value for key, value in VALID.items() if key != "date"}
+# Cada caso rompe una validación distinta del contrato; todos deben dar 422.
+INVALID = {
+    "sin fecha": {key: value for key, value in VALID.items() if key != "date"},
+    "primary_type desconocido": VALID | {"primary_type": "BANANA"},
+    "latitud fuera de Chicago": VALID | {"latitude": 40.71},
+    "IUCR con formato inválido": VALID | {"iucr": "48"},
+    "campo que no está en el contrato": VALID | {"foo": 1},
+}
 
 
 def check(response: requests.Response, expected: int, label: str) -> bool:
@@ -39,10 +46,13 @@ def main() -> int:
                     200,
                     "POST /v1/predict con un payload válido",
                 ),
-                check(
-                    http.post(f"{url}/v1/predict", json=WITHOUT_DATE, timeout=10),
-                    422,
-                    "POST /v1/predict sin fecha (inválido)",
+                *(
+                    check(
+                        http.post(f"{url}/v1/predict", json=payload, timeout=10),
+                        422,
+                        f"POST /v1/predict, {label}",
+                    )
+                    for label, payload in INVALID.items()
                 ),
             ]
     except requests.ConnectionError:

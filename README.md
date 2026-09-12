@@ -34,11 +34,22 @@ make help      # lista de comandos
 
 Un único archivo `joblib` con el `XGBClassifier()` entrenado sobre los datasets finales del TP-final y los parámetros necesarios para codificar los datos crudos (frecuencias de train, media y desvío de las coordenadas y ubicación de las comisarías). Se genera aparte, fuera del alcance de los mini-TPs; las APIs solo lo cargan.
 
-La codificación de los 6 campos crudos en las 7 features del modelo está en `arrest_model/features.py` y replica el preprocesamiento del TP-final. Se testea contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): mismas features y misma clase predicha.
+La codificación está en `arrest_model/features.py`: **una función por feature**, registradas en `ENCODERS`, que además fija el orden con el que se entrenó el modelo.
+
+| campo crudo | feature | transformación |
+|---|---|---|
+| `iucr` | `IUCR_freq` | frecuencia en train; 0 si no apareció |
+| `primary_type` | `Primary_Type_freq` | frecuencia en train |
+| `location_description` | `Location_Description_freq` | frecuencia en train; vacío → `UNKNOWN` |
+| `date` | `Day_sin` | día de la semana (domingo=1) → `sin(2π·d/7)` |
+| `latitude`, `longitude` | `X/Y Coordinate_standardized` | proyección a EPSG:3435 → z-score |
+| `latitude`, `longitude` | `Distance Crime To Police Station_standardized` | comisaría más cercana (EPSG:26971) → `log1p` → z-score |
+
+Se testea contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): mismas features y misma clase predicha que en el TP-final.
 
 ## TP1 — REST
 
-> **En progreso.** Hecho: `/health` y `/v1/predict` (payload crudo → codificación → predicción), en local y en Docker. Falta: validaciones de entrada, lote, metadata y manejo de errores.
+> **En progreso.** Hecho: `/health` y `/v1/predict` con validación del payload, en local y en Docker. Falta: lote, metadata y manejo de errores.
 
 API FastAPI que carga `model/model.pkl` una sola vez al arrancar.
 
@@ -47,7 +58,7 @@ API FastAPI que carga `model/model.pkl` una sola vez al arrancar.
 | `make run` | levanta la API local con uvicorn en el puerto 8000 (docs en `/docs`) |
 | `make up` | construye la imagen, levanta el contenedor y espera a que responda `/health` |
 | `make health` | consulta `GET /health` |
-| `make client` | corre el cliente de prueba (`tp1_rest/client.py`): `/health`, un payload válido (200) y uno sin fecha (422), contra la API levantada con `make run` o `make up` |
+| `make client` | corre el cliente de prueba (`tp1_rest/client.py`): `/health`, un payload válido (200) y cinco inválidos (422) |
 | `make logs` | muestra los logs del contenedor |
 | `make down` | detiene el contenedor |
 | `make test` · `make lint` | tests y ruff |
@@ -64,7 +75,7 @@ uv run python tp1_rest/client.py
 | endpoint | respuesta |
 |---|---|
 | `GET /health` | 200 `{"status": "ok", "model_name": "chicago-arrest-xgboost", "model_version": 1}`; 503 `{"status": "unavailable", "detail": "..."}` si no se pudo cargar `model/model.pkl` |
-| `POST /v1/predict` | recibe los 6 campos crudos y devuelve `{"arrest", "probability", "model_name", "model_version"}`; 422 si falta un campo; 503 si no hay modelo |
+| `POST /v1/predict` | recibe los 6 campos crudos y devuelve `{"arrest", "probability", "model_name", "model_version"}`; 422 si el payload no cumple el contrato; 503 si no hay modelo |
 
 Ejemplo con la primera fila de `Crimes_Chicago_2024.csv`:
 
@@ -78,6 +89,21 @@ curl -X POST http://127.0.0.1:8000/v1/predict -H "Content-Type: application/json
 ```json
 {"arrest": 0, "probability": 0.06843266636133194, "model_name": "chicago-arrest-xgboost", "model_version": 1}
 ```
+
+### Qué valida el contrato
+
+El payload se valida **antes** de llegar al modelo; si no cumple, la API responde 422 con el detalle del campo.
+
+| campo | regla |
+|---|---|
+| `iucr` | texto de 4 caracteres: 3 dígitos y un dígito o letra (`^[0-9]{3}[0-9A-Z]$`). Un código válido que el modelo no vio se acepta y se codifica con frecuencia 0 |
+| `primary_type` | uno de los 31 tipos que aparecen en el train del TP-final |
+| `location_description` | opcional; vacío se codifica como `UNKNOWN` |
+| `date` | fecha ISO 8601. Sin zona horaria se asume hora de Chicago; con zona se convierte |
+| `latitude` · `longitude` | dentro de los límites de Chicago: [41.60, 42.05] y [-87.95, -87.50] |
+| cualquier otro campo | se rechaza: el contrato no acepta campos extra |
+
+Los textos se normalizan antes de validar: `" battery "` se acepta como `"BATTERY"`.
 
 ## TP2 — GraphQL
 
