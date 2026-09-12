@@ -47,6 +47,17 @@ PrimaryType = Literal[
 ]
 PRIMARY_TYPES: tuple[str, ...] = get_args(PrimaryType)
 
+# Ejemplo único del contrato: primera fila real de Crimes_Chicago_2024.csv (TP-final).
+# Lo reusan la doc de OpenAPI, el cliente de prueba y los tests, para que no se desincronicen.
+EXAMPLE_REPORT: dict[str, object] = {
+    "iucr": "1310",
+    "primary_type": "CRIMINAL DAMAGE",
+    "location_description": "APARTMENT",
+    "date": "2024-12-31T23:58:00",
+    "latitude": 41.771470188,
+    "longitude": -87.59074212,
+}
+
 
 class CrimeReport(BaseModel):
     """Reporte crudo de un crimen, con los campos del dataset de Chicago.
@@ -55,14 +66,14 @@ class CrimeReport(BaseModel):
     igual que hizo el TP-final con los datos de test.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [EXAMPLE_REPORT]})
 
-    iucr: str = Field(pattern=r"^[0-9]{3}[0-9A-Z]$", examples=["1310"])
-    primary_type: PrimaryType = Field(examples=["CRIMINAL DAMAGE"])
-    location_description: str | None = Field(default=None, examples=["APARTMENT"])
-    date: datetime = Field(examples=["2024-12-31T23:58:00"])
-    latitude: float = Field(ge=41.60, le=42.05, examples=[41.771470188])  # límites de Chicago
-    longitude: float = Field(ge=-87.95, le=-87.50, examples=[-87.59074212])
+    iucr: str = Field(pattern=r"^[0-9]{3}[0-9A-Z]$")
+    primary_type: PrimaryType
+    location_description: str | None = None
+    date: datetime
+    latitude: float = Field(ge=41.60, le=42.05)  # límites de Chicago
+    longitude: float = Field(ge=-87.95, le=-87.50)
 
     @field_validator("iucr", "primary_type", "location_description", mode="before")
     @classmethod

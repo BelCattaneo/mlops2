@@ -5,22 +5,15 @@ import json
 
 import requests
 
-# Primera fila real de Crimes_Chicago_2024.csv (TP-final) con los 6 campos del contrato.
-VALID = {
-    "iucr": "1310",
-    "primary_type": "CRIMINAL DAMAGE",
-    "location_description": "APARTMENT",
-    "date": "2024-12-31T23:58:00",
-    "latitude": 41.771470188,
-    "longitude": -87.59074212,
-}
+from arrest_model.schemas import EXAMPLE_REPORT
+
 # Cada caso rompe una validación distinta del contrato; todos deben dar 422.
 INVALID = {
-    "sin fecha": {key: value for key, value in VALID.items() if key != "date"},
-    "primary_type desconocido": VALID | {"primary_type": "BANANA"},
-    "latitud fuera de Chicago": VALID | {"latitude": 40.71},
-    "IUCR con formato inválido": VALID | {"iucr": "48"},
-    "campo que no está en el contrato": VALID | {"foo": 1},
+    "sin fecha": {key: value for key, value in EXAMPLE_REPORT.items() if key != "date"},
+    "primary_type desconocido": EXAMPLE_REPORT | {"primary_type": "BANANA"},
+    "latitud fuera de Chicago": EXAMPLE_REPORT | {"latitude": 40.71},
+    "IUCR con formato inválido": EXAMPLE_REPORT | {"iucr": "48"},
+    "campo que no está en el contrato": EXAMPLE_REPORT | {"foo": 1},
 }
 
 
@@ -46,7 +39,7 @@ def main() -> int:
             results = [
                 check(http.get(f"{url}/health", timeout=10), 200, "GET /health"),
                 check(
-                    http.post(f"{url}/v1/predict", json=VALID, timeout=10),
+                    http.post(f"{url}/v1/predict", json=EXAMPLE_REPORT, timeout=10),
                     200,
                     "POST /v1/predict con un payload válido",
                 ),

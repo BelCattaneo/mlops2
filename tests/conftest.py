@@ -5,19 +5,13 @@ from typing import Any
 import pytest
 
 from arrest_model.model import load_bundle
+from arrest_model.schemas import EXAMPLE_REPORT
 
 
 @pytest.fixture
 def valid_payload() -> dict[str, Any]:
-    """Primera fila de Crimes_Chicago_2024.csv con los 6 campos del contrato."""
-    return {
-        "iucr": "1310",
-        "primary_type": "CRIMINAL DAMAGE",
-        "location_description": "APARTMENT",
-        "date": "2024-12-31T23:58:00",
-        "latitude": 41.771470188,
-        "longitude": -87.59074212,
-    }
+    """Copia del ejemplo del contrato, para que cada test pueda modificarla sin afectar al resto."""
+    return dict(EXAMPLE_REPORT)
 
 
 @pytest.fixture(scope="session")
