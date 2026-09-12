@@ -115,3 +115,40 @@ def test_predict_rejects_an_unknown_primary_type(
         grpc_stub.Predict(_proto_report(primary_type="BANANA"))
     assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
     assert "primary_type" in error.value.details()
+
+
+def test_predict_stream_returns_one_prediction_per_item_in_order(
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+) -> None:
+    # Diez items alternando dos reportes distintos: sirve para ver que se respeta el orden.
+    batch = scoring_pb2.CrimeBatch(items=[_proto_report(), _proto_report(primary_type="THEFT")] * 5)
+    predictions = list(grpc_stub.PredictStream(batch))
+    assert len(predictions) == 10
+    assert predictions[0].probability == pytest.approx(REFERENCE_PROBABILITY)
+    assert predictions[8].probability == pytest.approx(REFERENCE_PROBABILITY)
+    assert predictions[1].probability != predictions[0].probability
+    assert [p.probability for p in predictions[::2]] == [predictions[0].probability] * 5
+    assert [p.probability for p in predictions[1::2]] == [predictions[1].probability] * 5
+
+
+def test_predict_stream_rejects_an_empty_batch(
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+) -> None:
+    with pytest.raises(grpc.RpcError) as error:
+        list(grpc_stub.PredictStream(scoring_pb2.CrimeBatch()))
+    assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def test_predict_stream_fails_before_emitting_anything_if_an_item_is_invalid(
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+) -> None:
+    batch = scoring_pb2.CrimeBatch(
+        items=[_proto_report(), _proto_report(primary_type="BANANA"), _proto_report()]
+    )
+    stream = grpc_stub.PredictStream(batch)
+    # El primer next() ya tiene que fallar: se valida todo el lote antes de puntuar nada.
+    with pytest.raises(grpc.RpcError) as error:
+        next(stream)
+    assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+    assert "item 1" in error.value.details()
+    assert "primary_type" in error.value.details()

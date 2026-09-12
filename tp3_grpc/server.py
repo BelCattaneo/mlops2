@@ -5,6 +5,7 @@ propio de acá es traducir entre los mensajes protobuf y ese núcleo.
 """
 
 import logging
+from collections.abc import Iterator, Sequence
 from concurrent import futures
 from datetime import UTC
 from typing import Any
@@ -58,6 +59,24 @@ def prediction_to_proto(prediction: PredictionOut) -> scoring_pb2.Prediction:
     )
 
 
+def validated_reports(
+    messages: Sequence[scoring_pb2.CrimeReport], context: grpc.ServicerContext, *, indexed: bool
+) -> list[CrimeReport]:
+    """Valida **todos** los mensajes antes de que se puntúe ninguno.
+
+    Con `indexed`, el detalle del error dice qué item del lote falló: en un stream, si no
+    se validara todo primero, el cliente recibiría predicciones y recién después el error.
+    """
+    reports = []
+    for index, message in enumerate(messages):
+        try:
+            reports.append(CrimeReport.model_validate(report_from_proto(message)))
+        except ValidationError as exc:
+            prefix = f"item {index}: " if indexed else ""
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, prefix + validation_detail(exc))
+    return reports
+
+
 class ArrestScoringServicer(scoring_pb2_grpc.ArrestScoringServicer):
     """Sirve un modelo ya cargado; la carga es responsabilidad de `serve`."""
 
@@ -68,11 +87,19 @@ class ArrestScoringServicer(scoring_pb2_grpc.ArrestScoringServicer):
         self, request: scoring_pb2.CrimeReport, context: grpc.ServicerContext
     ) -> scoring_pb2.Prediction:
         """Unary: valida un reporte y devuelve su predicción."""
-        try:
-            report = CrimeReport.model_validate(report_from_proto(request))
-        except ValidationError as exc:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, validation_detail(exc))
-        return prediction_to_proto(predict(self.bundle, [report])[0])
+        reports = validated_reports([request], context, indexed=False)
+        return prediction_to_proto(predict(self.bundle, reports)[0])
+
+    def PredictStream(  # noqa: N802 (el nombre lo fija el .proto)
+        self, request: scoring_pb2.CrimeBatch, context: grpc.ServicerContext
+    ) -> Iterator[scoring_pb2.Prediction]:
+        """Server streaming: valida el lote entero, puntúa de una y emite una por item."""
+        if not request.items:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "el lote no puede estar vacío")
+        reports = validated_reports(request.items, context, indexed=True)
+        # Una sola llamada al modelo para todo el lote; el stream es solo la entrega.
+        for prediction in predict(self.bundle, reports):
+            yield prediction_to_proto(prediction)
 
 
 def serve(
