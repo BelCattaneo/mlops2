@@ -97,3 +97,17 @@ class PredictionOut(BaseModel):
     probability: float = Field(ge=0.0, le=1.0)
     model_name: str
     model_version: int
+
+
+class BatchRequest(BaseModel):
+    """Lote de reportes para predecir en una sola llamada."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reports: list[CrimeReport] = Field(min_length=1, max_length=1000)
+
+
+class BatchPredictionOut(BaseModel):
+    """Predicciones del lote, en el mismo orden que los reportes de entrada."""
+
+    predictions: list[PredictionOut]

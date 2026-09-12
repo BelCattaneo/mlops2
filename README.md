@@ -82,6 +82,7 @@ uv run python tp1_rest/client.py
 |---|---|
 | `GET /health` | 200 `{"status": "ok", "model_name": "chicago-arrest-xgboost", "model_version": 1}`; 503 `{"status": "unavailable", "detail": "..."}` si no se pudo cargar `model/model.pkl` |
 | `POST /v1/predict` | recibe los 6 campos crudos y devuelve `{"arrest", "probability", "model_name", "model_version"}`; 422 si el payload no cumple el contrato; 503 si no hay modelo |
+| `POST /v1/predict/batch` | recibe `{"reports": [...]}` con 1 a 1000 reportes y devuelve `{"predictions": [...]}` en el mismo orden; 422 si el lote está vacío, pasa de 1000 o algún reporte no cumple; 503 si no hay modelo |
 
 Ejemplo con la primera fila de `Crimes_Chicago_2024.csv`. Es el `EXAMPLE_REPORT` de
 `arrest_model/schemas.py`, el mismo que usan la doc de OpenAPI, el cliente y los tests; la

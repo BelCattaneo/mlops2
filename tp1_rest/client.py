@@ -43,6 +43,20 @@ def main() -> int:
                     200,
                     "POST /v1/predict con un payload válido",
                 ),
+                check(
+                    http.post(
+                        f"{url}/v1/predict/batch",
+                        json={"reports": [EXAMPLE_REPORT, EXAMPLE_REPORT]},
+                        timeout=10,
+                    ),
+                    200,
+                    "POST /v1/predict/batch con dos reportes",
+                ),
+                check(
+                    http.post(f"{url}/v1/predict/batch", json={"reports": []}, timeout=10),
+                    422,
+                    "POST /v1/predict/batch con el lote vacío",
+                ),
                 *(
                     check(
                         http.post(f"{url}/v1/predict", json=payload, timeout=10),

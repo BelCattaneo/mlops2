@@ -9,7 +9,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from arrest_model.model import load_bundle, predict
-from arrest_model.schemas import CrimeReport, PredictionOut
+from arrest_model.schemas import BatchPredictionOut, BatchRequest, CrimeReport, PredictionOut
 
 logger = logging.getLogger("tp1_rest")
 
@@ -42,14 +42,23 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
             {"status": "ok", "model_name": metadata["name"], "model_version": metadata["version"]}
         )
 
+    def loaded_bundle() -> dict[str, Any]:
+        """Devuelve el bundle cargado o corta con 503 si el modelo no está disponible."""
+        if app.state.bundle is None:
+            raise HTTPException(503, detail=UNAVAILABLE_DETAIL)
+        return app.state.bundle
+
     v1 = APIRouter(prefix="/v1")  # versionado como el nivel 3 de API_MLOPS2.ipynb
 
     @v1.post("/predict", response_model=PredictionOut)
     def predict_one(report: CrimeReport) -> PredictionOut:
         """Predice un reporte; FastAPI ya validó el payload (422 si no cumple)."""
-        if app.state.bundle is None:
-            raise HTTPException(503, detail=UNAVAILABLE_DETAIL)
-        return predict(app.state.bundle, [report])[0]
+        return predict(loaded_bundle(), [report])[0]
+
+    @v1.post("/predict/batch", response_model=BatchPredictionOut)
+    def predict_batch(batch: BatchRequest) -> BatchPredictionOut:
+        """Predice de 1 a 1000 reportes con una sola llamada al modelo."""
+        return BatchPredictionOut(predictions=predict(loaded_bundle(), batch.reports))
 
     app.include_router(v1)
     return app
