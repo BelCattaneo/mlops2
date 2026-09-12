@@ -6,17 +6,17 @@ from fastapi.testclient import TestClient
 
 from arrest_model.model import predict
 from arrest_model.schemas import CrimeReport
-from tp1_rest.app import create_app
+from tp1_rest.app import UNAVAILABLE_DETAIL, create_app
 
-FAKE_BUNDLE: dict[str, Any] = {"metadata": {"name": "chicago-arrest-xgboost", "version": 1}}
+HEALTH_ONLY_BUNDLE: dict[str, Any] = {"metadata": {"name": "chicago-arrest-xgboost", "version": 1}}
 
 
 def _missing_model() -> dict[str, Any]:
-    raise FileNotFoundError("No existe el modelo en model/model.pkl")
+    raise FileNotFoundError("No existe el modelo en /srv/app/model/model.pkl")
 
 
 def test_health_reports_loaded_model() -> None:
-    with TestClient(create_app(lambda: FAKE_BUNDLE)) as client:
+    with TestClient(create_app(lambda: HEALTH_ONLY_BUNDLE)) as client:
         response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {
@@ -30,10 +30,15 @@ def test_health_returns_503_without_model() -> None:
     with TestClient(create_app(_missing_model)) as client:
         response = client.get("/health")
     assert response.status_code == 503
-    assert response.json() == {
-        "status": "unavailable",
-        "detail": "No existe el modelo en model/model.pkl",
-    }
+    assert response.json() == {"status": "unavailable", "detail": UNAVAILABLE_DETAIL}
+
+
+def test_errors_do_not_leak_server_paths(valid_payload: dict[str, Any]) -> None:
+    with TestClient(create_app(_missing_model)) as client:
+        health = client.get("/health").json()["detail"]
+        prediction = client.post("/v1/predict", json=valid_payload).json()["detail"]
+    assert "model.pkl" not in f"{health} {prediction}"
+    assert "/srv" not in f"{health} {prediction}"
 
 
 def test_predict_returns_prediction_and_model_version(

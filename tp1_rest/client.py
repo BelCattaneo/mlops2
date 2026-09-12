@@ -28,7 +28,11 @@ def check(response: requests.Response, expected: int, label: str) -> bool:
     """Muestra status y cuerpo de la respuesta; devuelve si el status es el esperado."""
     ok = response.status_code == expected
     print(f"[{'OK' if ok else 'FALLA'}] {label} -> {response.status_code} (esperado {expected})")
-    print(json.dumps(response.json(), indent=2, ensure_ascii=False))
+    try:
+        body = json.dumps(response.json(), indent=2, ensure_ascii=False)
+    except ValueError:
+        body = response.text  # un proxy o un error de infraestructura contesta HTML, no JSON
+    print(body)
     return ok
 
 
@@ -55,8 +59,9 @@ def main() -> int:
                     for label, payload in INVALID.items()
                 ),
             ]
-    except requests.ConnectionError:
-        print(f"No se pudo conectar a {url}: ¿levantaste la API con `make run` o `make up`?")
+    except requests.RequestException as exc:  # cubre conexión rechazada y también timeouts
+        print(f"Falló la llamada a {url} ({type(exc).__name__}).")
+        print("¿Levantaste la API con `make run` o `make up`?")
         return 1
     return 0 if all(results) else 1
 
