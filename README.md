@@ -21,7 +21,6 @@ make help      # lista de comandos
 
 ```
 ├── Makefile         # atajos: install, test, lint, run, build, up, down, logs, health, client
-├── data/            # datasets del TP-final (procesado, train, test) y comisarías
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile)
@@ -32,7 +31,14 @@ make help      # lista de comandos
 
 ## Modelo (`model/model.pkl`)
 
-Un único archivo `joblib` con el `XGBClassifier()` entrenado sobre los datasets finales del TP-final y los parámetros necesarios para codificar los datos crudos (frecuencias de train, media y desvío de las coordenadas y ubicación de las comisarías). Se genera aparte, fuera del alcance de los mini-TPs; las APIs solo lo cargan.
+Un único archivo `joblib` con el `XGBClassifier()` entrenado sobre los datasets finales del TP-final y los parámetros necesarios para codificar los datos crudos (frecuencias de train, media y desvío de las coordenadas y ubicación de las comisarías). Las APIs solo lo cargan: **nada en este repo necesita los datasets originales**.
+
+El modelo se genera aparte, fuera del alcance de los mini-TPs, con un script que entrena, verifica la codificación contra las 50.744 filas de test del TP-final y controla las métricas antes de guardar:
+
+```bash
+uv run --project . python ../prep/train_model.py \
+    --data-dir ~/Documents/CEIA/TP-final/datasets
+```
 
 La codificación está en `arrest_model/features.py`: **una función por feature**, registradas en `ENCODERS`, que además fija el orden con el que se entrenó el modelo.
 

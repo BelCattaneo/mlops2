@@ -10,6 +10,9 @@ __pycache__/
 mlflow.db
 mlruns/
 
+# Datasets del TP-final: solo se usan para regenerar model/model.pkl (ver README)
+data/
+
 # Secretos
 .env
 
