@@ -32,6 +32,10 @@ def test_predict_follows_xgboost_rule(bundle: dict[str, Any], reports: list[Crim
     assert [p.arrest for p in predict(bundle, reports)] == expected
 
 
+def test_predict_with_no_reports_returns_empty_list(bundle: dict[str, Any]) -> None:
+    assert predict(bundle, []) == []
+
+
 def test_predictions_carry_probability_and_model_version(
     bundle: dict[str, Any], reports: list[CrimeReport]
 ) -> None:

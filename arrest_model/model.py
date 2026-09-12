@@ -21,6 +21,8 @@ def load_bundle(path: Path = MODEL_PATH) -> dict[str, Any]:
 
 def predict(bundle: dict[str, Any], reports: Sequence[CrimeReport]) -> list[PredictionOut]:
     """Codifica los payloads y predice con una sola llamada al modelo."""
+    if not reports:
+        return []
     features = encode_payload(reports, bundle["params"])
     probabilities = bundle["model"].predict_proba(features)[:, 1]
     name, version = bundle["metadata"]["name"], bundle["metadata"]["version"]
