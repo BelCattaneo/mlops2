@@ -1,10 +1,12 @@
 # Mini-TPs · Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
 
-Modelo propio de Aprendizaje de Máquina: **predicción de arrestos en crímenes reportados en Chicago (2024)** con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por REST, GraphQL y gRPC.
+Modelo propio de Aprendizaje de Máquina: **predicción de arrestos en crímenes reportados en Chicago (2024)** con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos.
 
-| Mini-TP | Tema | Carpeta | Estado |
+Los tres mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es el protocolo, no el modelo ni la codificación. Cada uno tiene su propia presentación:
+
+| Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
-| 1 | API REST con FastAPI | [`tp1_rest/`](tp1_rest/) | En progreso |
+| 1 | API REST con FastAPI | [`tp1_rest/README.md`](tp1_rest/README.md) | Listo |
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/`](tp2_graphql/) | Pendiente |
 | 3 | Scoring por gRPC | [`tp3_grpc/`](tp3_grpc/) | Pendiente |
 
@@ -14,8 +16,12 @@ Requisitos: [uv](https://docs.astral.sh/uv/), Docker y `make`.
 
 ```bash
 make install   # uv sync
-make help      # lista de comandos
+make test      # pytest
+make lint      # ruff check + ruff format --check
+make help      # lista completa de comandos
 ```
+
+Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 
 ## Estructura
 
@@ -23,11 +29,21 @@ make help      # lista de comandos
 ├── Makefile         # atajos: install, test, lint, run, build, up, down, logs, health, client
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
-├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile)
+├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
 ├── tp2_graphql/     # Mini-TP 2: GraphQL
 ├── tp3_grpc/        # Mini-TP 3: gRPC
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
+
+## El paquete compartido `arrest_model/`
+
+| módulo | qué tiene |
+|---|---|
+| `schemas.py` | el contrato: `CrimeReport` (los 6 campos crudos) y las respuestas de las APIs |
+| `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
+| `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |
+
+Ningún servicio reimplementa la codificación ni el formato de la respuesta: todos usan este paquete.
 
 ## Modelo (`model/model.pkl`)
 
@@ -51,74 +67,10 @@ La codificación está en `arrest_model/features.py`: **una función por feature
 | `latitude`, `longitude` | `X/Y Coordinate_standardized` | proyección a EPSG:3435 → z-score |
 | `latitude`, `longitude` | `Distance Crime To Police Station_standardized` | comisaría más cercana (EPSG:26971) → `log1p` → z-score |
 
-Se testea contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): mismas features y misma clase predicha que en el TP-final.
-
-## TP1 — REST
-
-> **En progreso.** Hecho: `/health` y `/v1/predict` con validación del payload, en local y en Docker. Falta: lote, metadata y manejo de errores.
-
-API FastAPI que carga `model/model.pkl` una sola vez al arrancar.
-
-| comando | qué hace |
-|---|---|
-| `make run` | levanta la API local con uvicorn en el puerto 8000 (docs en `/docs`) |
-| `make up` | construye la imagen, levanta el contenedor y espera a que responda `/health` |
-| `make health` | consulta `GET /health` |
-| `make client` | corre el cliente de prueba (`tp1_rest/client.py`): `/health`, un payload válido (200) y cinco inválidos (422) |
-| `make logs` | muestra los logs del contenedor |
-| `make down` | detiene el contenedor |
-| `make test` · `make lint` | tests y ruff |
-
-Sin `make`:
+## Tests
 
 ```bash
-uv run uvicorn tp1_rest.app:app --port 8000
-docker build -f tp1_rest/Dockerfile -t arrest-rest .
-docker run --rm -p 8000:8000 arrest-rest
-uv run python tp1_rest/client.py
+make test
 ```
 
-| endpoint | respuesta |
-|---|---|
-| `GET /health` | 200 `{"status": "ok", "model_name": "chicago-arrest-xgboost", "model_version": 1}`; 503 `{"status": "unavailable", "detail": "..."}` si no se pudo cargar `model/model.pkl` |
-| `POST /v1/predict` | recibe los 6 campos crudos y devuelve `{"arrest", "probability", "model_name", "model_version"}`; 422 si el payload no cumple el contrato; 503 si no hay modelo |
-| `POST /v1/predict/batch` | recibe `{"reports": [...]}` con 1 a 1000 reportes y devuelve `{"predictions": [...]}` en el mismo orden; 422 si el lote está vacío, pasa de 1000 o algún reporte no cumple; 503 si no hay modelo |
-| `GET /v1/metadata` | describe el modelo cargado: `name`, `version`, `framework`, `inputs` (los 6 campos crudos), `features` (las 7 del modelo), `metrics` y `trained_at`; 503 si no hay modelo |
-
-Ejemplo con la primera fila de `Crimes_Chicago_2024.csv`. Es el `EXAMPLE_REPORT` de
-`arrest_model/schemas.py`, el mismo que usan la doc de OpenAPI, el cliente y los tests; la
-respuesta de abajo está fijada como valor de referencia en `tests/test_api.py`:
-
-```bash
-curl -X POST http://127.0.0.1:8000/v1/predict -H "Content-Type: application/json" -d '{
-  "iucr": "1310", "primary_type": "CRIMINAL DAMAGE", "location_description": "APARTMENT",
-  "date": "2024-12-31T23:58:00", "latitude": 41.771470188, "longitude": -87.59074212
-}'
-```
-
-```json
-{"arrest": 0, "probability": 0.06843266636133194, "model_name": "chicago-arrest-xgboost", "model_version": 1}
-```
-
-### Qué valida el contrato
-
-El payload se valida **antes** de llegar al modelo; si no cumple, la API responde 422 con el detalle del campo.
-
-| campo | regla |
-|---|---|
-| `iucr` | texto de 4 caracteres: 3 dígitos y un dígito o letra (`^[0-9]{3}[0-9A-Z]$`). Un código válido que el modelo no vio se acepta y se codifica con frecuencia 0 |
-| `primary_type` | uno de los 31 tipos que aparecen en el train del TP-final |
-| `location_description` | opcional; vacío se codifica como `UNKNOWN` |
-| `date` | fecha ISO 8601. Sin zona horaria se asume hora de Chicago; con zona se convierte |
-| `latitude` · `longitude` | dentro de los límites de Chicago: [41.60, 42.05] y [-87.95, -87.50] |
-| cualquier otro campo | se rechaza: el contrato no acepta campos extra |
-
-Los textos se normalizan antes de validar: `" battery "` se acepta como `"BATTERY"`.
-
-## TP2 — GraphQL
-
-_Pendiente._
-
-## TP3 — gRPC
-
-_Pendiente._
+Además de los tests de cada servicio, la codificación se verifica contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): tienen que dar las mismas features y la misma clase predicha que en el TP-final.
