@@ -46,7 +46,7 @@ rest-health: ## TP1 · consulta GET /health
 rest-client: ## TP1 · prueba la API con el cliente (con rest-run o rest-up corriendo)
 	uv run python tp1_rest/client.py --url http://127.0.0.1:$(REST_PORT)
 
-.PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs
+.PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client
 
 grpc-stubs: ## TP3 · regenera los stubs de gRPC desde scoring.proto
 	uv run python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. tp3_grpc/scoring.proto
@@ -67,3 +67,6 @@ grpc-down: ## TP3 · detiene el contenedor
 
 grpc-logs: ## TP3 · muestra los logs del contenedor
 	docker logs -f $(GRPC_CONTAINER)
+
+grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up corriendo)
+	uv run python -m tp3_grpc.client --target 127.0.0.1:$(GRPC_PORT)
