@@ -111,3 +111,15 @@ class BatchPredictionOut(BaseModel):
     """Predicciones del lote, en el mismo orden que los reportes de entrada."""
 
     predictions: list[PredictionOut]
+
+
+class ModelMetadata(BaseModel):
+    """Descripción del modelo cargado, tal como quedó guardada en model/model.pkl."""
+
+    name: str
+    version: int
+    framework: str
+    inputs: list[str]
+    features: list[str]
+    metrics: dict[str, float]
+    trained_at: datetime

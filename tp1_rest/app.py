@@ -9,7 +9,13 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from arrest_model.model import load_bundle, predict
-from arrest_model.schemas import BatchPredictionOut, BatchRequest, CrimeReport, PredictionOut
+from arrest_model.schemas import (
+    BatchPredictionOut,
+    BatchRequest,
+    CrimeReport,
+    ModelMetadata,
+    PredictionOut,
+)
 
 logger = logging.getLogger("tp1_rest")
 
@@ -59,6 +65,11 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     def predict_batch(batch: BatchRequest) -> BatchPredictionOut:
         """Predice de 1 a 1000 reportes con una sola llamada al modelo."""
         return BatchPredictionOut(predictions=predict(loaded_bundle(), batch.reports))
+
+    @v1.get("/metadata", response_model=ModelMetadata)
+    def metadata() -> ModelMetadata:
+        """Describe el modelo cargado: versión, entradas, features y métricas de test."""
+        return ModelMetadata.model_validate(loaded_bundle()["metadata"])
 
     app.include_router(v1)
     return app

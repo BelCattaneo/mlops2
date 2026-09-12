@@ -38,6 +38,7 @@ def main() -> int:
         with requests.Session() as http:
             results = [
                 check(http.get(f"{url}/health", timeout=10), 200, "GET /health"),
+                check(http.get(f"{url}/v1/metadata", timeout=10), 200, "GET /v1/metadata"),
                 check(
                     http.post(f"{url}/v1/predict", json=EXAMPLE_REPORT, timeout=10),
                     200,

@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import UNAVAILABLE_DETAIL, create_app
 from tp1_rest.client import INVALID
@@ -100,3 +101,28 @@ def test_predict_batch_returns_503_without_model(valid_payload: dict[str, Any]) 
     with TestClient(create_app(_missing_model)) as client:
         response = client.post("/v1/predict/batch", json={"reports": [valid_payload]})
     assert response.status_code == 503
+
+
+def test_metadata_describes_the_served_model(bundle: dict[str, Any]) -> None:
+    with TestClient(create_app(lambda: bundle)) as client:
+        response = client.get("/v1/metadata")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {
+        "name",
+        "version",
+        "framework",
+        "inputs",
+        "features",
+        "metrics",
+        "trained_at",
+    }
+    assert (body["name"], body["version"]) == ("chicago-arrest-xgboost", 1)
+    # Lo que declara la API tiene que ser lo que de verdad consume el modelo.
+    assert body["inputs"] == list(EXAMPLE_REPORT)
+    assert body["features"] == MODEL_FEATURES
+
+
+def test_metadata_returns_503_without_model() -> None:
+    with TestClient(create_app(_missing_model)) as client:
+        assert client.get("/v1/metadata").status_code == 503
