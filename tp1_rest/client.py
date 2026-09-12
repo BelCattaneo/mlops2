@@ -69,7 +69,7 @@ def main() -> int:
             ]
     except requests.RequestException as exc:  # cubre conexión rechazada y también timeouts
         print(f"Falló la llamada a {url} ({type(exc).__name__}).")
-        print("¿Levantaste la API con `make run` o `make up`?")
+        print("¿Levantaste la API con `make rest-run` o `make rest-up`?")
         return 1
     return 0 if all(results) else 1
 

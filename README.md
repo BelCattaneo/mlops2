@@ -26,7 +26,7 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ## Estructura
 
 ```
-├── Makefile         # atajos: install, test, lint, run, build, up, down, logs, health, client
+├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*)
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)

@@ -10,12 +10,14 @@ Todos los comandos se corren desde la raíz del repo.
 
 | comando | qué hace |
 |---|---|
-| `make run` | levanta la API local con uvicorn en el puerto 8000 (docs interactivas en `/docs`) |
-| `make up` | construye la imagen, levanta el contenedor y espera a que responda `/health` |
-| `make health` | consulta `GET /health` |
-| `make client` | corre el cliente de prueba (`client.py`) contra la API |
-| `make logs` | muestra los logs del contenedor |
-| `make down` | detiene el contenedor |
+| `make rest-run` | levanta la API local con uvicorn en el puerto 8000 (docs interactivas en `/docs`) |
+| `make rest-up` | construye la imagen, levanta el contenedor y espera a que responda `/health` |
+| `make rest-health` | consulta `GET /health` |
+| `make rest-client` | corre el cliente de prueba (`client.py`) contra la API |
+| `make rest-logs` | muestra los logs del contenedor |
+| `make rest-down` | detiene el contenedor |
+
+Los targets llevan el prefijo `rest-` porque el repo sirve el mismo modelo por varios protocolos; `make help` los lista todos.
 
 Sin `make`:
 
@@ -114,7 +116,7 @@ Se ve que un 422 corta en la validación sin tocar el modelo, y por eso es dos �
 
 ## Cliente de prueba
 
-`make client` recorre todos los endpoints y los casos inválidos, y devuelve código 1 si alguno no da el status esperado:
+`make rest-client` recorre todos los endpoints y los casos inválidos, y devuelve código 1 si alguno no da el status esperado:
 
 ```
 [OK] GET /health -> 200 (esperado 200)
