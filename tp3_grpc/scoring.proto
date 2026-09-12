@@ -1,0 +1,42 @@
+// Contrato del servicio de scoring por gRPC.
+//
+// Tipa los mismos 6 campos crudos que el contrato REST (arrest_model.schemas.CrimeReport):
+// el servidor aplica la misma validación y la misma codificación antes de puntuar.
+// Los stubs se regeneran con `make grpc-stubs`; los *_pb2*.py no se editan a mano.
+
+syntax = "proto3";
+
+package arrest;
+
+import "google/protobuf/timestamp.proto";
+
+// Reporte crudo de un crimen en Chicago.
+message CrimeReport {
+  string iucr = 1;                          // 3 dígitos y un dígito o letra, ej. "1310"
+  string primary_type = 2;                  // uno de los 31 tipos vistos en train
+  optional string location_description = 3; // si falta, se codifica como UNKNOWN
+  google.protobuf.Timestamp date = 4;       // instante UTC; el servidor lo pasa a hora de Chicago
+  optional double latitude = 5;             // optional para distinguir "falta" de "vale 0"
+  optional double longitude = 6;
+}
+
+// Lote de reportes para puntuar en una sola llamada.
+message CrimeBatch {
+  repeated CrimeReport items = 1;
+}
+
+// Predicción y versión del modelo que la produjo.
+message Prediction {
+  int32 arrest = 1;
+  double probability = 2;
+  string model_name = 3;
+  int32 model_version = 4;
+}
+
+service ArrestScoring {
+  // Unary: un reporte, una predicción.
+  rpc Predict(CrimeReport) returns (Prediction);
+
+  // Server streaming: un lote, N predicciones en el mismo orden que los items.
+  rpc PredictStream(CrimeBatch) returns (stream Prediction);
+}

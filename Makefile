@@ -17,8 +17,8 @@ test: ## Corre los tests
 	uv run pytest
 
 lint: ## Revisa estilo y formato con ruff
-	uv run ruff check arrest_model tp1_rest tests
-	uv run ruff format --check arrest_model tp1_rest tests
+	uv run ruff check arrest_model tp1_rest tp3_grpc tests
+	uv run ruff format --check arrest_model tp1_rest tp3_grpc tests
 
 rest-run: ## TP1 · levanta la API local con uvicorn (recarga al guardar)
 	uv run uvicorn tp1_rest.app:app --reload --port $(REST_PORT)
@@ -42,3 +42,8 @@ rest-health: ## TP1 · consulta GET /health
 
 rest-client: ## TP1 · prueba la API con el cliente (con rest-run o rest-up corriendo)
 	uv run python tp1_rest/client.py --url http://127.0.0.1:$(REST_PORT)
+
+.PHONY: grpc-stubs
+
+grpc-stubs: ## TP3 · regenera los stubs de gRPC desde scoring.proto
+	uv run python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. tp3_grpc/scoring.proto
