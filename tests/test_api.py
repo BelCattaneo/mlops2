@@ -1,5 +1,7 @@
 """Mini-TP 1: API REST."""
 
+import logging
+import re
 from typing import Any
 
 import pytest
@@ -11,6 +13,8 @@ from tp1_rest.app import UNAVAILABLE_DETAIL, create_app
 from tp1_rest.client import INVALID
 
 HEALTH_ONLY_BUNDLE: dict[str, Any] = {"metadata": {"name": "chicago-arrest-xgboost", "version": 1}}
+# Bundle que carga bien pero rompe al predecir: sirve para provocar un error inesperado.
+BROKEN_BUNDLE: dict[str, Any] = HEALTH_ONLY_BUNDLE | {"params": {}, "model": None}
 
 
 def _missing_model() -> dict[str, Any]:
@@ -126,3 +130,27 @@ def test_metadata_describes_the_served_model(bundle: dict[str, Any]) -> None:
 def test_metadata_returns_503_without_model() -> None:
     with TestClient(create_app(_missing_model)) as client:
         assert client.get("/v1/metadata").status_code == 503
+
+
+def test_unexpected_error_returns_a_controlled_500(valid_payload: dict[str, Any]) -> None:
+    client = TestClient(create_app(lambda: BROKEN_BUNDLE), raise_server_exceptions=False)
+    with client:
+        response = client.post("/v1/predict", json=valid_payload)
+    assert response.status_code == 500
+    body = response.json()
+    assert set(body) == {"detail"}
+    # El detalle es genérico: ni la excepción ni la traza llegan al cliente.
+    assert "KeyError" not in body["detail"]
+    assert "freq" not in body["detail"]
+
+
+def test_every_request_is_logged_with_method_path_status_and_latency(
+    bundle: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="tp1_rest")
+    with TestClient(create_app(lambda: bundle)) as client:
+        client.get("/health")
+    line = [record.getMessage() for record in caplog.records if record.name == "tp1_rest"][-1]
+    assert "GET /health -> 200" in line
+    assert "modelo v1" in line
+    assert re.search(r"\d+\.\d+ ms", line)

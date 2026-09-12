@@ -1,11 +1,12 @@
 """Mini-TP 1: API REST que sirve el modelo de arrestos de Chicago."""
 
 import logging
-from collections.abc import AsyncIterator, Callable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from arrest_model.model import load_bundle, predict
@@ -19,8 +20,13 @@ from arrest_model.schemas import (
 
 logger = logging.getLogger("tp1_rest")
 
+# uvicorn configura sus propios loggers pero deja el root sin handler, y logging descarta los
+# INFO que no llegan a ninguno. Sin esto, el log por request no aparece en el contenedor.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
+
 # El motivo real (ruta del modelo, traza) va al log del servidor, no a la respuesta.
 UNAVAILABLE_DETAIL = "El modelo no está disponible; revisá el log del servicio."
+INTERNAL_ERROR_DETAIL = "Error interno del servicio; revisá el log para el detalle."
 
 
 def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
@@ -37,6 +43,32 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
 
     app = FastAPI(title="Mini-TP 1 · Arrestos en Chicago", lifespan=lifespan)
     app.state.bundle = None
+
+    @app.middleware("http")
+    async def log_requests(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Deja una línea por request y convierte cualquier error inesperado en un 500 genérico.
+
+        Va en el mismo lugar porque el log necesita el status y la latencia incluso cuando la
+        request falla.
+        """
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception("Error inesperado en %s %s", request.method, request.url.path)
+            response = JSONResponse({"detail": INTERNAL_ERROR_DETAIL}, 500)
+        metadata = (app.state.bundle or {}).get("metadata", {})
+        logger.info(
+            "%s %s -> %s en %.1f ms (modelo v%s)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            (time.perf_counter() - started) * 1000,
+            metadata.get("version"),
+        )
+        return response
 
     @app.get("/health")
     def health() -> JSONResponse:
