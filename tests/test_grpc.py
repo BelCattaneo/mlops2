@@ -12,6 +12,7 @@ import grpc
 import pytest
 
 from tp3_grpc import scoring_pb2, scoring_pb2_grpc
+from tp3_grpc.benchmark import summarize
 from tp3_grpc.client import crime_report, run_client
 from tp3_grpc.server import serve
 
@@ -123,6 +124,18 @@ def test_predict_stream_rejects_an_empty_batch(
     with pytest.raises(grpc.RpcError) as error:
         list(grpc_stub.PredictStream(scoring_pb2.CrimeBatch()))
     assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def test_summarize_reports_mean_and_percentiles_by_nearest_rank() -> None:
+    # Con 100 muestras de 1 a 100 ms, el p95 tiene que ser la muestra 95, no una interpolación.
+    summary = summarize([float(ms) for ms in range(1, 101)])
+    assert summary["media"] == pytest.approx(50.5)
+    assert summary["p50"] == pytest.approx(50.0)
+    assert summary["p95"] == pytest.approx(95.0)
+
+
+def test_summarize_handles_a_single_sample() -> None:
+    assert summarize([7.0]) == {"media": 7.0, "p50": 7.0, "p95": 7.0}
 
 
 def test_client_runs_every_case_without_failures(
