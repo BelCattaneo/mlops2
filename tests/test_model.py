@@ -5,13 +5,14 @@ from typing import Any
 
 import pytest
 
-from arrest_model.features import to_features
+from arrest_model.features import encode_payload
 from arrest_model.model import load_bundle, predict
 from arrest_model.schemas import CrimeReport
 
 
 @pytest.fixture
 def reports(valid_payload: dict[str, Any]) -> list[CrimeReport]:
+    """Tres reportes que solo se diferencian en el tipo de delito."""
     types = ("CRIMINAL DAMAGE", "NARCOTICS", "WEAPONS VIOLATION")
     return [CrimeReport.model_validate(valid_payload | {"primary_type": t}) for t in types]
 
@@ -27,7 +28,7 @@ def test_load_bundle_explains_missing_file(tmp_path: Path) -> None:
 
 
 def test_predict_follows_xgboost_rule(bundle: dict[str, Any], reports: list[CrimeReport]) -> None:
-    expected = bundle["model"].predict(to_features(reports, bundle["params"])).tolist()
+    expected = bundle["model"].predict(encode_payload(reports, bundle["params"])).tolist()
     assert [p.arrest for p in predict(bundle, reports)] == expected
 
 

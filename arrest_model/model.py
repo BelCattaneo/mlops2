@@ -6,7 +6,7 @@ from typing import Any
 
 import joblib
 
-from arrest_model.features import to_features
+from arrest_model.features import encode_payload
 from arrest_model.schemas import CrimeReport, PredictionOut
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "model" / "model.pkl"
@@ -21,7 +21,8 @@ def load_bundle(path: Path = MODEL_PATH) -> dict[str, Any]:
 
 def predict(bundle: dict[str, Any], reports: Sequence[CrimeReport]) -> list[PredictionOut]:
     """Codifica los payloads y predice con una sola llamada al modelo."""
-    probabilities = bundle["model"].predict_proba(to_features(reports, bundle["params"]))[:, 1]
+    features = encode_payload(reports, bundle["params"])
+    probabilities = bundle["model"].predict_proba(features)[:, 1]
     name, version = bundle["metadata"]["name"], bundle["metadata"]["version"]
     # Misma regla que XGBClassifier.predict: clase 1 si la probabilidad supera 0.5.
     return [

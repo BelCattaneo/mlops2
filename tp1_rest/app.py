@@ -19,6 +19,7 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Carga el modelo al arrancar; si falla, la app igual sirve y lo informa en /health."""
         try:
             app.state.bundle = loader()  # una sola vez, al arrancar
         except Exception as exc:
@@ -31,6 +32,7 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
 
     @app.get("/health")
     def health() -> JSONResponse:
+        """Estado del servicio: 200 con el modelo cargado, 503 si no se pudo cargar."""
         if app.state.bundle is None:
             return JSONResponse({"status": "unavailable", "detail": app.state.load_error}, 503)
         metadata = app.state.bundle["metadata"]
@@ -42,6 +44,7 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
 
     @v1.post("/predict", response_model=PredictionOut)
     def predict_one(report: CrimeReport) -> PredictionOut:
+        """Predice un reporte; FastAPI ya validó el payload (422 si no cumple)."""
         if app.state.bundle is None:
             raise HTTPException(503, detail=f"Modelo no disponible: {app.state.load_error}")
         return predict(app.state.bundle, [report])[0]

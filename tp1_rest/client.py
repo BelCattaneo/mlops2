@@ -26,6 +26,7 @@ def check(response: requests.Response, expected: int, label: str) -> bool:
 
 
 def main() -> int:
+    """Recorre los casos contra la API; devuelve 0 si todos dan el status esperado."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8000")
     url = parser.parse_args().url
