@@ -20,8 +20,8 @@ test: ## Corre los tests
 	uv run pytest
 
 lint: ## Revisa estilo y formato con ruff
-	uv run ruff check arrest_model tp1_rest tp3_grpc tests
-	uv run ruff format --check arrest_model tp1_rest tp3_grpc tests
+	uv run ruff check arrest_model tp1_rest tp2_graphql tp3_grpc tests
+	uv run ruff format --check arrest_model tp1_rest tp2_graphql tp3_grpc tests
 
 rest-run: ## TP1 · levanta la API local con uvicorn (recarga al guardar)
 	uv run uvicorn tp1_rest.app:app --reload --port $(REST_PORT)
