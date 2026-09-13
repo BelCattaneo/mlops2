@@ -1,6 +1,6 @@
 # Mini-TPs · Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
 
-Modelo propio de Aprendizaje de Máquina: **predicción de arrestos en crímenes reportados en Chicago (2024)** con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos.
+Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos.
 
 Los tres mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es el protocolo, no el modelo ni la codificación. Cada uno tiene su propia presentación:
 
@@ -26,7 +26,7 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ## Estructura
 
 ```
-├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*)
+├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, grpc-*)
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
@@ -47,7 +47,7 @@ Ningún servicio reimplementa la codificación ni el formato de la respuesta: to
 
 ## Modelo (`model/model.pkl`)
 
-Un único archivo `joblib` con el `XGBClassifier()` entrenado sobre los datasets finales del TP-final y los parámetros necesarios para codificar los datos crudos (frecuencias de train, media y desvío de las coordenadas y ubicación de las comisarías). Las APIs solo lo cargan: **nada en este repo necesita los datasets originales**.
+Un único archivo `joblib` con el `XGBClassifier()` entrenado sobre los datasets finales del TP-final y los parámetros necesarios para codificar los datos crudos (frecuencias de train, media y desvío de las coordenadas y ubicación de las comisarías). Las APIs solo lo cargan: nada en este repo necesita los datasets originales.
 
 El modelo se genera aparte, fuera del alcance de los mini-TPs, con un script que entrena, verifica la codificación contra las 50.744 filas de test del TP-final y controla las métricas antes de guardar:
 
@@ -56,7 +56,9 @@ uv run --project . python ../prep/train_model.py \
     --data-dir ~/Documents/CEIA/TP-final/datasets
 ```
 
-La codificación está en `arrest_model/features.py`: **una función por feature**, registradas en `ENCODERS`, que además fija el orden con el que se entrenó el modelo.
+### La codificación
+
+Está en `arrest_model/features.py`, con una función por feature registrada en `ENCODERS`, que además fija el orden con el que se entrenó el modelo.
 
 | campo crudo | feature | transformación |
 |---|---|---|

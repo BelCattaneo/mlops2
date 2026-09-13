@@ -1,6 +1,6 @@
 # Mini-TP 1 — API REST con FastAPI
 
-API que sirve el modelo de arrestos de Chicago por HTTP. Carga `model/model.pkl` **una sola vez** al arrancar, recibe los 6 campos crudos de un reporte, hace la codificación en el servidor y devuelve la predicción.
+API que sirve el modelo de arrestos de Chicago por HTTP. Carga `model/model.pkl` una sola vez al arrancar, recibe los 6 campos crudos de un reporte, hace la codificación en el servidor y devuelve la predicción.
 
 ← [README general del repo](../README.md)
 
@@ -87,7 +87,7 @@ Y `GET /v1/metadata` describe qué modelo está sirviendo:
 
 ## Qué valida el contrato
 
-El payload se valida **antes** de llegar al modelo; si no cumple, la API responde 422 con el detalle del campo.
+El payload se valida antes de llegar al modelo; si no cumple, la API responde 422 con el detalle del campo.
 
 | campo | regla |
 |---|---|
@@ -102,9 +102,17 @@ Los textos se normalizan antes de validar: `" battery "` se acepta como `"BATTER
 
 ## Errores y observabilidad
 
-- **503** si el modelo no se pudo cargar: la API igual levanta y lo informa en `/health`, en vez de morir al arrancar.
-- **500 controlado** ante cualquier error inesperado. El cliente recibe un mensaje genérico; la traza completa queda en el log del servidor. Los mensajes de error nunca incluyen rutas del servidor ni detalles internos.
-- **Una línea de log por request** con método, ruta, status, latencia y versión del modelo:
+### 503 cuando el modelo no se pudo cargar
+
+La API igual levanta y lo informa en `/health`, en vez de morir al arrancar.
+
+### 500 controlado ante un error inesperado
+
+El cliente recibe un mensaje genérico y la traza completa queda en el log del servidor. Los mensajes de error nunca incluyen rutas del servidor ni detalles internos.
+
+### Una línea de log por request
+
+Con método, ruta, status, latencia y versión del modelo:
 
 ```
 INFO:     GET /v1/metadata -> 200 en 4.2 ms (modelo v1)
