@@ -72,13 +72,26 @@ grpc-logs: ## TP3 · muestra los logs del contenedor
 grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up corriendo)
 	uv run python -m tp3_grpc.client --target 127.0.0.1:$(GRPC_PORT)
 
-.PHONY: graphql-run graphql-client
+NEO4J_CONTAINER := neo4j-tp
+
+.PHONY: graphql-run graphql-client graphql-seed neo4j-up neo4j-down
 
 graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
 	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
 
 graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
 	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
+
+graphql-seed: ## TP2 · siembra el linaje del modelo en Neo4j (espera a que acepte conexiones)
+	uv run python -m tp2_graphql.lineage
+
+neo4j-up: ## TP2 · levanta Neo4j en Docker (UI en 7474, driver bolt en 7687)
+	@docker rm -f $(NEO4J_CONTAINER) > /dev/null 2>&1 || true
+	docker run -d --rm --name $(NEO4J_CONTAINER) -p 7474:7474 -p 7687:7687 \
+		-e NEO4J_AUTH=neo4j/testpass neo4j:latest
+
+neo4j-down: ## TP2 · detiene Neo4j
+	docker stop $(NEO4J_CONTAINER)
 
 grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo lado)
 	uv run python -m tp3_grpc.benchmark --rest-url http://127.0.0.1:$(REST_PORT) \
