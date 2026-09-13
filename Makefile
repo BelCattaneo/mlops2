@@ -12,7 +12,7 @@ GRAPHQL_PORT := 8010
 .PHONY: rest-run rest-build rest-up rest-down rest-logs rest-health rest-client
 
 help: ## Muestra los comandos disponibles
-	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-13s %s\n", $$1, $$2}'
+	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
 
 install: ## Instala las dependencias con uv
 	uv sync
@@ -74,13 +74,18 @@ grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up
 
 NEO4J_CONTAINER := neo4j-tp
 
-.PHONY: graphql-run graphql-client graphql-seed neo4j-up neo4j-down
+.PHONY: graphql-run graphql-client graphql-compare graphql-seed neo4j-up neo4j-down
 
 graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
 	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
 
 graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
 	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
+
+graphql-compare: ## TP2 · compara la misma lectura por REST y por GraphQL (las dos APIs arriba)
+	uv run python -m tp2_graphql.compare \
+		--rest-url http://127.0.0.1:$(REST_PORT) \
+		--graphql-url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
 
 graphql-seed: ## TP2 · siembra el linaje del modelo en Neo4j (espera a que acepte conexiones)
 	uv run python -m tp2_graphql.lineage

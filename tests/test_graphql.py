@@ -7,8 +7,10 @@ from fastapi.testclient import TestClient
 
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
+from tp1_rest.app import create_app as create_rest_app
 from tp2_graphql.app import create_app
 from tp2_graphql.client import run_client
+from tp2_graphql.compare import compare
 from tp2_graphql.schema import schema
 
 MODELO = "chicago-arrest-xgboost"
@@ -95,6 +97,26 @@ def test_client_runs_every_case_without_failures(
     with TestClient(create_app(lambda: bundle)) as client:
         assert run_client("/graphql", session=client, timeout=None) == 0
     assert "[FALLA]" not in capsys.readouterr().out
+
+
+def test_both_protocols_build_the_same_view(bundle: dict[str, Any]) -> None:
+    with (
+        TestClient(create_rest_app(lambda: bundle)) as rest,
+        TestClient(create_app(lambda: bundle)) as graphql,
+    ):
+        numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
+    assert numeros["vista"]["rest"] == numeros["vista"]["graphql"]
+    assert numeros["vista"]["graphql"]["name"] == MODELO
+
+
+def test_graphql_moves_fewer_bytes_for_the_same_view(bundle: dict[str, Any]) -> None:
+    # REST manda el payload entero cuando se querían dos campos; eso es el over-fetching.
+    with (
+        TestClient(create_rest_app(lambda: bundle)) as rest,
+        TestClient(create_app(lambda: bundle)) as graphql,
+    ):
+        numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
+    assert numeros["graphql"]["bytes"] < numeros["rest"]["bytes"]
 
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:
