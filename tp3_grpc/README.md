@@ -62,37 +62,37 @@ El servicio **no reimplementa nada del modelo**. La validación (`CrimeReport`),
 
 Los dos protocolos hacen el mismo trabajo (validar, codificar, predecir) y **se miden del mismo lado**: comparar gRPC local contra REST en contenedor mediría el empaquetado, no el protocolo. REST se mide de dos formas a propósito, porque gRPC siempre reutiliza el canal: la comparación justa es contra keep-alive.
 
-Corrida del notebook, 300 repeticiones, los dos servicios locales (ms por llamada):
+Se midió **cinco veces**: tres con los dos servicios locales y dos con los dos en contenedor. Con una sola medición no se puede separar un efecto real del ruido.
 
-| forma | media | p50 | p95 |
+Mediciones dedicadas, 300 repeticiones (ms por llamada):
+
+| forma | local | contenedor (1) | contenedor (2) |
 |---|---|---|---|
-| REST sin sesión | 2.80 | 2.66 | 3.06 |
-| REST keep-alive | 2.56 | 2.50 | 2.88 |
-| gRPC | 1.83 | 1.80 | 2.02 |
+| REST sin sesión | 2.65 | 4.76 | 4.34 |
+| REST keep-alive | 2.51 | 3.16 | 3.61 |
+| gRPC unary | 1.92 | 1.91 | 2.15 |
 
 Lote de 100 reportes (ms totales):
 
-| forma | total |
-|---|---|
-| 100 × `POST /v1/predict` | 250.3 |
-| 1 × `POST /v1/predict/batch` | 3.5 |
-| 1 × `PredictStream` | 7.9 |
+| forma | local | contenedor (1) | contenedor (2) |
+|---|---|---|---|
+| 100 × `POST /v1/predict` | 268.8 | 288.5 | 413.9 |
+| 1 × `POST /v1/predict/batch` | 4.2 | 4.4 | 6.0 |
+| 1 × `PredictStream` | 6.4 | 12.5 | 12.0 |
 
-Entrega del streaming, lote de 100: la primera predicción llega a los 3.50 ms y la última a los 9.35 ms.
+El notebook corre además su propia medición local cada vez que se ejecuta; sus números están en la salida de la celda del benchmark.
+
+Entrega del streaming (lote de 100): la primera predicción llega alrededor de los 3 ms y la última entre 7 y 9 ms según la corrida.
 
 Tamaño del mensaje: el mismo reporte pesa **60 bytes** en protobuf contra **161** en JSON (2.7x), porque en protobuf viajan los números de campo y no sus nombres.
 
-Corrida aparte con los **dos servicios en contenedor**, para separar el costo del protocolo del de Docker:
+### Qué se repite y qué no
 
-| forma | local | en contenedor |
-|---|---|---|
-| REST sin sesión | 2.65 ms | 4.76 ms |
-| REST keep-alive | 2.51 ms | 3.16 ms |
-| gRPC unary | 1.92 ms | 1.91 ms |
-| 1 × `POST /v1/predict/batch` | 4.2 ms | 4.4 ms |
-| 1 × `PredictStream` | 6.4 ms | 12.5 ms |
+- **Rangos separados** (efecto reproducible): gRPC contra REST keep-alive da entre **1.3x y 1.5x en local** (tres mediciones) y entre **1.65x y 1.7x en contenedor** (dos). La ventaja de gRPC se agranda dentro de Docker, porque reutiliza una sola conexión HTTP/2 y REST paga la red de Docker en cada llamada.
+- **Rangos superpuestos** (no concluyente): `POST /v1/predict/batch` contra `PredictStream` da 1.5x–2.5x en local y 2.0x–2.8x en contenedor. La dirección se repite en las cinco corridas —REST batch siempre gana— pero la magnitud no se distingue del ruido.
+- Al containerizar, gRPC se degrada **bastante menos** que REST (del orden del 0–15% contra ~34% de REST keep-alive), pero **no es inmune**: eso pareció cierto en una corrida y la siguiente lo desmintió.
 
-Los números **varían entre corridas** (una laptop con Docker Desktop, no un banco de pruebas): sirven para el orden de magnitud, no para la tercera cifra.
+Los números **varían entre corridas** (una laptop con Docker Desktop, no un banco de pruebas): sirven para comparar rangos, no para la tercera cifra.
 
 > **Conclusiones: pendientes.** Los datos de arriba son las observaciones; la interpretación y las tres respuestas de la consigna se completan en el notebook.
 
