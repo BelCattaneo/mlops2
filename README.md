@@ -7,7 +7,7 @@ Los tres mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.p
 | Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
 | 1 | API REST con FastAPI | [`tp1_rest/README.md`](tp1_rest/README.md) | Listo |
-| 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/`](tp2_graphql/) | Pendiente |
+| 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/README.md`](tp2_graphql/README.md) | Listo, falta la reflexión |
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
 
 ## Puesta en marcha
@@ -30,7 +30,7 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
-├── tp2_graphql/     # Mini-TP 2: GraphQL
+├── tp2_graphql/     # Mini-TP 2: GraphQL (schema.py, app.py, client.py, compare.py, lineage.py, README.md)
 ├── tp3_grpc/        # Mini-TP 3: gRPC (scoring.proto, server.py, client.py, benchmark.py, README.md)
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
