@@ -48,7 +48,7 @@ def test_errors_do_not_leak_server_paths(valid_payload: dict[str, Any]) -> None:
 
 
 def test_predict_matches_the_reference_prediction(
-    bundle: dict[str, Any], valid_payload: dict[str, Any]
+    bundle: dict[str, Any], valid_payload: dict[str, Any], reference_probability: float
 ) -> None:
     with TestClient(create_app(lambda: bundle)) as client:
         response = client.post("/v1/predict", json=valid_payload)
@@ -56,7 +56,7 @@ def test_predict_matches_the_reference_prediction(
     # Valor de referencia documentado en el README: fija codificación, modelo y regla de decisión.
     assert response.json() == {
         "arrest": 0,
-        "probability": pytest.approx(0.06843266636133194),
+        "probability": pytest.approx(reference_probability),
         "model_name": "chicago-arrest-xgboost",
         "model_version": 1,
     }
@@ -76,7 +76,7 @@ def test_predict_returns_503_without_model(valid_payload: dict[str, Any]) -> Non
 
 
 def test_predict_batch_returns_one_prediction_per_report_in_order(
-    bundle: dict[str, Any], valid_payload: dict[str, Any]
+    bundle: dict[str, Any], valid_payload: dict[str, Any], reference_probability: float
 ) -> None:
     reports = [valid_payload, valid_payload | {"primary_type": "THEFT"}]
     with TestClient(create_app(lambda: bundle)) as client:
@@ -85,7 +85,7 @@ def test_predict_batch_returns_one_prediction_per_report_in_order(
     predictions = response.json()["predictions"]
     assert len(predictions) == 2
     # El primero es el payload de referencia; el segundo cambia de tipo y no puede dar lo mismo.
-    assert predictions[0]["probability"] == pytest.approx(0.06843266636133194)
+    assert predictions[0]["probability"] == pytest.approx(reference_probability)
     assert predictions[1]["probability"] != predictions[0]["probability"]
 
 

@@ -1,6 +1,8 @@
 """Mini-TP 3: servicio gRPC."""
 
 import filecmp
+import logging
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -19,8 +21,6 @@ from tp3_grpc.server import serve
 REPO = Path(__file__).resolve().parent.parent
 PROTO = "tp3_grpc/scoring.proto"
 STUBS = ("tp3_grpc/scoring_pb2.py", "tp3_grpc/scoring_pb2_grpc.py")
-# Mismo valor de referencia que usa el TP1: fija codificación, modelo y regla de decisión.
-REFERENCE_PROBABILITY = 0.06843266636133194
 
 
 def _generate_stubs(output_dir: Path) -> None:
@@ -67,23 +67,23 @@ def test_versioned_stubs_match_the_proto(tmp_path: Path) -> None:
 
 
 def test_predict_matches_the_reference_prediction(
-    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub, reference_probability: float
 ) -> None:
     response = grpc_stub.Predict(crime_report())
     assert response.arrest == 0
-    assert response.probability == pytest.approx(REFERENCE_PROBABILITY)
+    assert response.probability == pytest.approx(reference_probability)
     assert response.model_name == "chicago-arrest-xgboost"
     assert response.model_version == 1
 
 
 def test_predict_uses_the_absolute_instant_not_the_wall_clock(
-    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub, reference_probability: float
 ) -> None:
     # Las 23:58 del 31/12 en Chicago son las 05:58 del 1/1 en UTC: si el servidor tomara el día
     # de la semana en UTC, cambiaría el Day_sin y no daría el valor de referencia.
     message = crime_report()
     message.date.FromDatetime(datetime(2025, 1, 1, 5, 58, tzinfo=UTC))
-    assert grpc_stub.Predict(message).probability == pytest.approx(REFERENCE_PROBABILITY)
+    assert grpc_stub.Predict(message).probability == pytest.approx(reference_probability)
 
 
 def test_predict_rejects_a_report_without_latitude(
@@ -105,14 +105,14 @@ def test_predict_rejects_an_unknown_primary_type(
 
 
 def test_predict_stream_returns_one_prediction_per_item_in_order(
-    grpc_stub: scoring_pb2_grpc.ArrestScoringStub,
+    grpc_stub: scoring_pb2_grpc.ArrestScoringStub, reference_probability: float
 ) -> None:
     # Diez items alternando dos reportes distintos: sirve para ver que se respeta el orden.
     batch = scoring_pb2.CrimeBatch(items=[crime_report(), crime_report(primary_type="THEFT")] * 5)
     predictions = list(grpc_stub.PredictStream(batch))
     assert len(predictions) == 10
-    assert predictions[0].probability == pytest.approx(REFERENCE_PROBABILITY)
-    assert predictions[8].probability == pytest.approx(REFERENCE_PROBABILITY)
+    assert predictions[0].probability == pytest.approx(reference_probability)
+    assert predictions[8].probability == pytest.approx(reference_probability)
     assert predictions[1].probability != predictions[0].probability
     assert [p.probability for p in predictions[::2]] == [predictions[0].probability] * 5
     assert [p.probability for p in predictions[1::2]] == [predictions[1].probability] * 5
@@ -136,6 +136,30 @@ def test_summarize_reports_mean_and_percentiles_by_nearest_rank() -> None:
 
 def test_summarize_handles_a_single_sample() -> None:
     assert summarize([7.0]) == {"media": 7.0, "p50": 7.0, "p95": 7.0}
+
+
+def test_every_rpc_is_logged_with_method_status_and_latency(
+    grpc_port: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="tp3_grpc")
+    with grpc.insecure_channel(f"127.0.0.1:{grpc_port}") as channel:
+        scoring_pb2_grpc.ArrestScoringStub(channel).Predict(crime_report())
+    line = [record.getMessage() for record in caplog.records if record.name == "tp3_grpc"][-1]
+    assert "Predict" in line
+    assert "OK" in line
+    assert re.search(r"\d+\.\d+ ms", line)
+
+
+def test_a_rejected_rpc_is_logged_with_its_status(
+    grpc_port: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="tp3_grpc")
+    with grpc.insecure_channel(f"127.0.0.1:{grpc_port}") as channel:
+        stub = scoring_pb2_grpc.ArrestScoringStub(channel)
+        with pytest.raises(grpc.RpcError):
+            stub.Predict(crime_report(primary_type="BANANA"))
+    line = [record.getMessage() for record in caplog.records if record.name == "tp3_grpc"][-1]
+    assert "INVALID_ARGUMENT" in line
 
 
 def test_client_runs_every_case_without_failures(

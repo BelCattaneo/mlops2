@@ -1,12 +1,15 @@
 """Compara la latencia de gRPC contra REST sirviendo el mismo modelo.
 
-**Simetría**: los dos protocolos hacen exactamente el mismo trabajo (validar, codificar y
-predecir) y se miden en el mismo lugar. Si uno corriera en contenedor y el otro local, se
-estaría midiendo el empaquetado y no el protocolo.
+Simetría: los dos protocolos hacen exactamente el mismo trabajo (validar, codificar y predecir),
+los dos dejan una línea de log por request, y se miden en el mismo lugar. Si uno corriera en
+contenedor y el otro local, se estaría midiendo el empaquetado y no el protocolo.
 
-Se mide REST de dos formas a propósito: sin sesión (conexión nueva por llamada) y con
-keep-alive. gRPC reutiliza el canal siempre, así que la comparación justa es contra keep-alive;
-la otra muestra cuánto cuesta el handshake.
+Se mide REST de dos formas a propósito: sin sesión (conexión nueva por llamada) y con keep-alive.
+gRPC reutiliza el canal siempre, así que la comparación justa es contra keep-alive; la otra
+muestra cuánto cuesta el handshake.
+
+Toda respuesta REST se valida con `raise_for_status()`: sin eso, un servicio que contesta 503 se
+mediría como si fueran predicciones y daría a REST una ventaja falsa.
 
 Uso: `uv run python -m tp3_grpc.benchmark [--n 300] [--rest-url ...] [--grpc-target ...]`
 """
@@ -30,12 +33,16 @@ GRPC_TARGET = "127.0.0.1:50051"
 
 def percentile(samples: list[float], fraction: float) -> float:
     """Percentil por rango más cercano: el p95 de 100 muestras es la muestra 95."""
+    if not samples:
+        raise ValueError("no hay muestras para calcular el percentil")
     rank = max(1, math.ceil(fraction * len(samples)))
     return sorted(samples)[rank - 1]
 
 
 def summarize(samples: list[float]) -> dict[str, float]:
     """Media, mediana y p95 de las latencias, en ms."""
+    if not samples:
+        raise ValueError("no hay muestras para resumir")
     return {
         "media": sum(samples) / len(samples),
         "p50": percentile(samples, 0.50),
@@ -52,6 +59,8 @@ def elapsed_ms(call: Callable[[], Any]) -> float:
 
 def measure(call: Callable[[], Any], n: int, warmup: int) -> dict[str, float]:
     """Descarta `warmup` llamadas y resume la latencia de las `n` siguientes."""
+    if n < 1:
+        raise ValueError("hacen falta al menos 1 repetición para medir")
     for _ in range(warmup):
         call()
     return summarize([elapsed_ms(call) for _ in range(n)])
@@ -65,33 +74,33 @@ def run_benchmark(
     batch_size: int = 100,
 ) -> dict[str, Any]:
     """Corre las dos comparaciones (una llamada, y un lote) y devuelve los números."""
+    if batch_size < 1:
+        raise ValueError("el lote tiene que tener al menos 1 reporte")
     payload = dict(EXAMPLE_REPORT)
     predict_url, batch_url = f"{rest_url}/v1/predict", f"{rest_url}/v1/predict/batch"
     message = crime_report()
     batch = scoring_pb2.CrimeBatch(items=[crime_report()] * batch_size)
 
+    def post(caller: Any, url: str, body: dict[str, Any], timeout: int = 10) -> Any:
+        """POST que falla fuerte si la respuesta no es 2xx, para no medir errores."""
+        response = caller.post(url, json=body, timeout=timeout)
+        response.raise_for_status()
+        return response
+
     with requests.Session() as session, grpc.insecure_channel(grpc_target) as channel:
         grpc.channel_ready_future(channel).result(timeout=15)
         stub = scoring_pb2_grpc.ArrestScoringStub(channel)
         unary = {
-            "REST sin sesión": measure(
-                lambda: requests.post(predict_url, json=payload, timeout=10), n, warmup
-            ),
-            "REST keep-alive": measure(
-                lambda: session.post(predict_url, json=payload, timeout=10), n, warmup
-            ),
+            "REST sin sesión": measure(lambda: post(requests, predict_url, payload), n, warmup),
+            "REST keep-alive": measure(lambda: post(session, predict_url, payload), n, warmup),
             "gRPC": measure(lambda: stub.Predict(message), n, warmup),
         }
         lote = {
             f"{batch_size} POST /v1/predict": elapsed_ms(
-                lambda: [
-                    session.post(predict_url, json=payload, timeout=10) for _ in range(batch_size)
-                ]
+                lambda: [post(session, predict_url, payload) for _ in range(batch_size)]
             ),
             "1 POST /v1/predict/batch": elapsed_ms(
-                lambda: session.post(
-                    batch_url, json={"reports": [payload] * batch_size}, timeout=30
-                )
+                lambda: post(session, batch_url, {"reports": [payload] * batch_size}, timeout=30)
             ),
             "1 PredictStream": elapsed_ms(lambda: list(stub.PredictStream(batch))),
         }
@@ -130,8 +139,8 @@ def main() -> int:
             warmup=args.warmup,
             batch_size=args.batch_size,
         )
-    except (requests.RequestException, grpc.FutureTimeoutError) as exc:
-        print(f"No se pudo medir ({type(exc).__name__}).")
+    except (requests.RequestException, grpc.RpcError, grpc.FutureTimeoutError, ValueError) as exc:
+        print(f"No se pudo medir ({type(exc).__name__}): {exc}")
         print("Tienen que estar los dos servicios arriba y del mismo lado: ver `make help`.")
         return 1
     print(format_results(results))

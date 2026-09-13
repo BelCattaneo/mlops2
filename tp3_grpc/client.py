@@ -32,8 +32,9 @@ def crime_report(**changes: Any) -> scoring_pb2.CrimeReport:
     for field in ("latitude", "longitude"):
         if data[field] is not None:
             setattr(message, field, data[field])
-    chicago_time = datetime.fromisoformat(data["date"]).replace(tzinfo=CHICAGO)
-    message.date.FromDatetime(chicago_time.astimezone(UTC))
+    if data["date"] is not None:
+        chicago_time = datetime.fromisoformat(data["date"]).replace(tzinfo=CHICAGO)
+        message.date.FromDatetime(chicago_time.astimezone(UTC))
     return message
 
 
@@ -58,9 +59,10 @@ def check(label: str, expected: grpc.StatusCode, call: Callable[[], Any]) -> boo
 def check_stream(stub: scoring_pb2_grpc.ArrestScoringStub, count: int = 10) -> bool:
     """Consume un lote por streaming, mostrando cada predicción a medida que llega."""
     label = f"PredictStream con {count} reportes"
-    batch = scoring_pb2.CrimeBatch(
-        items=[crime_report(), crime_report(primary_type="THEFT")] * (count // 2)
-    )
+    # Se alternan dos reportes distintos para ver que el orden se respeta; con `count` impar
+    # el truncamiento dejaría menos items de los que después se exigen.
+    alternados = [crime_report(), crime_report(primary_type="THEFT")]
+    batch = scoring_pb2.CrimeBatch(items=[alternados[i % 2] for i in range(count)])
     received = 0
     try:
         for prediction in stub.PredictStream(batch):
@@ -91,6 +93,11 @@ def run_client(target: str) -> int:
                     "Predict sin latitude",
                     invalid,
                     lambda: stub.Predict(crime_report(latitude=None)),
+                ),
+                check(
+                    "Predict sin fecha",
+                    invalid,
+                    lambda: stub.Predict(crime_report(date=None)),
                 ),
                 check(
                     "Predict con primary_type desconocido",
