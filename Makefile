@@ -72,10 +72,13 @@ grpc-logs: ## TP3 · muestra los logs del contenedor
 grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up corriendo)
 	uv run python -m tp3_grpc.client --target 127.0.0.1:$(GRPC_PORT)
 
-.PHONY: graphql-run
+.PHONY: graphql-run graphql-client
 
 graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
 	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
+
+graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
+	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
 
 grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo lado)
 	uv run python -m tp3_grpc.benchmark --rest-url http://127.0.0.1:$(REST_PORT) \

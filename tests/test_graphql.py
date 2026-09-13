@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
 from tp2_graphql.app import create_app
+from tp2_graphql.client import run_client
 from tp2_graphql.schema import schema
 
 MODELO = "chicago-arrest-xgboost"
@@ -56,6 +57,15 @@ def test_the_app_serves_graphiql(bundle: dict[str, Any]) -> None:
         response = client.get("/graphql", headers={"Accept": "text/html"})
     assert response.status_code == 200
     assert "graphiql" in response.text.lower()
+
+
+def test_client_runs_every_case_without_failures(
+    bundle: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # El cliente recibe la sesión, así que el flujo entero se prueba sin levantar un servidor.
+    with TestClient(create_app(lambda: bundle)) as client:
+        assert run_client("/graphql", session=client, timeout=None) == 0
+    assert "[FALLA]" not in capsys.readouterr().out
 
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:
