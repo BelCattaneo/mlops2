@@ -64,7 +64,7 @@ El servicio no reimplementa nada del modelo. La validación (`CrimeReport`), la 
 
 Se midieron cuatro cohortes: las dos APIs como proceso en la máquina (`rest-local`, `grpc-local`) y las dos en contenedor (`rest-dockerizado`, `grpc-dockerizado`). A cada una se le tomaron dos pruebas: una llamada suelta, repetida 300 veces, y un lote de 100 reportes. De REST se miden además dos formas de conectarse, abriendo la conexión en cada llamada y reutilizándola, porque gRPC siempre reutiliza el canal y la comparación pareja es contra esa segunda forma.
 
-Cada cohorte se midió tres veces, porque con una sola medición no se distingue un efecto real del ruido. Los valores crudos quedaron en [`latencias.json`](latencias.json); la tabla de resultados y la lectura de qué se repite y qué no están en el [notebook](mini_tp3_actividad.ipynb).
+Cada cohorte se midió tres veces, porque con una sola medición no se distingue un efecto real del ruido. Los valores crudos quedaron en [`latencias.json`](latencias.json), y el detalle de la medición con su lectura está en [`latencias.md`](latencias.md). El [notebook](mini_tp3_actividad.ipynb) muestra la tabla de resultados y la reflexión.
 
 ## El notebook
 

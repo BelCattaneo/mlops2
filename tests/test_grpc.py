@@ -158,6 +158,12 @@ def test_median_table_shows_one_value_per_fila(tmp_path: Path) -> None:
     assert "·" not in tabla
 
 
+def test_latencias_doc_shows_the_measured_table() -> None:
+    # El documento repite la tabla que sale del JSON; el test evita que se desincronicen.
+    doc = (REPO / "tp3_grpc" / "latencias.md").read_text(encoding="utf-8")
+    assert median_table(REPO / "tp3_grpc" / "latencias.json") in doc
+
+
 def test_median_table_uses_the_versioned_results() -> None:
     tabla = median_table(REPO / "tp3_grpc" / "latencias.json")
     for cohorte in ("rest-local", "rest-dockerizado", "grpc-local", "grpc-dockerizado"):
