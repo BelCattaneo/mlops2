@@ -8,7 +8,7 @@ Los tres mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.p
 |---|---|---|---|
 | 1 | API REST con FastAPI | [`tp1_rest/README.md`](tp1_rest/README.md) | Listo |
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/`](tp2_graphql/) | Pendiente |
-| 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo, falta la reflexión |
+| 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
 
 ## Puesta en marcha
 

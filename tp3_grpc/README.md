@@ -4,8 +4,6 @@ El mismo modelo de arrestos de Chicago que el TP1 sirve por REST, expuesto por g
 
 ← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md)
 
-> Pendiente: falta escribir la reflexión final (punto 5 de la consigna). Los datos ya están medidos, acá abajo y en el notebook.
-
 ## Cómo correrlo
 
 Todos los comandos se corren desde la raíz del repo.
