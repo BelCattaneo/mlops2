@@ -6,6 +6,7 @@ REST_PORT := 8000
 GRPC_IMAGE := arrest-grpc
 GRPC_CONTAINER := arrest-grpc
 GRPC_PORT := 50051
+GRAPHQL_PORT := 8010
 
 .PHONY: help install test lint
 .PHONY: rest-run rest-build rest-up rest-down rest-logs rest-health rest-client
@@ -70,6 +71,11 @@ grpc-logs: ## TP3 · muestra los logs del contenedor
 
 grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up corriendo)
 	uv run python -m tp3_grpc.client --target 127.0.0.1:$(GRPC_PORT)
+
+.PHONY: graphql-run
+
+graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
+	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
 
 grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo lado)
 	uv run python -m tp3_grpc.benchmark --rest-url http://127.0.0.1:$(REST_PORT) \

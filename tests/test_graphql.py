@@ -3,9 +3,11 @@
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
+from tp2_graphql.app import create_app
 from tp2_graphql.schema import schema
 
 MODELO = "chicago-arrest-xgboost"
@@ -37,6 +39,23 @@ def test_unknown_model_is_null(bundle: dict[str, Any]) -> None:
     result = consultar('{ model(name: "otro-modelo") { name } }', bundle)
     assert result.errors is None
     assert result.data == {"model": None}
+
+
+def test_the_app_answers_a_query_over_http(bundle: dict[str, Any]) -> None:
+    with TestClient(create_app(lambda: bundle)) as client:
+        response = client.post(
+            "/graphql", json={"query": f'{{ model(name: "{MODELO}") {{ name version }} }}'}
+        )
+    assert response.status_code == 200
+    assert response.json()["data"]["model"] == {"name": MODELO, "version": 1}
+
+
+def test_the_app_serves_graphiql(bundle: dict[str, Any]) -> None:
+    # La consigna pide probarlo desde GraphiQL, así que la interfaz tiene que estar servida.
+    with TestClient(create_app(lambda: bundle)) as client:
+        response = client.get("/graphql", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    assert "graphiql" in response.text.lower()
 
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:
