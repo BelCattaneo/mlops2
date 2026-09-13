@@ -36,6 +36,35 @@ def test_query_returns_only_the_requested_fields(bundle: dict[str, Any]) -> None
     assert result.data == {"model": {"metrics": {"mcc": pytest.approx(0.5811, abs=1e-4)}}}
 
 
+class DriverQueFalla:
+    """Un driver de Neo4j que revienta al usarse, para probar qué pasa si la base no responde."""
+
+    def session(self) -> Any:
+        raise RuntimeError("Neo4j no responde")
+
+
+def test_lineage_is_null_when_neo4j_fails(bundle: dict[str, Any]) -> None:
+    # El linaje se cae, pero el resto de la respuesta tiene que llegar igual.
+    result = schema.execute_sync(
+        f'{{ model(name: "{MODELO}") {{ name lineage {{ name kind }} }} }}',
+        context_value={"bundle": bundle, "driver": DriverQueFalla()},
+    )
+    assert result.errors is not None
+    assert result.data["model"]["name"] == MODELO
+    assert result.data["model"]["lineage"] is None
+
+
+def test_lineage_is_not_queried_when_not_asked(bundle: dict[str, Any]) -> None:
+    # Con un driver que revienta, pedir solo las métricas no puede fallar: GraphQL resuelve
+    # únicamente los campos pedidos, y ese es el punto de la comparación con REST.
+    result = schema.execute_sync(
+        f'{{ model(name: "{MODELO}") {{ metrics {{ mcc }} }} }}',
+        context_value={"bundle": bundle, "driver": DriverQueFalla()},
+    )
+    assert result.errors is None
+    assert result.data["model"]["metrics"]["mcc"] == pytest.approx(0.5811, abs=1e-4)
+
+
 def test_unknown_model_is_null(bundle: dict[str, Any]) -> None:
     result = consultar('{ model(name: "otro-modelo") { name } }', bundle)
     assert result.errors is None

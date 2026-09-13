@@ -12,6 +12,8 @@ from typing import Any
 
 import strawberry
 
+from tp2_graphql.lineage import lineage_of
+
 
 @strawberry.type
 class Metrics:
@@ -26,6 +28,14 @@ class Metrics:
 
 
 @strawberry.type
+class Artifact:
+    """Un artefacto aguas arriba del modelo: un dataset o una transformación."""
+
+    name: str
+    kind: str
+
+
+@strawberry.type
 class Model:
     """El modelo que están sirviendo las APIs del repo."""
 
@@ -36,6 +46,17 @@ class Model:
     features: list[str]
     trained_at: datetime
     metrics: Metrics
+
+    @strawberry.field
+    def lineage(self, info: strawberry.Info) -> list[Artifact] | None:
+        """De dónde salió el modelo: sus datasets y transformaciones, leídos de Neo4j.
+
+        Solo se consulta si la query pide este campo; ese es justamente el punto de GraphQL.
+        Es nullable a propósito: si Neo4j no responde, el error queda acá y el resto de la
+        respuesta llega igual.
+        """
+        artefactos = lineage_of(info.context["driver"], self.name)
+        return [Artifact(name=a["name"], kind=a["kind"]) for a in artefactos]
 
 
 def model_from_metadata(metadata: dict[str, Any]) -> Model:

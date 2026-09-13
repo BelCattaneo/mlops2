@@ -81,6 +81,15 @@ ORDER BY kind, name
 """
 
 
+def connect(uri: str = URI, auth: tuple[str, str] = AUTH) -> Driver:
+    """Crea el driver sin verificar la conexión.
+
+    El driver es perezoso: no se conecta hasta la primera consulta. Gracias a eso el servicio
+    GraphQL arranca aunque Neo4j esté caído, y el problema aparece solo al pedir el linaje.
+    """
+    return GraphDatabase.driver(uri, auth=auth)
+
+
 def open_driver(uri: str = URI, auth: tuple[str, str] = AUTH, wait: float = 60) -> Driver:
     """Abre el driver y espera hasta `wait` segundos a que Neo4j acepte conexiones.
 
