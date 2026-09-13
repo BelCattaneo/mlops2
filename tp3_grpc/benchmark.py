@@ -15,9 +15,12 @@ Uso: `uv run python -m tp3_grpc.benchmark [--n 300] [--rest-url ...] [--grpc-tar
 """
 
 import argparse
+import json
 import math
+import statistics
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import grpc
@@ -120,6 +123,64 @@ def format_results(results: dict[str, Any]) -> str:
     for label, total in results["lote"].items():
         lines.append(f"| {label} | {total:.1f} |")
     return "\n".join(lines)
+
+
+# Cada medición del benchmark, mapeada al servicio y la forma de llamarlo que representa.
+# El nombre de la cohorte sale de combinar el servicio con la condición en que se midió.
+UNA_LLAMADA = {
+    "REST sin sesión": ("rest", "sin sesión"),
+    "REST keep-alive": ("rest", "keep-alive"),
+    "gRPC": ("grpc", "canal reusado"),
+}
+LOTE = {
+    "100 POST /v1/predict": ("rest", "100 llamadas sueltas"),
+    "1 POST /v1/predict/batch": ("rest", "1 llamada al batch"),
+    "1 PredictStream": ("grpc", "1 PredictStream"),
+}
+COHORTES = ["rest-local", "rest-dockerizado", "grpc-local", "grpc-dockerizado"]
+
+
+def median_table(results_path: str | Path) -> str:
+    """Arma la tabla de resultados en markdown a partir de las corridas guardadas.
+
+    Muestra una sola cifra por fila, la mediana de las corridas de esa cohorte: los valores
+    crudos quedan en el JSON, que es donde sirven. Las filas van agrupadas por cohorte y el
+    nombre se escribe una vez por bloque, para que cada grupo se lea junto.
+    """
+    corridas = json.loads(Path(results_path).read_text())
+    medidas: dict[tuple[str, str, str], list[float]] = {}
+    for corrida in corridas:
+        resultado = corrida["resultado"]
+        for prueba, mapa, seccion in (
+            ("una llamada", UNA_LLAMADA, resultado["unary"]),
+            ("lote de 100", LOTE, resultado["lote"]),
+        ):
+            for etiqueta, (servicio, variante) in mapa.items():
+                valor = seccion[etiqueta]
+                clave = (f"{servicio}-{corrida['condicion']}", prueba, variante)
+                medidas.setdefault(clave, []).append(
+                    valor["media"] if isinstance(valor, dict) else valor
+                )
+
+    def orden(clave: tuple[str, str, str]) -> tuple[int, int, int]:
+        cohorte, prueba, variante = clave
+        variantes = [v for _, v in {**UNA_LLAMADA, **LOTE}.values()]
+        return (
+            COHORTES.index(cohorte),
+            ["una llamada", "lote de 100"].index(prueba),
+            variantes.index(variante),
+        )
+
+    filas = ["| cohorte | prueba | variante | mediana (ms) |", "|---|---|---|---|"]
+    anterior = None
+    for clave in sorted(medidas, key=orden):
+        cohorte, prueba, variante = clave
+        etiqueta = f"`{cohorte}`" if cohorte != anterior else ""
+        anterior = cohorte
+        filas.append(
+            f"| {etiqueta} | {prueba} | {variante} | {statistics.median(medidas[clave]):.2f} |"
+        )
+    return "\n".join(filas)
 
 
 def main() -> int:

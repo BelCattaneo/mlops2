@@ -1,6 +1,7 @@
 """Mini-TP 3: servicio gRPC."""
 
 import filecmp
+import json
 import logging
 import re
 import subprocess
@@ -14,7 +15,7 @@ import grpc
 import pytest
 
 from tp3_grpc import scoring_pb2, scoring_pb2_grpc
-from tp3_grpc.benchmark import summarize
+from tp3_grpc.benchmark import median_table, summarize
 from tp3_grpc.client import crime_report, run_client
 from tp3_grpc.server import serve
 
@@ -124,6 +125,43 @@ def test_predict_stream_rejects_an_empty_batch(
     with pytest.raises(grpc.RpcError) as error:
         list(grpc_stub.PredictStream(scoring_pb2.CrimeBatch()))
     assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def test_median_table_shows_one_value_per_fila(tmp_path: Path) -> None:
+    def corrida(condicion: str, rest: float, grpc_ms: float, lote: float) -> dict[str, Any]:
+        return {
+            "condicion": condicion,
+            "resultado": {
+                "unary": {
+                    "REST sin sesión": {"media": rest},
+                    "REST keep-alive": {"media": rest},
+                    "gRPC": {"media": grpc_ms},
+                },
+                "lote": {
+                    "100 POST /v1/predict": lote,
+                    "1 POST /v1/predict/batch": lote,
+                    "1 PredictStream": lote,
+                },
+            },
+        }
+
+    archivo = tmp_path / "latencias.json"
+    archivo.write_text(
+        json.dumps([corrida("local", 2.6, 1.8, 250.0), corrida("local", 2.8, 1.9, 260.0)])
+    )
+    tabla = median_table(archivo)
+    assert "`rest-local`" in tabla
+    assert "`grpc-local`" in tabla
+    assert "| 2.70 |" in tabla  # mediana de 2.6 y 2.8
+    assert "| 1.85 |" in tabla  # mediana de 1.8 y 1.9
+    # Una sola cifra por fila: las corridas crudas se cuentan en la prosa, no en la tabla.
+    assert "·" not in tabla
+
+
+def test_median_table_uses_the_versioned_results() -> None:
+    tabla = median_table(REPO / "tp3_grpc" / "latencias.json")
+    for cohorte in ("rest-local", "rest-dockerizado", "grpc-local", "grpc-dockerizado"):
+        assert f"`{cohorte}`" in tabla
 
 
 def test_summarize_reports_mean_and_percentiles_by_nearest_rank() -> None:

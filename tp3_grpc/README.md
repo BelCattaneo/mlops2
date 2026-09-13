@@ -60,66 +60,11 @@ El servicio no reimplementa nada del modelo. La validación (`CrimeReport`), la 
 
 ## Medición de latencia
 
-### Cómo se midió
+`benchmark.py` compara las dos APIs sirviendo el mismo modelo. Se corre con `make grpc-bench`, con los dos servicios levantados.
 
-Para que la comparación mida el protocolo y no otra cosa, los dos lados tienen que hacer el mismo trabajo y medirse en el mismo lugar. Tres decisiones lo sostienen:
+Se midieron cuatro cohortes: las dos APIs como proceso en la máquina (`rest-local`, `grpc-local`) y las dos en contenedor (`rest-dockerizado`, `grpc-dockerizado`). A cada una se le tomaron dos pruebas: una llamada suelta, repetida 300 veces, y un lote de 100 reportes. De REST se miden además dos formas de conectarse, abriendo la conexión en cada llamada y reutilizándola, porque gRPC siempre reutiliza el canal y la comparación pareja es contra esa segunda forma.
 
-- Los dos servicios dejan una línea de log por request. REST la tiene desde el TP1; el servidor gRPC no la tenía, y se le agregó un interceptor justamente para emparejar. Sin eso REST pagaba un costo que gRPC no, y la diferencia medida lo habría incluido.
-- Toda respuesta REST se valida con `raise_for_status()`. Sin eso, un servicio que contesta 503 se mide como si fueran predicciones: probado a propósito, daba REST cinco veces más rápido que gRPC, o sea la conclusión al revés.
-- REST se mide de dos formas, sin sesión y con keep-alive, porque gRPC siempre reutiliza el canal. La comparación justa es contra keep-alive; la otra muestra cuánto cuesta abrir la conexión.
-
-### Las cohortes
-
-| cohorte | qué es |
-|---|---|
-| `rest-local` · `grpc-local` | los dos servicios como proceso en la máquina |
-| `rest-dockerizado` · `grpc-dockerizado` | los dos servicios en contenedor al mismo tiempo |
-
-Nunca se compara una cohorte local contra una dockerizada de otro protocolo: eso mediría el empaquetado, no el protocolo.
-
-### Las corridas
-
-Tres corridas por condición, 300 repeticiones por medición, todas seguidas en una misma sesión. Se corre más de una vez porque con una sola medición no se puede distinguir un efecto real del ruido.
-
-Las mediciones de sesiones anteriores se descartaron. Los valores absolutos se mueven bastante con el estado de la máquina —entre tandas, toda la columna dockerizada se movió sin que cambiara el código— así que solo son comparables entre sí las corridas de una misma tanda.
-
-### La tabla
-
-Cada bloque es una cohorte; el nombre se escribe una sola vez y las filas siguientes son del mismo bloque.
-
-| cohorte | prueba | variante | corridas (ms) | mediana |
-|---|---|---|---|---|
-| `rest-local` | una llamada | sin sesión | 2.78 · 2.82 · 2.76 | 2.78 |
-|  | una llamada | keep-alive | 2.82 · 2.64 · 2.66 | 2.66 |
-|  | lote de 100 | 100 llamadas sueltas | 275.61 · 252.94 · 255.83 | 255.83 |
-|  | lote de 100 | 1 llamada al batch | 5.86 · 3.32 · 3.07 | 3.32 |
-| `rest-dockerizado` | una llamada | sin sesión | 5.58 · 6.08 · 5.63 | 5.63 |
-|  | una llamada | keep-alive | 4.94 · 5.34 · 4.83 | 4.94 |
-|  | lote de 100 | 100 llamadas sueltas | 491.85 · 527.44 · 507.65 | 507.65 |
-|  | lote de 100 | 1 llamada al batch | 6.92 · 7.60 · 6.08 | 6.92 |
-| `grpc-local` | una llamada | canal reusado | 1.81 · 1.89 · 1.85 | 1.85 |
-|  | lote de 100 | 1 PredictStream | 8.82 · 6.42 · 6.46 | 6.46 |
-| `grpc-dockerizado` | una llamada | canal reusado | 2.81 · 2.81 · 2.75 | 2.81 |
-|  | lote de 100 | 1 PredictStream | 12.41 · 13.46 · 16.78 | 13.46 |
-
-Aparte de la tabla, dos datos medidos por separado: el mismo reporte pesa 60 bytes en protobuf contra 161 en JSON (2.7x), porque en protobuf viajan los números de campo y no sus nombres; y en un `PredictStream` de 100 la primera predicción llega alrededor de los 3 ms y la última entre 7 y 9 ms, o sea que el stream entrega de a poco en vez de todo al final.
-
-### Qué se repite
-
-Rangos separados, o sea efecto reproducible:
-
-- gRPC contra REST keep-alive: 1.40x–1.56x local y 1.76x–1.90x dockerizado. La ventaja de gRPC se agranda dentro de Docker, porque reutiliza una sola conexión HTTP/2 mientras REST paga la red de Docker en cada llamada.
-- Dockerizar cuesta caro y no por igual: la mediana empeora +102% en `rest-local` sin sesión, +86% con keep-alive y +52% en `grpc-local`. gRPC aguanta bastante mejor, pero está lejos de ser inmune.
-- Agrupar es lo que más mueve la aguja: 100 llamadas sueltas contra una sola llamada al batch da entre 47x y 83x, en las dos condiciones.
-- `POST /v1/predict/batch` le gana a `PredictStream` en las seis corridas.
-
-### Qué no se puede concluir
-
-Que la ventaja del batch sobre el stream dependa de dockerizar: da 1.51x–2.11x local contra 1.77x–2.76x dockerizado, o sea rangos superpuestos. La dirección se repite siempre; la magnitud no se distingue del ruido.
-
-Los números varían entre corridas (una laptop con Docker Desktop, no un banco de pruebas): sirven para comparar rangos, no para la tercera cifra.
-
-> Conclusiones pendientes. Lo de arriba son las observaciones; la interpretación y las tres respuestas de la consigna se completan en el notebook.
+Cada cohorte se midió tres veces, porque con una sola medición no se distingue un efecto real del ruido. Los valores crudos quedaron en [`latencias.json`](latencias.json); la tabla de resultados y la lectura de qué se repite y qué no están en el [notebook](mini_tp3_actividad.ipynb).
 
 ## El notebook
 
