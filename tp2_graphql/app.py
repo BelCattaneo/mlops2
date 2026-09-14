@@ -7,7 +7,8 @@ cada query. Si no se puede cargar, el servicio no arranca: a diferencia de la AP
 hay un endpoint de salud que tenga sentido seguir sirviendo sin modelo.
 """
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
@@ -24,11 +25,18 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     # El driver no conecta acá: es perezoso, así que la app levanta aunque Neo4j esté caído.
     driver = connect()
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Cierra el driver al apagar; si no, su pool de conexiones queda abierto del lado de
+        Neo4j hasta que la base las dé por muertas."""
+        yield
+        driver.close()
+
     def get_context() -> dict[str, Any]:
         """Contexto de cada query: el bundle ya cargado y el driver para el linaje."""
         return {"bundle": bundle, "driver": driver}
 
-    app = FastAPI(title="Mini-TP 2 · Metadatos por GraphQL")
+    app = FastAPI(title="Mini-TP 2 · Metadatos por GraphQL", lifespan=lifespan)
     app.include_router(GraphQLRouter(schema, context_getter=get_context), prefix="/graphql")
     return app
 

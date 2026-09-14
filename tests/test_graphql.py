@@ -47,6 +47,9 @@ class DriverQueFalla:
     def session(self) -> Any:
         raise RuntimeError("Neo4j no responde")
 
+    def close(self) -> None:
+        pass
+
 
 def test_lineage_is_null_when_neo4j_fails(
     bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch
@@ -131,6 +134,28 @@ def test_the_app_serves_graphiql(bundle: dict[str, Any]) -> None:
         response = client.get("/graphql", headers={"Accept": "text/html"})
     assert response.status_code == 200
     assert "graphiql" in response.text.lower()
+
+
+class DriverQueAnotaElCierre:
+    """Un driver que registra si lo cerraron, para mirar el apagado de la app."""
+
+    def __init__(self) -> None:
+        self.cerrado = False
+
+    def close(self) -> None:
+        self.cerrado = True
+
+
+def test_the_driver_is_closed_when_the_app_shuts_down(
+    bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # El driver mantiene un pool de conexiones contra Neo4j. Si nadie lo cierra al apagar, las
+    # conexiones quedan colgadas del lado de la base.
+    driver = DriverQueAnotaElCierre()
+    monkeypatch.setattr("tp2_graphql.app.connect", lambda: driver)
+    with TestClient(create_app(lambda: bundle)):
+        pass
+    assert driver.cerrado is True
 
 
 def test_client_runs_every_case_without_failures(
