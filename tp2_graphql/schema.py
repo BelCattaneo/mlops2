@@ -8,6 +8,7 @@ se puede ejecutar en los tests sin levantar un servidor, y la app lo inyecta al 
 """
 
 import asyncio
+from dataclasses import fields
 from datetime import datetime
 from typing import Any
 
@@ -26,6 +27,10 @@ class Metrics:
     f1: float
     auc: float
     mcc: float
+
+
+# Las métricas que declara el esquema. Sale de la clase para que agregar un campo alcance.
+METRIC_NAMES = tuple(campo.name for campo in fields(Metrics))
 
 
 @strawberry.type
@@ -65,7 +70,12 @@ class Model:
 
 
 def model_from_metadata(metadata: dict[str, Any]) -> Model:
-    """Arma el tipo del esquema a partir de la metadata que viaja en el bundle."""
+    """Arma el tipo del esquema a partir de la metadata que viaja en el bundle.
+
+    De las métricas toma solo las que declara el esquema. Un reentrenamiento que agregue una
+    métrica nueva no puede anular la respuesta entera ni devolverle al cliente un mensaje
+    interno de Python, que es lo que pasaba al expandir el diccionario completo.
+    """
     return Model(
         name=metadata["name"],
         version=metadata["version"],
@@ -73,7 +83,7 @@ def model_from_metadata(metadata: dict[str, Any]) -> Model:
         inputs=list(metadata["inputs"]),
         features=list(metadata["features"]),
         trained_at=datetime.fromisoformat(metadata["trained_at"]),
-        metrics=Metrics(**metadata["metrics"]),
+        metrics=Metrics(**{nombre: metadata["metrics"][nombre] for nombre in METRIC_NAMES}),
     )
 
 

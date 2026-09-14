@@ -97,6 +97,17 @@ def test_lineage_is_not_queried_when_not_asked(bundle: dict[str, Any]) -> None:
     assert result.data["model"]["metrics"]["mcc"] == pytest.approx(0.5811, abs=1e-4)
 
 
+def test_an_extra_metric_does_not_break_the_query(bundle: dict[str, Any]) -> None:
+    # Un reentrenamiento puede sumar una métrica al bundle. Eso no puede anular el modelo
+    # entero ni, mucho menos, devolverle al cliente el mensaje interno de Python.
+    metricas = {**bundle["metadata"]["metrics"], "brier": 0.1}
+    raro = {**bundle, "metadata": {**bundle["metadata"], "metrics": metricas}}
+    result = consultar(f'{{ model(name: "{MODELO}") {{ name metrics {{ mcc }} }} }}', raro)
+    assert result.errors is None
+    assert result.data["model"]["name"] == MODELO
+    assert result.data["model"]["metrics"]["mcc"] == pytest.approx(0.5811, abs=1e-4)
+
+
 def test_unknown_model_is_null(bundle: dict[str, Any]) -> None:
     result = consultar('{ model(name: "otro-modelo") { name } }', bundle)
     assert result.errors is None
