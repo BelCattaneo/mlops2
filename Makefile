@@ -1,18 +1,21 @@
 # Atajos del repo. `make help` lista los comandos.
-# Los globales van sin prefijo; los de cada servicio se prefijan (rest-, y más adelante grpc-).
+# Los globales van sin prefijo; los de cada servicio llevan el suyo: rest-, graphql- y grpc-.
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
+GRAPHQL_PORT := 8010
 GRPC_IMAGE := arrest-grpc
 GRPC_CONTAINER := arrest-grpc
 GRPC_PORT := 50051
-GRAPHQL_PORT := 8010
+NEO4J_CONTAINER := neo4j-tp
 
 .PHONY: help install test lint
 .PHONY: rest-run rest-build rest-up rest-down rest-logs rest-health rest-client
+.PHONY: graphql-run graphql-client graphql-compare graphql-seed neo4j-up neo4j-down
+.PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 
 help: ## Muestra los comandos disponibles
-	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
+	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
 
 install: ## Instala las dependencias con uv
 	uv sync
@@ -47,7 +50,27 @@ rest-health: ## TP1 · consulta GET /health
 rest-client: ## TP1 · prueba la API con el cliente (con rest-run o rest-up corriendo)
 	uv run python tp1_rest/client.py --url http://127.0.0.1:$(REST_PORT)
 
-.PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
+graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
+	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
+
+graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
+	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
+
+graphql-compare: ## TP2 · compara la misma lectura por REST y por GraphQL (las dos APIs arriba)
+	uv run python -m tp2_graphql.compare \
+		--rest-url http://127.0.0.1:$(REST_PORT) \
+		--graphql-url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
+
+graphql-seed: ## TP2 · siembra el linaje del modelo en Neo4j (espera a que acepte conexiones)
+	uv run python -m tp2_graphql.lineage
+
+neo4j-up: ## TP2 · levanta Neo4j en Docker (UI en 7474, driver bolt en 7687)
+	@docker rm -f $(NEO4J_CONTAINER) > /dev/null 2>&1 || true
+	docker run -d --rm --name $(NEO4J_CONTAINER) -p 7474:7474 -p 7687:7687 \
+		-e NEO4J_AUTH=neo4j/testpass neo4j:latest
+
+neo4j-down: ## TP2 · detiene Neo4j
+	docker stop $(NEO4J_CONTAINER)
 
 grpc-stubs: ## TP3 · regenera los stubs de gRPC desde scoring.proto
 	uv run python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. tp3_grpc/scoring.proto
@@ -71,32 +94,6 @@ grpc-logs: ## TP3 · muestra los logs del contenedor
 
 grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up corriendo)
 	uv run python -m tp3_grpc.client --target 127.0.0.1:$(GRPC_PORT)
-
-NEO4J_CONTAINER := neo4j-tp
-
-.PHONY: graphql-run graphql-client graphql-compare graphql-seed neo4j-up neo4j-down
-
-graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
-	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
-
-graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
-	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
-
-graphql-compare: ## TP2 · compara la misma lectura por REST y por GraphQL (las dos APIs arriba)
-	uv run python -m tp2_graphql.compare \
-		--rest-url http://127.0.0.1:$(REST_PORT) \
-		--graphql-url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
-
-graphql-seed: ## TP2 · siembra el linaje del modelo en Neo4j (espera a que acepte conexiones)
-	uv run python -m tp2_graphql.lineage
-
-neo4j-up: ## TP2 · levanta Neo4j en Docker (UI en 7474, driver bolt en 7687)
-	@docker rm -f $(NEO4J_CONTAINER) > /dev/null 2>&1 || true
-	docker run -d --rm --name $(NEO4J_CONTAINER) -p 7474:7474 -p 7687:7687 \
-		-e NEO4J_AUTH=neo4j/testpass neo4j:latest
-
-neo4j-down: ## TP2 · detiene Neo4j
-	docker stop $(NEO4J_CONTAINER)
 
 grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo lado)
 	uv run python -m tp3_grpc.benchmark --rest-url http://127.0.0.1:$(REST_PORT) \

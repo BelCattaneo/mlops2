@@ -49,6 +49,7 @@ dev = [
     "ruff>=0.16.7",
 ]
 graphql = [
+    "neo4j>=6.3.0",
     "strawberry-graphql[fastapi]>=0.327.7",
 ]
 grpc = [
@@ -58,8 +59,4 @@ grpc = [
 rest = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
-]
-tracking = [
-    "mlflow>=3.16.0",
-    "neo4j>=6.3.0",
 ]

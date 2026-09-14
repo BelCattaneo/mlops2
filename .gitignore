@@ -6,10 +6,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# MLflow local (se regenera con model/train.py)
-mlflow.db
-mlruns/
-
 # Datasets del TP-final: solo se usan para regenerar model/model.pkl (ver README).
 # Va anclado con "/" para no ignorar también tests/data/.
 /data/
