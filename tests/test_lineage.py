@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from tp2_graphql.lineage import MODEL_NAME, lineage_of, open_driver, seed
+from tp2_graphql.lineage import EDGES, MODEL_NAME, lineage_of, open_driver, seed
 
 
 def _neo4j_escuchando() -> bool:
@@ -35,11 +35,25 @@ def driver() -> Iterator[Any]:
     conexion.close()
 
 
+def _contar(driver: Any) -> tuple[int, int]:
+    """Cuántos nodos y relaciones hay en el grafo."""
+    with driver.session() as session:
+        nodos = session.run("MATCH (n) RETURN count(n) AS n").single()["n"]
+        aristas = session.run("MATCH ()-[r:DERIVES]->() RETURN count(r) AS n").single()["n"]
+    return nodos, aristas
+
+
 def test_seed_is_idempotent(driver: Any) -> None:
-    # Sembrar dos veces no puede duplicar nodos ni aristas: usa MERGE, no CREATE.
-    antes = lineage_of(driver, MODEL_NAME)
+    # Hay que contar: la consulta de linaje usa RETURN DISTINCT, así que colapsaría los
+    # duplicados y este test pasaría aunque el sembrado los estuviera creando.
+    antes = _contar(driver)
     seed(driver)
-    assert lineage_of(driver, MODEL_NAME) == antes
+    assert _contar(driver) == antes
+
+
+def test_the_seeded_graph_matches_the_declared_chain(driver: Any) -> None:
+    _, aristas = _contar(driver)
+    assert aristas == len(EDGES)
 
 
 def test_lineage_reaches_the_raw_datasets(driver: Any) -> None:
