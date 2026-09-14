@@ -7,6 +7,7 @@ El bundle no se carga al importar el módulo, entra por el contexto de la query.
 se puede ejecutar en los tests sin levantar un servidor, y la app lo inyecta al arrancar.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -48,14 +49,18 @@ class Model:
     metrics: Metrics
 
     @strawberry.field
-    def lineage(self, info: strawberry.Info) -> list[Artifact] | None:
+    async def lineage(self, info: strawberry.Info) -> list[Artifact] | None:
         """De dónde salió el modelo: sus datasets y transformaciones, leídos de Neo4j.
 
         Solo se consulta si la query pide este campo; ese es justamente el punto de GraphQL.
         Es nullable a propósito: si Neo4j no responde, el error queda acá y el resto de la
         respuesta llega igual.
+
+        Va en un hilo aparte porque el driver de Neo4j es sincrónico: resolverlo en el hilo del
+        event loop dejaría sin atender al resto del servicio mientras la base tarda, incluidas
+        las requests que ni siquiera piden el linaje.
         """
-        artefactos = lineage_of(info.context["driver"], self.name)
+        artefactos = await asyncio.to_thread(lineage_of, info.context["driver"], self.name)
         return [Artifact(name=a["name"], kind=a["kind"]) for a in artefactos]
 
 

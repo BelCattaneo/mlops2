@@ -1,5 +1,6 @@
 """Mini-TP 2: esquema GraphQL con los metadatos del modelo."""
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -45,15 +46,44 @@ class DriverQueFalla:
         raise RuntimeError("Neo4j no responde")
 
 
-def test_lineage_is_null_when_neo4j_fails(bundle: dict[str, Any]) -> None:
-    # El linaje se cae, pero el resto de la respuesta tiene que llegar igual.
-    result = schema.execute_sync(
-        f'{{ model(name: "{MODELO}") {{ name lineage {{ name kind }} }} }}',
-        context_value={"bundle": bundle, "driver": DriverQueFalla()},
-    )
-    assert result.errors is not None
-    assert result.data["model"]["name"] == MODELO
-    assert result.data["model"]["lineage"] is None
+def test_lineage_is_null_when_neo4j_fails(
+    bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # El linaje se cae, pero el resto de la respuesta tiene que llegar igual. Va por la app
+    # porque el resolver es asíncrono y `execute_sync` no puede ejecutarlo.
+    monkeypatch.setattr("tp2_graphql.app.connect", lambda: DriverQueFalla())
+    with TestClient(create_app(lambda: bundle)) as client:
+        cuerpo = client.post(
+            "/graphql",
+            json={"query": f'{{ model(name: "{MODELO}") {{ name lineage {{ name kind }} }} }}'},
+        ).json()
+    assert cuerpo["errors"]
+    assert cuerpo["data"]["model"]["name"] == MODELO
+    assert cuerpo["data"]["model"]["lineage"] is None
+
+
+def test_lineage_does_not_run_on_the_event_loop(
+    bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # El resolver hace I/O de red contra Neo4j. Si corre en el hilo del event loop, una consulta
+    # lenta deja sin atender al resto del servicio, incluidas las requests que no tocan Neo4j.
+    visto: dict[str, bool] = {}
+
+    def espia(driver: Any, name: str) -> list[dict[str, Any]]:
+        try:
+            asyncio.get_running_loop()
+            visto["en_el_loop"] = True
+        except RuntimeError:
+            visto["en_el_loop"] = False
+        return []
+
+    monkeypatch.setattr("tp2_graphql.schema.lineage_of", espia)
+    with TestClient(create_app(lambda: bundle)) as client:
+        respuesta = client.post(
+            "/graphql", json={"query": f'{{ model(name: "{MODELO}") {{ lineage {{ name }} }} }}'}
+        )
+    assert respuesta.status_code == 200
+    assert visto["en_el_loop"] is False
 
 
 def test_lineage_is_not_queried_when_not_asked(bundle: dict[str, Any]) -> None:

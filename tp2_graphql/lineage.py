@@ -81,13 +81,22 @@ ORDER BY kind, name
 """
 
 
-def connect(uri: str = URI, auth: tuple[str, str] = AUTH) -> Driver:
+def connect(uri: str = URI, auth: tuple[str, str] = AUTH, timeout: float = 5) -> Driver:
     """Crea el driver sin verificar la conexión.
 
     El driver es perezoso: no se conecta hasta la primera consulta. Gracias a eso el servicio
     GraphQL arranca aunque Neo4j esté caído, y el problema aparece solo al pedir el linaje.
+
+    Los timeouts van explícitos porque los que trae el driver son de decenas de segundos: una
+    base que acepta la conexión pero no responde tendría al servicio esperando todo ese rato.
     """
-    return GraphDatabase.driver(uri, auth=auth)
+    return GraphDatabase.driver(
+        uri,
+        auth=auth,
+        connection_timeout=timeout,
+        connection_acquisition_timeout=timeout,
+        max_transaction_retry_time=timeout,
+    )
 
 
 def open_driver(uri: str = URI, auth: tuple[str, str] = AUTH, wait: float = 60) -> Driver:
