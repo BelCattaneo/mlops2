@@ -47,17 +47,25 @@ def check(label: str, body: dict[str, Any], cumple: Callable[[Any], bool]) -> bo
     return ok
 
 
-def run_client(url: str, session: Any = requests, timeout: float | None = 10) -> int:
-    """Recorre los casos contra la API; devuelve 0 si todos cumplen.
+def post_graphql(session: Any, url: str, query: str, timeout: float | None = 10) -> Any:
+    """Manda la consulta y devuelve la respuesta entera, no el cuerpo: quien compara los dos
+    protocolos necesita además medir cuántos bytes llegaron.
 
     Con `timeout` en None el argumento no se manda: el TestClient de Starlette no lo acepta y
     avisa. Contra un servidor real hace falta, para que una request colgada no deje esperando
     al cliente para siempre.
     """
     opciones = {"timeout": timeout} if timeout is not None else {}
+    respuesta = session.post(url, json={"query": query}, **opciones)
+    respuesta.raise_for_status()
+    return respuesta
+
+
+def run_client(url: str, session: Any = requests, timeout: float | None = 10) -> int:
+    """Recorre los casos contra la API; devuelve 0 si todos cumplen."""
     try:
         resultados = [
-            check(label, session.post(url, json={"query": query}, **opciones).json(), cumple)
+            check(label, post_graphql(session, url, query, timeout).json(), cumple)
             for label, query, cumple in CASOS
         ]
     except requests.RequestException as exc:

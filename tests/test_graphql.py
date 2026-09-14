@@ -1,6 +1,7 @@
 """Mini-TP 2: esquema GraphQL con los metadatos del modelo."""
 
 import asyncio
+import json
 from typing import Any
 
 import pytest
@@ -11,7 +12,8 @@ from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import create_app as create_rest_app
 from tp2_graphql.app import create_app
 from tp2_graphql.client import run_client
-from tp2_graphql.compare import compare
+from tp2_graphql.compare import GraphQLFailed, compare
+from tp2_graphql.compare import main as compare_main
 from tp2_graphql.schema import schema
 
 MODELO = "chicago-arrest-xgboost"
@@ -158,6 +160,48 @@ def test_graphql_moves_fewer_bytes_for_the_same_view(bundle: dict[str, Any]) -> 
     ):
         numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
     assert numeros["graphql"]["bytes"] < numeros["rest"]["bytes"]
+
+
+class RespuestaConErrores:
+    """Una consulta GraphQL que falló: status 200, `errors` en el cuerpo y `data` en null."""
+
+    content = b'{"errors": [{"message": "algo se rompio"}], "data": null}'
+
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> Any:
+        return json.loads(self.content)
+
+
+class SesionConErrores:
+    """Una sesión cuyas consultas siempre vuelven con errores."""
+
+    def post(self, *args: Any, **kwargs: Any) -> RespuestaConErrores:
+        return RespuestaConErrores()
+
+
+def test_compare_reports_a_graphql_error_instead_of_crashing(bundle: dict[str, Any]) -> None:
+    # El error de GraphQL viaja con status 200, así que `raise_for_status` no lo ve y `data`
+    # llega en null. Sin un chequeo explícito esto reventaba con un TypeError.
+    with TestClient(create_rest_app(lambda: bundle)) as rest:
+        with pytest.raises(GraphQLFailed):
+            compare(
+                "", "/graphql", rest_session=rest, graphql_session=SesionConErrores(), timeout=None
+            )
+
+
+def test_the_command_line_explains_the_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Lo que ve quien lo corre desde la terminal: un mensaje, no un traceback.
+    def explota(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise GraphQLFailed("algo se rompio")
+
+    monkeypatch.setattr("tp2_graphql.compare.compare", explota)
+    monkeypatch.setattr("sys.argv", ["compare"])
+    assert compare_main() == 1
+    assert "algo se rompio" in capsys.readouterr().out
 
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:

@@ -20,9 +20,31 @@ from typing import Any
 
 import requests
 
+from tp2_graphql.client import post_graphql
+
 MODELO = "chicago-arrest-xgboost"
 VISTA = "nombre del modelo y su MCC"
 QUERY = f'{{ model(name: "{MODELO}") {{ name metrics {{ mcc }} }} }}'
+
+
+class GraphQLFailed(RuntimeError):
+    """La consulta volvió con errores, que es como GraphQL avisa que falló: en el cuerpo y con
+    status 200. Es una excepción propia para que la línea de comandos la trate como cualquier
+    otra falla de la llamada y muestre un mensaje en vez de un traceback."""
+
+
+def model_from_response(body: dict[str, Any]) -> dict[str, Any]:
+    """Saca el modelo del cuerpo de la respuesta, o falla diciendo qué contestó la API.
+
+    Un error de GraphQL viaja con status 200, así que no lo ve `raise_for_status`: hay que
+    mirar el cuerpo, donde además `data` puede llegar en null.
+    """
+    if body.get("errors"):
+        raise GraphQLFailed("; ".join(error.get("message", "") for error in body["errors"]))
+    modelo = (body.get("data") or {}).get("model")
+    if modelo is None:
+        raise GraphQLFailed(f"la API no devolvió ningún modelo llamado {MODELO}")
+    return modelo
 
 
 def compare(
@@ -42,9 +64,8 @@ def compare(
     rest.raise_for_status()
     metadata = rest.json()
 
-    graphql = graphql_session.post(graphql_url, json={"query": QUERY}, **opciones)
-    graphql.raise_for_status()
-    modelo = graphql.json()["data"]["model"]
+    graphql = post_graphql(graphql_session, graphql_url, QUERY, timeout)
+    modelo = model_from_response(graphql.json())
 
     return {
         "vista": {
@@ -81,7 +102,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         numeros = compare(args.rest_url, args.graphql_url)
-    except requests.RequestException as exc:
+    except (requests.RequestException, GraphQLFailed) as exc:
         print(f"No se pudo comparar ({type(exc).__name__}): {exc}")
         print("Tienen que estar las dos APIs arriba: `make rest-run` y `make graphql-run`.")
         return 1
