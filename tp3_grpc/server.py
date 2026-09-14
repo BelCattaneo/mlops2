@@ -4,7 +4,6 @@ Mismo núcleo que la API REST: valida con `CrimeReport` y puntúa con `predict`.
 propio de acá es traducir entre los mensajes protobuf y ese núcleo.
 """
 
-import logging
 import time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent import futures
@@ -14,14 +13,12 @@ from typing import Any
 import grpc
 from pydantic import ValidationError
 
+from arrest_model.log import service_logger
 from arrest_model.model import load_bundle, predict
 from arrest_model.schemas import CrimeReport, PredictionOut
 from tp3_grpc import scoring_pb2, scoring_pb2_grpc
 
-logger = logging.getLogger("tp3_grpc")
-
-# Acá no hay uvicorn que configure el logging: sin esto los INFO se descartan en el contenedor.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
+logger = service_logger("tp3_grpc")
 
 
 def report_from_proto(message: scoring_pb2.CrimeReport) -> dict[str, Any]:

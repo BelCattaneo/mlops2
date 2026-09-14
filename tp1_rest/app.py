@@ -1,6 +1,5 @@
 """Mini-TP 1: API REST que sirve el modelo de arrestos de Chicago."""
 
-import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -9,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from arrest_model.log import service_logger
 from arrest_model.model import load_bundle, predict
 from arrest_model.schemas import (
     BatchPredictionOut,
@@ -18,11 +18,7 @@ from arrest_model.schemas import (
     PredictionOut,
 )
 
-logger = logging.getLogger("tp1_rest")
-
-# uvicorn configura sus propios loggers pero deja el root sin handler, y logging descarta los
-# INFO que no llegan a ninguno. Sin esto, el log por request no aparece en el contenedor.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
+logger = service_logger("tp1_rest")
 
 # El motivo real (ruta del modelo, traza) va al log del servidor, no a la respuesta.
 UNAVAILABLE_DETAIL = "El modelo no está disponible; revisá el log del servicio."
