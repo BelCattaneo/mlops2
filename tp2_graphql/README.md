@@ -4,8 +4,6 @@ Los metadatos del mismo modelo de arrestos de Chicago que el TP1 sirve por REST,
 
 ← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md)
 
-> Pendiente: falta escribir la reflexión sobre la diferencia entre REST y GraphQL. Los datos ya están medidos, acá abajo y en el notebook.
-
 ## Cómo correrlo
 
 Todos los comandos se corren desde la raíz del repo.
@@ -110,6 +108,10 @@ La vista a armar es chica: el nombre del modelo y una sola métrica, el MCC.
 Las dos vistas traen lo mismo. La diferencia es que `GET /v1/metadata` devuelve el paquete entero —versión, framework, los 6 campos de entrada, las 7 features, las 6 métricas y la fecha— cuando solo se querían dos campos.
 
 Aparte de la tabla: el linaje no lo expone ningún endpoint REST, así que sumarlo a la vista obligaría a crear uno. En GraphQL es un campo más en la misma query, resuelto contra otra fuente de datos.
+
+## Reflexión
+
+GraphQL trajo solo los campos pedidos: 89 bytes contra 557 de REST, con una llamada cada uno. El desarrollo está en la sección 6 del notebook.
 
 ## El notebook
 
