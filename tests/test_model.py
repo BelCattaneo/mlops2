@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from arrest_model.config import MODEL_NAME
 from arrest_model.features import encode_payload
 from arrest_model.model import load_bundle, predict
 from arrest_model.schemas import CrimeReport
@@ -18,8 +19,9 @@ def reports(valid_payload: dict[str, Any]) -> list[CrimeReport]:
 
 
 def test_load_bundle_reads_committed_model(bundle: dict[str, Any]) -> None:
+    # Ata la constante al .pkl: si se regenera el modelo con otro nombre, esto avisa.
     metadata = bundle["metadata"]
-    assert (metadata["name"], metadata["version"]) == ("chicago-arrest-xgboost", 1)
+    assert (metadata["name"], metadata["version"]) == (MODEL_NAME, 1)
 
 
 def test_load_bundle_explains_missing_file(tmp_path: Path) -> None:
@@ -42,4 +44,4 @@ def test_predictions_carry_probability_and_model_version(
     predictions = predict(bundle, reports)
     assert len(predictions) == len(reports)
     assert all(0.0 <= p.probability <= 1.0 for p in predictions)
-    assert {(p.model_name, p.model_version) for p in predictions} == {("chicago-arrest-xgboost", 1)}
+    assert {(p.model_name, p.model_version) for p in predictions} == {(MODEL_NAME, 1)}

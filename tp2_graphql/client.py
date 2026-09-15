@@ -14,18 +14,18 @@ from typing import Any
 
 import requests
 
-MODELO = "chicago-arrest-xgboost"
+from arrest_model.config import MODEL_NAME
 
 # Cada caso: qué se pide y qué tiene que cumplir la respuesta.
 CASOS: list[tuple[str, str, Callable[[Any], bool]]] = [
     (
         "los metadatos del modelo",
-        f'{{ model(name: "{MODELO}") {{ name version framework }} }}',
-        lambda data: data["model"]["name"] == MODELO and data["model"]["version"] == 1,
+        f'{{ model(name: "{MODEL_NAME}") {{ name version framework }} }}',
+        lambda data: data["model"]["name"] == MODEL_NAME and data["model"]["version"] == 1,
     ),
     (
         "una sola métrica, y nada más",
-        f'{{ model(name: "{MODELO}") {{ metrics {{ mcc }} }} }}',
+        f'{{ model(name: "{MODEL_NAME}") {{ metrics {{ mcc }} }} }}',
         lambda data: set(data["model"]["metrics"]) == {"mcc"},
     ),
     (

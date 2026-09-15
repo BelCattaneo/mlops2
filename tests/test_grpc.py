@@ -14,6 +14,7 @@ from typing import Any
 import grpc
 import pytest
 
+from arrest_model.config import MODEL_NAME
 from tp3_grpc import scoring_pb2, scoring_pb2_grpc
 from tp3_grpc.benchmark import median_table, summarize
 from tp3_grpc.client import crime_report, run_client
@@ -73,7 +74,7 @@ def test_predict_matches_the_reference_prediction(
     response = grpc_stub.Predict(crime_report())
     assert response.arrest == 0
     assert response.probability == pytest.approx(reference_probability)
-    assert response.model_name == "chicago-arrest-xgboost"
+    assert response.model_name == MODEL_NAME
     assert response.model_version == 1
 
 

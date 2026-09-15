@@ -20,11 +20,11 @@ from typing import Any
 
 import requests
 
+from arrest_model.config import MODEL_NAME
 from tp2_graphql.client import post_graphql
 
-MODELO = "chicago-arrest-xgboost"
 VISTA = "nombre del modelo y su MCC"
-QUERY = f'{{ model(name: "{MODELO}") {{ name metrics {{ mcc }} }} }}'
+QUERY = f'{{ model(name: "{MODEL_NAME}") {{ name metrics {{ mcc }} }} }}'
 
 
 class GraphQLFailed(RuntimeError):
@@ -43,7 +43,7 @@ def model_from_response(body: dict[str, Any]) -> dict[str, Any]:
         raise GraphQLFailed("; ".join(error.get("message", "") for error in body["errors"]))
     modelo = (body.get("data") or {}).get("model")
     if modelo is None:
-        raise GraphQLFailed(f"la API no devolvió ningún modelo llamado {MODELO}")
+        raise GraphQLFailed(f"la API no devolvió ningún modelo llamado {MODEL_NAME}")
     return modelo
 
 

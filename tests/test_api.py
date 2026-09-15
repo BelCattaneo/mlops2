@@ -7,12 +7,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from arrest_model.config import MODEL_NAME
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import UNAVAILABLE_DETAIL, create_app
 from tp1_rest.client import INVALID
 
-HEALTH_ONLY_BUNDLE: dict[str, Any] = {"metadata": {"name": "chicago-arrest-xgboost", "version": 1}}
+HEALTH_ONLY_BUNDLE: dict[str, Any] = {"metadata": {"name": MODEL_NAME, "version": 1}}
 # Bundle que carga bien pero rompe al predecir: sirve para provocar un error inesperado.
 BROKEN_BUNDLE: dict[str, Any] = HEALTH_ONLY_BUNDLE | {"params": {}, "model": None}
 
@@ -27,7 +28,7 @@ def test_health_reports_loaded_model() -> None:
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",
-        "model_name": "chicago-arrest-xgboost",
+        "model_name": MODEL_NAME,
         "model_version": 1,
     }
 
@@ -57,7 +58,7 @@ def test_predict_matches_the_reference_prediction(
     assert response.json() == {
         "arrest": 0,
         "probability": pytest.approx(reference_probability),
-        "model_name": "chicago-arrest-xgboost",
+        "model_name": MODEL_NAME,
         "model_version": 1,
     }
 
@@ -121,7 +122,7 @@ def test_metadata_describes_the_served_model(bundle: dict[str, Any]) -> None:
         "metrics",
         "trained_at",
     }
-    assert (body["name"], body["version"]) == ("chicago-arrest-xgboost", 1)
+    assert (body["name"], body["version"]) == (MODEL_NAME, 1)
     # Lo que declara la API tiene que ser lo que de verdad consume el modelo.
     assert body["inputs"] == list(EXAMPLE_REPORT)
     assert body["features"] == MODEL_FEATURES

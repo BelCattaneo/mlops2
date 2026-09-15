@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from arrest_model.config import MODEL_NAME
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import create_app as create_rest_app
@@ -16,8 +17,6 @@ from tp2_graphql.compare import GraphQLFailed, compare
 from tp2_graphql.compare import main as compare_main
 from tp2_graphql.schema import schema
 
-MODELO = "chicago-arrest-xgboost"
-
 
 def consultar(query: str, bundle: dict[str, Any]) -> Any:
     """Corre la query contra el esquema, sin levantar servidor."""
@@ -25,10 +24,10 @@ def consultar(query: str, bundle: dict[str, Any]) -> Any:
 
 
 def test_query_returns_the_model_metadata(bundle: dict[str, Any]) -> None:
-    result = consultar(f'{{ model(name: "{MODELO}") {{ name version framework }} }}', bundle)
+    result = consultar(f'{{ model(name: "{MODEL_NAME}") {{ name version framework }} }}', bundle)
     assert result.errors is None
     assert result.data["model"] == {
-        "name": MODELO,
+        "name": MODEL_NAME,
         "version": 1,
         "framework": "xgboost 3.4.1",
     }
@@ -36,7 +35,7 @@ def test_query_returns_the_model_metadata(bundle: dict[str, Any]) -> None:
 
 def test_query_returns_only_the_requested_fields(bundle: dict[str, Any]) -> None:
     # La gracia de GraphQL: se pide una métrica y no llega el resto del payload.
-    result = consultar(f'{{ model(name: "{MODELO}") {{ metrics {{ mcc }} }} }}', bundle)
+    result = consultar(f'{{ model(name: "{MODEL_NAME}") {{ metrics {{ mcc }} }} }}', bundle)
     assert result.errors is None
     assert result.data == {"model": {"metrics": {"mcc": pytest.approx(0.5811, abs=1e-4)}}}
 
@@ -60,10 +59,10 @@ def test_lineage_is_null_when_neo4j_fails(
     with TestClient(create_app(lambda: bundle)) as client:
         cuerpo = client.post(
             "/graphql",
-            json={"query": f'{{ model(name: "{MODELO}") {{ name lineage {{ name kind }} }} }}'},
+            json={"query": f'{{ model(name: "{MODEL_NAME}") {{ name lineage {{ name kind }} }} }}'},
         ).json()
     assert cuerpo["errors"]
-    assert cuerpo["data"]["model"]["name"] == MODELO
+    assert cuerpo["data"]["model"]["name"] == MODEL_NAME
     assert cuerpo["data"]["model"]["lineage"] is None
 
 
@@ -85,7 +84,8 @@ def test_lineage_does_not_run_on_the_event_loop(
     monkeypatch.setattr("tp2_graphql.schema.lineage_of", espia)
     with TestClient(create_app(lambda: bundle)) as client:
         respuesta = client.post(
-            "/graphql", json={"query": f'{{ model(name: "{MODELO}") {{ lineage {{ name }} }} }}'}
+            "/graphql",
+            json={"query": f'{{ model(name: "{MODEL_NAME}") {{ lineage {{ name }} }} }}'},
         )
     assert respuesta.status_code == 200
     assert visto["en_el_loop"] is False
@@ -95,7 +95,7 @@ def test_lineage_is_not_queried_when_not_asked(bundle: dict[str, Any]) -> None:
     # Con un driver que revienta, pedir solo las métricas no puede fallar: GraphQL resuelve
     # únicamente los campos pedidos, y ese es el punto de la comparación con REST.
     result = schema.execute_sync(
-        f'{{ model(name: "{MODELO}") {{ metrics {{ mcc }} }} }}',
+        f'{{ model(name: "{MODEL_NAME}") {{ metrics {{ mcc }} }} }}',
         context_value={"bundle": bundle, "driver": DriverQueFalla()},
     )
     assert result.errors is None
@@ -107,9 +107,9 @@ def test_an_extra_metric_does_not_break_the_query(bundle: dict[str, Any]) -> Non
     # entero ni, mucho menos, devolverle al cliente el mensaje interno de Python.
     metricas = {**bundle["metadata"]["metrics"], "brier": 0.1}
     raro = {**bundle, "metadata": {**bundle["metadata"], "metrics": metricas}}
-    result = consultar(f'{{ model(name: "{MODELO}") {{ name metrics {{ mcc }} }} }}', raro)
+    result = consultar(f'{{ model(name: "{MODEL_NAME}") {{ name metrics {{ mcc }} }} }}', raro)
     assert result.errors is None
-    assert result.data["model"]["name"] == MODELO
+    assert result.data["model"]["name"] == MODEL_NAME
     assert result.data["model"]["metrics"]["mcc"] == pytest.approx(0.5811, abs=1e-4)
 
 
@@ -122,10 +122,10 @@ def test_unknown_model_is_null(bundle: dict[str, Any]) -> None:
 def test_the_app_answers_a_query_over_http(bundle: dict[str, Any]) -> None:
     with TestClient(create_app(lambda: bundle)) as client:
         response = client.post(
-            "/graphql", json={"query": f'{{ model(name: "{MODELO}") {{ name version }} }}'}
+            "/graphql", json={"query": f'{{ model(name: "{MODEL_NAME}") {{ name version }} }}'}
         )
     assert response.status_code == 200
-    assert response.json()["data"]["model"] == {"name": MODELO, "version": 1}
+    assert response.json()["data"]["model"] == {"name": MODEL_NAME, "version": 1}
 
 
 def test_the_app_serves_graphiql(bundle: dict[str, Any]) -> None:
@@ -174,7 +174,7 @@ def test_both_protocols_build_the_same_view(bundle: dict[str, Any]) -> None:
     ):
         numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
     assert numeros["vista"]["rest"] == numeros["vista"]["graphql"]
-    assert numeros["vista"]["graphql"]["name"] == MODELO
+    assert numeros["vista"]["graphql"]["name"] == MODEL_NAME
 
 
 def test_graphql_moves_fewer_bytes_for_the_same_view(bundle: dict[str, Any]) -> None:
@@ -231,7 +231,7 @@ def test_the_command_line_explains_the_failure(
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:
     # Lo que declara el esquema tiene que ser lo que de verdad consume el modelo.
-    result = consultar(f'{{ model(name: "{MODELO}") {{ inputs features }} }}', bundle)
+    result = consultar(f'{{ model(name: "{MODEL_NAME}") {{ inputs features }} }}', bundle)
     assert result.errors is None
     assert result.data["model"]["inputs"] == list(EXAMPLE_REPORT)
     assert result.data["model"]["features"] == MODEL_FEATURES

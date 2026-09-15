@@ -39,6 +39,7 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 
 | módulo | qué tiene |
 |---|---|
+| `config.py` | el nombre del modelo, compartido por los servicios, los clientes y los tests |
 | `schemas.py` | el contrato: `CrimeReport` (los 6 campos crudos) y las respuestas de las APIs |
 | `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
 | `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |

@@ -10,7 +10,8 @@ from typing import Any
 
 import pytest
 
-from tp2_graphql.lineage import EDGES, MODEL_NAME, lineage_of, open_driver, seed
+from arrest_model.config import MODEL_NAME
+from tp2_graphql.lineage import EDGES, lineage_of, open_driver, seed
 
 
 def _neo4j_escuchando() -> bool:

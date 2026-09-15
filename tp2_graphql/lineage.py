@@ -18,7 +18,7 @@ from typing import Any
 
 from neo4j import Driver, GraphDatabase
 
-MODEL_NAME = "chicago-arrest-xgboost"
+from arrest_model.config import MODEL_NAME
 
 URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 AUTH = (os.getenv("NEO4J_USER", "neo4j"), os.getenv("NEO4J_PASSWORD", "testpass"))
