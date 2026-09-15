@@ -14,7 +14,13 @@ from typing import Any
 
 import strawberry
 
+from arrest_model.log import service_logger
 from tp2_graphql.lineage import lineage_of
+
+logger = service_logger("tp2_graphql")
+
+# El motivo real (host, puerto, estado de la conexión) va al log del servicio, no a la respuesta.
+LINEAGE_UNAVAILABLE = "El linaje no está disponible; revisá el log del servicio."
 
 
 @strawberry.type
@@ -64,8 +70,15 @@ class Model:
         Va en un hilo aparte porque el driver de Neo4j es sincrónico: resolverlo en el hilo del
         event loop dejaría sin atender al resto del servicio mientras la base tarda, incluidas
         las requests que ni siquiera piden el linaje.
+
+        Si Neo4j falla, la traza completa va al log y el cliente recibe un mensaje genérico. El
+        `from None` evita que el error original viaje encadenado en lo que registra Strawberry.
         """
-        artefactos = await asyncio.to_thread(lineage_of, info.context["driver"], self.name)
+        try:
+            artefactos = await asyncio.to_thread(lineage_of, info.context["driver"], self.name)
+        except Exception:
+            logger.exception("No se pudo leer el linaje de %s desde Neo4j", self.name)
+            raise RuntimeError(LINEAGE_UNAVAILABLE) from None
         return [Artifact(name=a["name"], kind=a["kind"]) for a in artefactos]
 
 

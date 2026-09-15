@@ -96,7 +96,7 @@ El balanceo dejó tres variantes y existe una rama con PCA; el modelo entregado 
 
 El sembrado es idempotente: usa `MERGE` y no borra la base.
 
-Si Neo4j no está corriendo, `lineage` viene en `null` con el error acotado a ese campo, y el resto de la respuesta llega completa. La API arranca igual sin Neo4j.
+Si Neo4j no está corriendo, `lineage` viene en `null` con el error acotado a ese campo, y el resto de la respuesta llega completa. La API arranca igual sin Neo4j. El error que ve el cliente es un mensaje genérico: el detalle de la conexión queda en el log del servicio.
 
 ## La comparación con REST
 

@@ -15,7 +15,7 @@ from tp2_graphql.app import create_app
 from tp2_graphql.client import run_client
 from tp2_graphql.compare import GraphQLFailed, compare, format_results
 from tp2_graphql.compare import main as compare_main
-from tp2_graphql.schema import schema
+from tp2_graphql.schema import LINEAGE_UNAVAILABLE, schema
 
 
 def consultar(query: str, bundle: dict[str, Any]) -> Any:
@@ -64,6 +64,21 @@ def test_lineage_is_null_when_neo4j_fails(
     assert cuerpo["errors"]
     assert cuerpo["data"]["model"]["name"] == MODEL_NAME
     assert cuerpo["data"]["model"]["lineage"] is None
+
+
+def test_a_neo4j_failure_goes_to_the_log_and_not_to_the_client(
+    bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # El error real del driver trae host, puerto y estado de la conexión: sirve para diagnosticar
+    # desde el log, no para mostrárselo a quien consulta.
+    monkeypatch.setattr("tp2_graphql.app.connect", lambda: DriverQueFalla())
+    with TestClient(create_app(lambda: bundle)) as client:
+        cuerpo = client.post(
+            "/graphql",
+            json={"query": f'{{ model(name: "{MODEL_NAME}") {{ lineage {{ name }} }} }}'},
+        ).json()
+    assert [error["message"] for error in cuerpo["errors"]] == [LINEAGE_UNAVAILABLE]
+    assert "Neo4j no responde" in caplog.text
 
 
 def test_lineage_does_not_run_on_the_event_loop(
