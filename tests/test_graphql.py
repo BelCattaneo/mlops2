@@ -13,7 +13,7 @@ from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import create_app as create_rest_app
 from tp2_graphql.app import create_app
 from tp2_graphql.client import run_client
-from tp2_graphql.compare import GraphQLFailed, compare, format_results
+from tp2_graphql.compare import CountingSession, GraphQLFailed, compare, format_results
 from tp2_graphql.compare import main as compare_main
 from tp2_graphql.schema import LINEAGE_UNAVAILABLE, schema
 
@@ -190,6 +190,8 @@ def test_both_protocols_build_the_same_view(bundle: dict[str, Any]) -> None:
         numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
     assert numeros["vista"]["rest"] == numeros["vista"]["graphql"]
     assert numeros["vista"]["graphql"]["name"] == MODEL_NAME
+    # La reflexión afirma una llamada por protocolo para esta vista.
+    assert numeros["rest"]["llamadas"] == numeros["graphql"]["llamadas"] == 1
 
 
 def test_graphql_moves_fewer_bytes_for_the_same_view(bundle: dict[str, Any]) -> None:
@@ -256,6 +258,13 @@ def test_the_command_line_explains_the_failure(
     monkeypatch.setattr("sys.argv", ["compare"])
     assert compare_main() == 1
     assert "algo se rompio" in capsys.readouterr().out
+
+
+def test_the_calls_are_counted_not_assumed() -> None:
+    sesion = CountingSession(SesionConErrores())
+    sesion.post("/graphql")
+    sesion.post("/graphql")
+    assert sesion.calls == 2
 
 
 def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> None:

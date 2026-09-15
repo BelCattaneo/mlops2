@@ -33,6 +33,24 @@ class GraphQLFailed(RuntimeError):
     otra falla de la llamada y muestre un mensaje en vez de un traceback."""
 
 
+class CountingSession:
+    """Envuelve una sesión HTTP y cuenta las requests que salen por ella."""
+
+    def __init__(self, session: Any) -> None:
+        self.session = session
+        self.calls = 0
+
+    def get(self, *args: Any, **kwargs: Any) -> Any:
+        """Hace el GET con la sesión envuelta y lo cuenta."""
+        self.calls += 1
+        return self.session.get(*args, **kwargs)
+
+    def post(self, *args: Any, **kwargs: Any) -> Any:
+        """Hace el POST con la sesión envuelta y lo cuenta."""
+        self.calls += 1
+        return self.session.post(*args, **kwargs)
+
+
 def model_from_response(body: dict[str, Any]) -> dict[str, Any]:
     """Saca el modelo del cuerpo de la respuesta, o falla diciendo qué contestó la API.
 
@@ -56,15 +74,18 @@ def compare(
 ) -> dict[str, Any]:
     """Arma la misma vista por los dos protocolos y devuelve qué costó cada uno.
 
-    Las sesiones entran por parámetro para poder medir contra las dos apps sin levantarlas.
+    Las sesiones entran por parámetro para poder medir contra las dos apps sin levantarlas. Las
+    llamadas se cuentan sobre la sesión: si la vista pasara a necesitar otra request, la tabla lo
+    reflejaría sin tocar este diccionario.
     """
     opciones = {"timeout": timeout} if timeout is not None else {}
+    rest_calls, graphql_calls = CountingSession(rest_session), CountingSession(graphql_session)
 
-    rest = rest_session.get(f"{rest_url}/v1/metadata", **opciones)
+    rest = rest_calls.get(f"{rest_url}/v1/metadata", **opciones)
     rest.raise_for_status()
     metadata = rest.json()
 
-    graphql = post_graphql(graphql_session, graphql_url, QUERY, timeout)
+    graphql = post_graphql(graphql_calls, graphql_url, QUERY, timeout)
     modelo = model_from_response(graphql.json())
 
     return {
@@ -72,8 +93,8 @@ def compare(
             "rest": {"name": metadata["name"], "mcc": metadata["metrics"]["mcc"]},
             "graphql": {"name": modelo["name"], "mcc": modelo["metrics"]["mcc"]},
         },
-        "rest": {"llamadas": 1, "bytes": len(rest.content)},
-        "graphql": {"llamadas": 1, "bytes": len(graphql.content)},
+        "rest": {"llamadas": rest_calls.calls, "bytes": len(rest.content)},
+        "graphql": {"llamadas": graphql_calls.calls, "bytes": len(graphql.content)},
     }
 
 
