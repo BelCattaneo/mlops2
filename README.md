@@ -43,6 +43,7 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 | `schemas.py` | el contrato: `CrimeReport` (los 6 campos crudos) y las respuestas de las APIs |
 | `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
 | `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |
+| `log.py` | el logger de cada servicio, configurado sin tocar el logging del resto del proceso |
 
 Ningún servicio reimplementa la codificación ni el formato de la respuesta: todos usan este paquete.
 
@@ -77,3 +78,5 @@ make test
 ```
 
 Además de los tests de cada servicio, la codificación se verifica contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): tienen que dar las mismas features y la misma clase predicha que en el TP-final.
+
+Los tests del linaje necesitan Neo4j (`make neo4j-up`). Sin la base se saltean solos y el resto de la suite corre igual.

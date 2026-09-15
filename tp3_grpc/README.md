@@ -2,7 +2,7 @@
 
 El mismo modelo de arrestos de Chicago que el TP1 sirve por REST, expuesto por gRPC: contrato tipado en un `.proto`, protobuf binario sobre HTTP/2, con un método unary y uno de server-streaming.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md)
+← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md)
 
 ## Cómo correrlo
 
@@ -66,7 +66,7 @@ Cada cohorte se midió tres veces, porque con una sola medición no se distingue
 
 ## El notebook
 
-[`mini_tp3_actividad.ipynb`](mini_tp3_actividad.ipynb) es el starter de la cátedra completado, y se entrega ejecutado con sus salidas. Levanta el servidor gRPC en un hilo del mismo proceso (ahí se ve que el modelo se carga una sola vez), lo llama unary y por streaming, levanta además la API REST del TP1 en otro hilo y corre el benchmark.
+[`mini_tp3_actividad.ipynb`](mini_tp3_actividad.ipynb) es el starter de la cátedra completado, y se entrega ejecutado con sus salidas. Levanta el servidor gRPC en un hilo del mismo proceso (ahí se ve que el modelo se carga una sola vez), lo llama unary y por streaming, y muestra la tabla de latencias medida con `benchmark.py`.
 
 Los `.py` de esta carpeta son la fuente y están cubiertos por tests; el notebook los importa y los muestra con `IPython.display.Code`, para que no haya dos copias del mismo código.
 

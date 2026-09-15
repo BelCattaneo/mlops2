@@ -14,7 +14,7 @@ Todos los comandos se corren desde la raíz del repo.
 | `make graphql-up` · `make graphql-down` | levanta y detiene la API en Docker, en el mismo puerto |
 | `make graphql-logs` | muestra los logs del contenedor |
 | `make graphql-client` | corre el cliente de prueba contra la API |
-| `make graphql-compare` | compara la misma lectura por REST y por GraphQL |
+| `make graphql-compare` | compara la misma lectura por REST y por GraphQL (con la API REST del TP1 también arriba) |
 | `make neo4j-up` · `make neo4j-down` | levanta y detiene Neo4j en Docker |
 | `make graphql-seed` | siembra el linaje del modelo en Neo4j |
 

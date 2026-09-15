@@ -57,7 +57,7 @@ Los números varían entre corridas, y bastante: es una laptop con Docker Deskto
 
 ## Otras mediciones
 
-El mismo reporte pesa 60 bytes serializado en protobuf contra 161 en JSON, unas 2.7 veces menos, porque en protobuf viajan los números de campo y no sus nombres.
+El mismo reporte pesa 60 bytes serializado en protobuf contra 161 en JSON compacto, unas 2.7 veces menos, porque en protobuf viajan los números de campo y no sus nombres.
 
 En un lote de 100 por streaming, la primera predicción llega bastante antes que la última: el servidor puntúa el lote de una y después emite los mensajes, así que el cliente puede empezar a trabajar sin esperar a que lleguen todos.
 
