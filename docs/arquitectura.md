@@ -1,0 +1,31 @@
+# Arquitectura del TP integrador
+
+Plataforma de predicción en tiempo real de "ML Models & Something More Inc." que sirve el modelo XGBoost de arrestos en Chicago (2024). Nivel en contenedores, trabajo individual.
+
+Parte de la infraestructura del TP final de MLOps I y de los servicios de los mini-TPs, y suma una capa por sesión.
+
+![Arquitectura de la plataforma por capas](arquitectura.png)
+
+## Capas
+
+| capa | componentes | qué hace |
+|---|---|---|
+| Ingesta y orquestación | Airflow, ValKey | el DAG de ETL baja los reportes de Socrata y los procesa |
+| Data lake | MinIO | guarda los datasets (`s3://data`) y los artefactos de modelos (`s3://mlflow`) |
+| Entrenamiento y ciclo de vida | trainer, MLflow, PostgreSQL | entrena el XGBoost, lo registra y le asigna el alias `champion` |
+| Servicio | REST, gRPC, GraphQL con Neo4j | predicciones y metadatos del modelo `champion`, con la codificación compartida de `arrest_model` |
+
+## Lo que se suma en cada sesión
+
+Son propuestas que se ajustan con el material de cada sesión.
+
+| sesión | qué se suma | para qué |
+|---|---|---|
+| S4 · Streaming | un broker de eventos y un consumidor que puntúa cada reporte nuevo al llegar (Kafka, Redpanda o Redis Streams) | predecir cada reporte apenas se publica, sin esperar a que alguien consulte una API |
+| S5 · Nube y data lake | zonas raw, processed y curated en el data lake (MinIO o S3) | saber de qué datos salió cada modelo y poder reprocesar desde los datos crudos |
+| S6 · Aprendizaje federado | entrenamiento por distrito policial, con un servidor que agrega solo los parámetros (Flower) | aprovechar los datos de todos los distritos sin que salgan de cada uno |
+| S7 · Seguridad y gobernanza | gateway con autenticación, TLS en gRPC, monitoreo de drift y auditoría | que solo usen las APIs quienes están autorizados, que el tráfico viaje cifrado y detectar cuando el modelo pierde precisión porque cambian los datos |
+
+## Créditos
+
+La infraestructura parte del [TP final de MLOps I](https://github.com/CEIA-22Co2025-Grupo4/MLOPS) del grupo CEIA-22Co2025-Grupo4, basado en [amq2-service-ml](https://github.com/facundolucianna/amq2-service-ml) de la cátedra.

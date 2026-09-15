@@ -1,0 +1,67 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "15px", "lineColor": "#8792A2", "clusterBkg": "#F7F9FB", "clusterBorder": "#C9D0DA", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 22, "rankSpacing": 48}}}%%
+flowchart TB
+  classDef base fill:#E8F0FB,stroke:#3A6EA5,color:#16324F,stroke-width:1.5px
+  classDef minitp fill:#E6F4EA,stroke:#2E7D4F,color:#173D27,stroke-width:1.5px
+  classDef propuesta fill:#FFF6E0,stroke:#C98A00,color:#5A3E00,stroke-width:1.5px,stroke-dasharray:6 4
+  classDef externo fill:#FFFFFF,stroke:#8A8A8A,color:#333333,stroke-width:1.5px
+
+  %% Dentro de cada capa va "direction TB": mermaid la invierte en los grupos anidados y así los
+  %% servicios quedan uno al lado del otro.
+
+  subgraph fuentes["Fuentes"]
+    direction TB
+    SOC["Socrata<br/>datos abiertos de Chicago"]:::externo
+    DIST["Distritos policiales<br/>datos locales · S6"]:::propuesta
+  end
+
+  subgraph ingesta["Ingesta y orquestación"]
+    direction TB
+    AF["Airflow :8080<br/>DAG de ETL"]:::base
+    VK[("ValKey<br/>cola de Celery")]:::base
+    BRK[["broker de eventos<br/>reportes nuevos · S4"]]:::propuesta
+  end
+
+  subgraph lake["Data lake · MinIO :9000"]
+    direction TB
+    DATA[("s3://data<br/>datasets")]:::base
+    ZON[("zonas raw · processed · curated<br/>S5")]:::propuesta
+    ART[("s3://mlflow<br/>artefactos de modelos")]:::base
+  end
+
+  subgraph ciclo["Entrenamiento y ciclo de vida"]
+    direction TB
+    TR["trainer<br/>entrena XGBoost"]:::base
+    FED["servidor federado<br/>agrega parámetros · S6"]:::propuesta
+    MLF["MLflow :5001<br/>registry · alias champion"]:::base
+    PG[("PostgreSQL :5432<br/>metadata")]:::base
+    MON["monitoreo y auditoría<br/>drift · S7"]:::propuesta
+  end
+
+  subgraph serv["Servicio · arrest_model"]
+    direction TB
+    GW["gateway<br/>autenticación y TLS · S7"]:::propuesta
+    REST["REST :8000<br/>predicción"]:::minitp
+    GRPC["gRPC :50051<br/>predicción"]:::minitp
+    CON["consumidor<br/>puntúa cada evento · S4"]:::propuesta
+    GQL["GraphQL :8010<br/>metadatos"]:::minitp
+    NEO[("Neo4j :7687<br/>linaje")]:::minitp
+  end
+
+  subgraph clientes["Clientes"]
+    direction TB
+    USR["apps y analistas"]:::externo
+  end
+
+  subgraph ref["Referencias"]
+    direction TB
+    L1["existe · MLOps I"]:::base
+    L2["existe · mini-TPs"]:::minitp
+    L3["se suma · S4 a S7"]:::propuesta
+  end
+
+  fuentes -->|"reportes de crímenes"| ingesta
+  ingesta -->|"datos procesados"| lake
+  lake -->|"datos de entrenamiento"| ciclo
+  ciclo -->|"modelo champion"| serv
+  serv -->|"predicciones y metadatos"| clientes
+  clientes ~~~ ref
