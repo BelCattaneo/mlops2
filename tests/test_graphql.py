@@ -13,7 +13,7 @@ from arrest_model.schemas import EXAMPLE_REPORT
 from tp1_rest.app import create_app as create_rest_app
 from tp2_graphql.app import create_app
 from tp2_graphql.client import run_client
-from tp2_graphql.compare import GraphQLFailed, compare
+from tp2_graphql.compare import GraphQLFailed, compare, format_results
 from tp2_graphql.compare import main as compare_main
 from tp2_graphql.schema import schema
 
@@ -185,6 +185,20 @@ def test_graphql_moves_fewer_bytes_for_the_same_view(bundle: dict[str, Any]) -> 
     ):
         numeros = compare("", "/graphql", rest_session=rest, graphql_session=graphql, timeout=None)
     assert numeros["graphql"]["bytes"] < numeros["rest"]["bytes"]
+
+
+def test_the_table_shows_calls_and_bytes_per_protocol() -> None:
+    vista = {"name": MODEL_NAME, "mcc": 0.58}
+    tabla = format_results(
+        {
+            "vista": {"rest": vista, "graphql": vista},
+            "rest": {"llamadas": 1, "bytes": 557},
+            "graphql": {"llamadas": 1, "bytes": 89},
+        }
+    )
+    assert "| REST | 1 | 557 |" in tabla
+    assert "| GraphQL | 1 | 89 |" in tabla
+    assert "Las dos vistas coinciden: True." in tabla
 
 
 class RespuestaConErrores:

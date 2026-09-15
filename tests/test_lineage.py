@@ -9,9 +9,11 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 from arrest_model.config import MODEL_NAME
-from tp2_graphql.lineage import EDGES, lineage_of, open_driver, seed
+from tp2_graphql.app import create_app
+from tp2_graphql.lineage import EDGES, NODES, lineage_of, open_driver, seed
 
 
 def _neo4j_escuchando() -> bool:
@@ -70,3 +72,11 @@ def test_lineage_includes_the_transforms(driver: Any) -> None:
 
 def test_lineage_of_an_unknown_model_is_empty(driver: Any) -> None:
     assert lineage_of(driver, "otro-modelo") == []
+
+
+def test_graphql_serves_the_seeded_lineage(driver: Any, bundle: dict[str, Any]) -> None:
+    # De punta a punta: la query entra por la app y el linaje sale del Neo4j real.
+    query = f'{{ model(name: "{MODEL_NAME}") {{ lineage {{ name }} }} }}'
+    with TestClient(create_app(lambda: bundle)) as client:
+        linaje = client.post("/graphql", json={"query": query}).json()["data"]["model"]["lineage"]
+    assert len(linaje) == len(NODES) - 1  # todos los nodos declarados menos el propio modelo
