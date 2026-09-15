@@ -13,6 +13,8 @@ Todos los comandos se corren desde la raíz del repo.
 | comando | qué hace |
 |---|---|
 | `make graphql-run` | levanta la API en el puerto 8010, con GraphiQL en `/graphql` |
+| `make graphql-up` · `make graphql-down` | levanta y detiene la API en Docker, en el mismo puerto |
+| `make graphql-logs` | muestra los logs del contenedor |
 | `make graphql-client` | corre el cliente de prueba contra la API |
 | `make graphql-compare` | compara la misma lectura por REST y por GraphQL |
 | `make neo4j-up` · `make neo4j-down` | levanta y detiene Neo4j en Docker |
@@ -29,6 +31,18 @@ Para probarlo desde el navegador, con `make graphql-run` corriendo, abrir <http:
   }
 }
 ```
+
+## En Docker
+
+La API tiene su propia imagen, como las del TP1 y el TP3. Neo4j no va adentro: corre en su contenedor, y los dos comparten una red de Docker en la que la API lo encuentra por nombre.
+
+```bash
+make neo4j-up && make graphql-seed
+make graphql-up       # construye la imagen, levanta el contenedor y espera a que responda
+make graphql-client
+```
+
+Si Neo4j no está levantado, el contenedor arranca igual y solo `lineage` viene en `null`.
 
 ## El esquema
 
@@ -117,5 +131,6 @@ uv run jupyter nbconvert --to notebook --execute --inplace tp2_graphql/mini_tp2_
 | `client.py` | cliente de prueba; devuelve 0/1 según los casos esperados |
 | `compare.py` | la comparación con REST, en llamadas y bytes |
 | `lineage.py` | el grafo de linaje: sembrado idempotente y la consulta en Cypher |
+| `Dockerfile` | la imagen de la API: dependencias base más el grupo `graphql`, sin Neo4j |
 
 El driver de Neo4j es perezoso y no conecta hasta la primera consulta, que es lo que permite que el servicio levante con la base caída. Para sembrar se usa otra función, que sí espera a que Neo4j acepte conexiones, porque el contenedor tarda en arrancar.

@@ -3,15 +3,20 @@
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
+GRAPHQL_IMAGE := arrest-graphql
+GRAPHQL_CONTAINER := arrest-graphql
 GRAPHQL_PORT := 8010
 GRPC_IMAGE := arrest-grpc
 GRPC_CONTAINER := arrest-grpc
 GRPC_PORT := 50051
 NEO4J_CONTAINER := neo4j-tp
+# La red que comparten Neo4j y la API GraphQL: adentro de ella se encuentran por nombre.
+DOCKER_NETWORK := arrest-net
 
-.PHONY: help install test lint
+.PHONY: help install test lint docker-network
 .PHONY: rest-run rest-build rest-up rest-down rest-logs rest-health rest-client
-.PHONY: graphql-run graphql-client graphql-compare graphql-seed neo4j-up neo4j-down
+.PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
+.PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 
 help: ## Muestra los comandos disponibles
@@ -26,6 +31,10 @@ test: ## Corre los tests
 lint: ## Revisa estilo y formato con ruff
 	uv run ruff check arrest_model tp1_rest tp2_graphql tp3_grpc tests
 	uv run ruff format --check arrest_model tp1_rest tp2_graphql tp3_grpc tests
+
+# Sin `##` a propósito: es un paso interno de neo4j-up y graphql-up, no un comando para correr solo.
+docker-network:
+	@docker network inspect $(DOCKER_NETWORK) > /dev/null 2>&1 || docker network create $(DOCKER_NETWORK) > /dev/null
 
 rest-run: ## TP1 · levanta la API local con uvicorn (recarga al guardar)
 	uv run uvicorn tp1_rest.app:app --reload --port $(REST_PORT)
@@ -53,7 +62,23 @@ rest-client: ## TP1 · prueba la API con el cliente (con rest-run o rest-up corr
 graphql-run: ## TP2 · levanta la API GraphQL local (GraphiQL en /graphql)
 	uv run uvicorn tp2_graphql.app:app --port $(GRAPHQL_PORT)
 
-graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run corriendo)
+graphql-build: ## TP2 · construye la imagen Docker
+	docker build -f tp2_graphql/Dockerfile -t $(GRAPHQL_IMAGE) .
+
+graphql-up: graphql-build docker-network ## TP2 · levanta el contenedor en la red de Neo4j y espera a que responda
+	@docker rm -f $(GRAPHQL_CONTAINER) > /dev/null 2>&1 || true
+	docker run -d --rm -p $(GRAPHQL_PORT):8010 --name $(GRAPHQL_CONTAINER) --network $(DOCKER_NETWORK) \
+		-e NEO4J_URI=bolt://$(NEO4J_CONTAINER):7687 $(GRAPHQL_IMAGE)
+	@curl -s -o /dev/null --retry 45 --retry-all-errors --retry-delay 2 --max-time 5 -H 'Accept: text/html' \
+		http://127.0.0.1:$(GRAPHQL_PORT)/graphql && echo "GraphQL listo en http://127.0.0.1:$(GRAPHQL_PORT)/graphql"
+
+graphql-down: ## TP2 · detiene el contenedor
+	docker stop $(GRAPHQL_CONTAINER)
+
+graphql-logs: ## TP2 · muestra los logs del contenedor
+	docker logs -f $(GRAPHQL_CONTAINER)
+
+graphql-client: ## TP2 · prueba la API GraphQL con el cliente (con graphql-run o graphql-up corriendo)
 	uv run python -m tp2_graphql.client --url http://127.0.0.1:$(GRAPHQL_PORT)/graphql
 
 graphql-compare: ## TP2 · compara la misma lectura por REST y por GraphQL (las dos APIs arriba)
@@ -64,9 +89,9 @@ graphql-compare: ## TP2 · compara la misma lectura por REST y por GraphQL (las 
 graphql-seed: ## TP2 · siembra el linaje del modelo en Neo4j (espera a que acepte conexiones)
 	uv run python -m tp2_graphql.lineage
 
-neo4j-up: ## TP2 · levanta Neo4j en Docker (UI en 7474, driver bolt en 7687)
+neo4j-up: docker-network ## TP2 · levanta Neo4j en Docker (UI en 7474, driver bolt en 7687)
 	@docker rm -f $(NEO4J_CONTAINER) > /dev/null 2>&1 || true
-	docker run -d --rm --name $(NEO4J_CONTAINER) -p 7474:7474 -p 7687:7687 \
+	docker run -d --rm --name $(NEO4J_CONTAINER) --network $(DOCKER_NETWORK) -p 7474:7474 -p 7687:7687 \
 		-e NEO4J_AUTH=neo4j/testpass neo4j:latest
 
 neo4j-down: ## TP2 · detiene Neo4j

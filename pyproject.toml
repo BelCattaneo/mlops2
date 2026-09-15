@@ -51,6 +51,7 @@ dev = [
 graphql = [
     "neo4j>=6.3.0",
     "strawberry-graphql[fastapi]>=0.327.7",
+    "uvicorn[standard]>=0.52.4",
 ]
 grpc = [
     "grpcio>=1.83.1",

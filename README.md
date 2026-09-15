@@ -26,12 +26,12 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ## Estructura
 
 ```
-├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, grpc-*)
+├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, graphql-*, grpc-*)
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
-├── tp2_graphql/     # Mini-TP 2: GraphQL (schema.py, app.py, client.py, compare.py, lineage.py, README.md)
-├── tp3_grpc/        # Mini-TP 3: gRPC (scoring.proto, server.py, client.py, benchmark.py, README.md)
+├── tp2_graphql/     # Mini-TP 2: GraphQL (schema.py, app.py, client.py, compare.py, lineage.py, Dockerfile, README.md)
+├── tp3_grpc/        # Mini-TP 3: gRPC (scoring.proto, server.py, client.py, benchmark.py, Dockerfile, README.md)
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
 

@@ -1225,6 +1225,7 @@ dev = [
 graphql = [
     { name = "neo4j" },
     { name = "strawberry-graphql", extra = ["fastapi"] },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 grpc = [
     { name = "grpcio" },
@@ -1259,6 +1260,7 @@ dev = [
 graphql = [
     { name = "neo4j", specifier = ">=6.3.0" },
     { name = "strawberry-graphql", extras = ["fastapi"], specifier = ">=0.327.7" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
 grpc = [
     { name = "grpcio", specifier = ">=1.83.1" },
