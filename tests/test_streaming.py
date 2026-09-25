@@ -10,7 +10,7 @@ import pytest
 from pyproj import Transformer
 
 from arrest_model.schemas import CrimeReport
-from tp4_streaming.consumer import score_stream
+from tp4_streaming.consumer import DRIFT_THRESHOLD, score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
 from tp4_streaming.sources import QueueSource
@@ -156,3 +156,32 @@ def test_the_window_reports_throughput_p95_and_drift(bundle: dict[str, Any]) -> 
     assert ventana.p95_ms > 0
     assert 0.0 <= ventana.mean_probability <= 1.0
     assert ventana.drift < 0.5
+
+
+def ventanas_de(bundle: dict[str, Any], **kwargs: Any) -> list[Any]:
+    """Corre 200 eventos con el reloj falso y devuelve las ventanas informadas."""
+    return list(
+        score_stream(
+            crime_stream(200, seed=4, **kwargs),
+            bundle,
+            report_every=50,
+            clock=reloj_de_un_segundo(),
+        )
+    )
+
+
+def test_a_stable_stream_raises_no_alert(bundle: dict[str, Any]) -> None:
+    assert [v.alert for v in ventanas_de(bundle)] == [False, False, False, False]
+
+
+def test_the_alert_fires_when_the_drift_crosses_the_threshold(bundle: dict[str, Any]) -> None:
+    ventanas = ventanas_de(bundle, drift_from=100)
+    alertadas = [v for v in ventanas if v.alert]
+    assert alertadas and alertadas[0].drift > DRIFT_THRESHOLD
+
+
+def test_the_alert_does_not_repeat_while_the_drift_lasts(bundle: dict[str, Any]) -> None:
+    # Avisar una vez por ventana mientras el drift dure sería ruido: se avisa al cruzar.
+    ventanas = ventanas_de(bundle, drift_from=100)
+    assert sum(v.alert for v in ventanas) == 1
+    assert ventanas[-1].drift > DRIFT_THRESHOLD and ventanas[-1].alert is False
