@@ -18,7 +18,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
-.PHONY: stream-run
+.PHONY: stream-run stream-compare
 
 help: ## Muestra los comandos disponibles
 	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -127,3 +127,6 @@ grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo 
 
 stream-run: ## TP4 · puntúa un flujo de reportes evento por evento, con drift a la mitad
 	uv run python -m tp4_streaming.run --drift-from 200
+
+stream-compare: ## TP4 · compara puntuar el flujo de a uno contra puntuarlo en lote
+	uv run python -m tp4_streaming.compare

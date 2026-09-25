@@ -10,6 +10,7 @@ import pytest
 from pyproj import Transformer
 
 from arrest_model.schemas import CrimeReport
+from tp4_streaming.compare import compare, format_comparison
 from tp4_streaming.consumer import DRIFT_THRESHOLD, score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
@@ -200,3 +201,18 @@ def test_the_command_scores_the_stream_and_reports_each_window(
 def test_the_command_marks_the_window_that_alerts(capsys: pytest.CaptureFixture[str]) -> None:
     assert run_stream(events=200, report_every=50, drift_from=100) == 0
     assert "ALERTA" in capsys.readouterr().out
+
+
+def test_online_and_batch_agree_on_every_prediction(bundle: dict[str, Any]) -> None:
+    # El invariante del TP: puntuar de a uno o de a mil tiene que dar exactamente lo mismo.
+    # Si difieren, el camino online ordenó mal las features, perdió un evento o codificó distinto.
+    comparacion = compare(list(crime_stream(200, seed=6)), bundle)
+    assert comparacion.same_predictions
+    assert comparacion.events == 200
+
+
+def test_the_comparison_reports_the_time_of_each_path(bundle: dict[str, Any]) -> None:
+    comparacion = compare(list(crime_stream(50, seed=6)), bundle)
+    assert comparacion.online_seconds > 0 and comparacion.batch_seconds > 0
+    tabla = format_comparison(comparacion)
+    assert "| online |" in tabla and "| batch |" in tabla
