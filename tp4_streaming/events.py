@@ -1,8 +1,8 @@
 """Mini-TP 4: el flujo de reportes que se puntúa online.
 
-Los reportes son sintéticos: salen del reporte de ejemplo del repo, con variación alrededor de
-su zona y de sus categorías. Cumplen el mismo contrato que valida la API REST, así que el flujo
-ejercita el camino real de datos y no un formato inventado para la ocasión.
+Los reportes son sintéticos: se generan alrededor de la zona donde el modelo vio la mayoría de
+los crímenes, variando categorías y coordenadas. Cumplen el mismo contrato que valida la API
+REST, así que el flujo ejercita el camino real de datos y no un formato inventado.
 
 El flujo puede correrse los reportes a otra zona a partir de cierto evento. Eso es lo que hace
 visible el drift: las coordenadas estandarizadas se alejan de la media con la que se entrenó.
@@ -15,14 +15,17 @@ from typing import Any
 
 from arrest_model.schemas import EXAMPLE_REPORT, PRIMARY_TYPES
 
-BASE_LATITUDE = float(EXAMPLE_REPORT["latitude"])
-BASE_LONGITUDE = float(EXAMPLE_REPORT["longitude"])
+# Centro del flujo: la media de las coordenadas de entrenamiento, que el modelo guarda
+# proyectada en pies (EPSG:3435) y acá va en grados. Un test la compara contra el .pkl.
+BASE_LATITUDE = 41.846943
+BASE_LONGITUDE = -87.668933
 START = datetime.fromisoformat(str(EXAMPLE_REPORT["date"]))
 
 # Dispersión de los reportes alrededor de la zona base, en grados (unos 800 m).
 SPREAD = 0.01
-# Cuánto se corren los reportes hacia el norte con el drift, en grados (unos 5,5 km).
-DRIFT_DEGREES = 0.05
+# Cuánto se corren los reportes hacia el norte con el drift, en grados (unos 13 km). Es más de
+# un desvío de entrenamiento en ese eje, así que el indicador lo separa del ruido del flujo.
+DRIFT_DEGREES = 0.12
 
 IUCRS = ("1310", "0820", "0486", "1320")
 LOCATIONS = ("APARTMENT", "STREET", "RESIDENCE", "SIDEWALK")
