@@ -1,7 +1,8 @@
 """Mini-TP 4: el flujo de eventos que se puntúa evento por evento."""
 
+import itertools
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from statistics import mean
 from typing import Any
 
@@ -9,6 +10,7 @@ import pytest
 from pyproj import Transformer
 
 from arrest_model.schemas import CrimeReport
+from tp4_streaming.consumer import score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
 from tp4_streaming.sources import QueueSource
@@ -106,3 +108,51 @@ def test_moving_the_reports_out_of_the_zone_raises_the_drift(bundle: dict[str, A
     normales = [CrimeReport.model_validate(e) for e in crime_stream(60, seed=3)]
     corridos = [CrimeReport.model_validate(e) for e in crime_stream(60, seed=3, drift_from=0)]
     assert drift_indicator(corridos, bundle["params"]) > drift_indicator(normales, bundle["params"])
+
+
+def reloj_de_un_segundo() -> Callable[[], float]:
+    """Reloj falso que avanza un segundo por lectura, para fijar las ventanas en los tests."""
+    tiempos = itertools.count(0.0)
+    return lambda: next(tiempos)
+
+
+def test_every_event_of_the_stream_gets_scored(bundle: dict[str, Any]) -> None:
+    ventanas = list(
+        score_stream(
+            crime_stream(100, seed=2), bundle, report_every=50, clock=reloj_de_un_segundo()
+        )
+    )
+    assert [v.scored for v in ventanas] == [50, 100]
+
+
+def test_the_window_drops_what_is_older_than_its_length(bundle: dict[str, Any]) -> None:
+    # Con un evento por segundo y una ventana de 10, adentro quedan los últimos 10 eventos.
+    ventanas = list(
+        score_stream(
+            crime_stream(60, seed=2),
+            bundle,
+            window_seconds=10.0,
+            report_every=30,
+            clock=reloj_de_un_segundo(),
+        )
+    )
+    assert [v.events for v in ventanas] == [10, 10]
+
+
+def test_the_window_reports_throughput_p95_and_drift(bundle: dict[str, Any]) -> None:
+    # Un evento por segundo es un evento por segundo de throughput.
+    ventana = next(
+        iter(
+            score_stream(
+                crime_stream(40, seed=2),
+                bundle,
+                window_seconds=5.0,
+                report_every=20,
+                clock=reloj_de_un_segundo(),
+            )
+        )
+    )
+    assert ventana.throughput == pytest.approx(1.0, abs=0.3)
+    assert ventana.p95_ms > 0
+    assert 0.0 <= ventana.mean_probability <= 1.0
+    assert ventana.drift < 0.5
