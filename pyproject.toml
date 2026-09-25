@@ -37,7 +37,10 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["neo4j: requiere Neo4j corriendo en localhost:7687"]
+markers = [
+    "neo4j: requiere Neo4j corriendo en localhost:7687",
+    "kafka: requiere un broker corriendo en localhost:9092",
+]
 
 [dependency-groups]
 dev = [
@@ -60,4 +63,7 @@ grpc = [
 rest = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
+]
+streaming = [
+    "kafka-python>=3.0.11",
 ]

@@ -2,12 +2,16 @@
 
 Una fuente es cualquier cosa que se pueda recorrer y entregue reportes. El consumidor no sabe
 cuál está usando: con eso, el mismo scoring corre contra una cola en memoria o contra un broker.
+
+`kafka-python` se importa recién cuando se usa el broker, así que la cola en memoria funciona
+en un entorno donde el grupo `streaming` no esté instalado.
 """
 
+import json
 import queue
 import threading
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from typing import Any
 
 Event = dict[str, Any]
@@ -50,3 +54,77 @@ class QueueSource:
                 break
             yield event
         producer.join()
+
+
+TOPIC = "arrest-events"
+SERVERS = ("localhost:9092",)
+
+
+def publish(
+    events: Iterable[Event],
+    topic: str = TOPIC,
+    servers: Sequence[str] = SERVERS,
+    rate: float = 0.0,
+) -> int:
+    """Publica los eventos en el topic y devuelve cuántos mandó.
+
+    Con `rate` en eventos por segundo, los publica a ese ritmo: así el consumidor lee mientras
+    el productor sigue emitiendo, que es como se comporta un flujo de verdad.
+    """
+    from kafka import KafkaProducer
+
+    producer = KafkaProducer(
+        bootstrap_servers=list(servers),
+        value_serializer=lambda event: json.dumps(event).encode(),
+    )
+    delay = 1 / rate if rate > 0 else 0.0
+    published = 0
+    for event in events:
+        producer.send(topic, event)
+        published += 1
+        if delay:
+            producer.flush()
+            time.sleep(delay)
+    producer.flush()
+    producer.close()
+    return published
+
+
+class KafkaSource:
+    """Fuente sobre un topic de Kafka, que es el camino de producción.
+
+    Entrega lo mismo que `QueueSource`, así que el consumidor no cambia. Lee desde el principio
+    del topic y corta cuando pasa `timeout_ms` sin mensajes nuevos: en producción el consumo no
+    termina, pero un flujo infinito no se puede testear ni mostrar en un notebook.
+    """
+
+    def __init__(
+        self,
+        topic: str = TOPIC,
+        servers: Sequence[str] = SERVERS,
+        timeout_ms: int = 10_000,
+        group: str | None = None,
+    ) -> None:
+        self.topic = topic
+        self.servers = servers
+        self.timeout_ms = timeout_ms
+        self.group = group
+
+    def __iter__(self) -> Iterator[Event]:
+        """Consume el topic y entrega cada mensaje ya decodificado."""
+        from kafka import KafkaConsumer
+
+        consumer = KafkaConsumer(
+            self.topic,
+            bootstrap_servers=list(self.servers),
+            auto_offset_reset="earliest",
+            enable_auto_commit=False,
+            group_id=self.group,
+            consumer_timeout_ms=self.timeout_ms,
+            value_deserializer=json.loads,
+        )
+        try:
+            for message in consumer:
+                yield message.value
+        finally:
+            consumer.close()

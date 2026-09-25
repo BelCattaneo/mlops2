@@ -4,11 +4,14 @@ Uso: `uv run python -m tp4_streaming.run [--events N] [--drift-from N]`, o `make
 """
 
 import argparse
+import threading
+from collections.abc import Iterable
+from typing import Any
 
 from arrest_model.model import load_bundle
 from tp4_streaming.consumer import REPORT_EVERY, WindowReport, score_stream
 from tp4_streaming.events import crime_stream
-from tp4_streaming.sources import QueueSource
+from tp4_streaming.sources import TOPIC, KafkaSource, QueueSource, publish
 
 EVENTS = 400
 # Ritmo de llegada del flujo, en eventos por segundo, y largo de la ventana en segundos.
@@ -26,14 +29,26 @@ def format_window(window: WindowReport) -> str:
     )
 
 
+def build_source(events: Iterable[dict[str, Any]], source: str, rate: float) -> Any:
+    """Devuelve la fuente pedida; con `kafka`, publica en el topic mientras se consume."""
+    if source != "kafka":
+        return QueueSource(events, rate=rate)
+    publisher = threading.Thread(
+        target=publish, args=(list(events),), kwargs={"topic": TOPIC, "rate": rate}, daemon=True
+    )
+    publisher.start()
+    return KafkaSource(topic=TOPIC, timeout_ms=5000)
+
+
 def run_stream(
     events: int = EVENTS,
     report_every: int = REPORT_EVERY,
     drift_from: int | None = None,
     rate: float = RATE,
+    source: str = "memoria",
 ) -> int:
     """Puntúa `events` eventos de a uno y devuelve 0; con `drift_from`, corre la zona desde ahí."""
-    source = QueueSource(crime_stream(events, drift_from=drift_from), rate=rate)
+    source = build_source(crime_stream(events, drift_from=drift_from), source, rate)
     for window in score_stream(
         source, load_bundle(), window_seconds=WINDOW, report_every=report_every
     ):
@@ -48,8 +63,9 @@ def main() -> int:
     parser.add_argument("--report-every", type=int, default=REPORT_EVERY)
     parser.add_argument("--drift-from", type=int, default=None)
     parser.add_argument("--rate", type=float, default=RATE, help="eventos por segundo")
+    parser.add_argument("--source", choices=("memoria", "kafka"), default="memoria")
     args = parser.parse_args()
-    return run_stream(args.events, args.report_every, args.drift_from, args.rate)
+    return run_stream(args.events, args.report_every, args.drift_from, args.rate, args.source)
 
 
 if __name__ == "__main__":

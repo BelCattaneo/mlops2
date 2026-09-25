@@ -10,6 +10,7 @@ GRPC_IMAGE := arrest-grpc
 GRPC_CONTAINER := arrest-grpc
 GRPC_PORT := 50051
 NEO4J_CONTAINER := neo4j-tp
+REDPANDA_CONTAINER := redpanda-tp
 # La red que comparten Neo4j y la API GraphQL: adentro de ella se encuentran por nombre.
 DOCKER_NETWORK := arrest-net
 
@@ -18,7 +19,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
-.PHONY: stream-run stream-compare
+.PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down
 
 help: ## Muestra los comandos disponibles
 	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -130,3 +131,15 @@ stream-run: ## TP4 · puntúa un flujo de reportes evento por evento, con drift 
 
 stream-compare: ## TP4 · compara puntuar el flujo de a uno contra puntuarlo en lote
 	uv run python -m tp4_streaming.compare
+
+stream-kafka: ## TP4 · corre el mismo flujo contra Redpanda (con redpanda-up levantado)
+	uv run python -m tp4_streaming.run --drift-from 200 --source kafka
+
+redpanda-up: ## TP4 · levanta Redpanda en Docker (API de Kafka en 9092)
+	@docker rm -f $(REDPANDA_CONTAINER) > /dev/null 2>&1 || true
+	docker run -d --rm --name $(REDPANDA_CONTAINER) -p 9092:9092 redpandadata/redpanda \
+		redpanda start --overprovisioned --smp 1 --check=false
+	@uv run python -c "import socket, time; [time.sleep(1) for _ in range(30) if socket.socket().connect_ex(('127.0.0.1', 9092))]; print('Redpanda listo en 127.0.0.1:9092')"
+
+redpanda-down: ## TP4 · detiene Redpanda
+	docker stop $(REDPANDA_CONTAINER)

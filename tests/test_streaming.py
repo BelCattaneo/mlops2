@@ -1,7 +1,9 @@
 """Mini-TP 4: el flujo de eventos que se puntúa evento por evento."""
 
 import itertools
+import socket
 import threading
+import uuid
 from collections.abc import Callable, Iterator
 from statistics import mean
 from typing import Any
@@ -10,12 +12,12 @@ import pytest
 from pyproj import Transformer
 
 from arrest_model.schemas import CrimeReport
-from tp4_streaming.compare import compare, format_comparison
+from tp4_streaming.compare import compare, format_comparison, score_online
 from tp4_streaming.consumer import DRIFT_THRESHOLD, score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
 from tp4_streaming.run import run_stream
-from tp4_streaming.sources import QueueSource
+from tp4_streaming.sources import KafkaSource, QueueSource, publish
 
 
 def test_the_same_seed_gives_the_same_stream() -> None:
@@ -216,3 +218,39 @@ def test_the_comparison_reports_the_time_of_each_path(bundle: dict[str, Any]) ->
     assert comparacion.online_seconds > 0 and comparacion.batch_seconds > 0
     tabla = format_comparison(comparacion)
     assert "| online |" in tabla and "| batch |" in tabla
+
+
+def topic_nuevo(nombre: str) -> str:
+    """Un topic distinto por corrida: el consumidor lee desde el principio, así que reusar el
+    mismo topic haría que una corrida encontrara también los eventos de la anterior."""
+    return f"tp4-test-{nombre}-{uuid.uuid4().hex[:8]}"
+
+
+def _broker_escuchando() -> bool:
+    """Dice si hay algo aceptando conexiones en el puerto de Kafka."""
+    with socket.socket() as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex(("127.0.0.1", 9092)) == 0
+
+
+@pytest.mark.kafka
+@pytest.mark.skipif(not _broker_escuchando(), reason="no hay broker escuchando en 9092")
+def test_the_broker_delivers_the_same_events_that_were_published() -> None:
+    topic = topic_nuevo("eventos")
+    eventos = list(crime_stream(30, seed=9))
+    publish(eventos, topic=topic)
+    assert list(KafkaSource(topic=topic, timeout_ms=5000)) == eventos
+
+
+@pytest.mark.kafka
+@pytest.mark.skipif(not _broker_escuchando(), reason="no hay broker escuchando en 9092")
+def test_the_stream_scores_the_same_from_the_queue_and_from_the_broker(
+    bundle: dict[str, Any],
+) -> None:
+    # La fuente no puede cambiar el resultado: el consumidor no sabe de dónde vienen los eventos.
+    topic = topic_nuevo("scoring")
+    eventos = list(crime_stream(60, seed=9))
+    publish(eventos, topic=topic)
+    desde_cola = score_online(eventos, bundle)
+    desde_broker = score_online(list(KafkaSource(topic=topic, timeout_ms=5000)), bundle)
+    assert desde_broker == desde_cola
