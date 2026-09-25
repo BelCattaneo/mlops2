@@ -13,6 +13,7 @@ from arrest_model.schemas import CrimeReport
 from tp4_streaming.consumer import DRIFT_THRESHOLD, score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
+from tp4_streaming.run import run_stream
 from tp4_streaming.sources import QueueSource
 
 
@@ -185,3 +186,17 @@ def test_the_alert_does_not_repeat_while_the_drift_lasts(bundle: dict[str, Any])
     ventanas = ventanas_de(bundle, drift_from=100)
     assert sum(v.alert for v in ventanas) == 1
     assert ventanas[-1].drift > DRIFT_THRESHOLD and ventanas[-1].alert is False
+
+
+def test_the_command_scores_the_stream_and_reports_each_window(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert run_stream(events=100, report_every=50, drift_from=None) == 0
+    salida = capsys.readouterr().out
+    assert len(salida.strip().splitlines()) == 2
+    assert "throughput" in salida and "p95" in salida and "drift" in salida
+
+
+def test_the_command_marks_the_window_that_alerts(capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_stream(events=200, report_every=50, drift_from=100) == 0
+    assert "ALERTA" in capsys.readouterr().out

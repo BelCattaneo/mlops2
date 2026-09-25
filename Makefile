@@ -1,5 +1,5 @@
 # Atajos del repo. `make help` lista los comandos.
-# Los globales van sin prefijo; los de cada servicio llevan el suyo: rest-, graphql- y grpc-.
+# Los globales van sin prefijo; los de cada servicio llevan el suyo: rest-, graphql-, grpc- y stream-.
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
@@ -18,6 +18,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
+.PHONY: stream-run
 
 help: ## Muestra los comandos disponibles
 	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -123,3 +124,6 @@ grpc-client: ## TP3 · prueba el servicio con el cliente (con grpc-run o grpc-up
 grpc-bench: ## TP3 · compara latencia gRPC vs REST (los dos arriba y del mismo lado)
 	uv run python -m tp3_grpc.benchmark --rest-url http://127.0.0.1:$(REST_PORT) \
 		--grpc-target 127.0.0.1:$(GRPC_PORT)
+
+stream-run: ## TP4 · puntúa un flujo de reportes evento por evento, con drift a la mitad
+	uv run python -m tp4_streaming.run --drift-from 200

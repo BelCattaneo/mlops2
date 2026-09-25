@@ -6,6 +6,7 @@ cuál está usando: con eso, el mismo scoring corre contra una cola en memoria o
 
 import queue
 import threading
+import time
 from collections.abc import Iterable, Iterator
 from typing import Any
 
@@ -20,16 +21,23 @@ class QueueSource:
 
     El productor va en su propio hilo a propósito: así generar el evento siguiente no frena al
     que está puntuando, que es lo que distingue un flujo de recorrer una lista.
+
+    Con `rate` en eventos por segundo, el flujo llega a un ritmo parecido al de una fuente real.
+    Sin ritmo, los eventos entran de golpe y una ventana por tiempo termina abarcándolos a todos.
     """
 
-    def __init__(self, events: Iterable[Event], maxsize: int = 100) -> None:
+    def __init__(self, events: Iterable[Event], rate: float = 0.0, maxsize: int = 100) -> None:
         self.events = events
+        self.rate = rate
         self.queue: queue.Queue[Any] = queue.Queue(maxsize=maxsize)
 
     def _produce(self) -> None:
-        """Publica cada evento en la cola y avisa cuando se terminaron."""
+        """Publica cada evento en la cola, al ritmo pedido, y avisa cuando se terminaron."""
+        delay = 1 / self.rate if self.rate > 0 else 0.0
         for event in self.events:
             self.queue.put(event)
+            if delay:
+                time.sleep(delay)
         self.queue.put(_END)
 
     def __iter__(self) -> Iterator[Event]:
