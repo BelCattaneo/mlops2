@@ -1,9 +1,13 @@
 """Mini-TP 4: el flujo de eventos que se puntúa evento por evento."""
 
+import threading
+from collections.abc import Iterator
 from statistics import mean
+from typing import Any
 
 from arrest_model.schemas import CrimeReport
 from tp4_streaming.events import crime_stream
+from tp4_streaming.sources import QueueSource
 
 
 def test_the_same_seed_gives_the_same_stream() -> None:
@@ -35,3 +39,22 @@ def test_without_drift_the_stream_keeps_its_distribution() -> None:
     antes = mean(evento["latitude"] for evento in eventos[:20])
     despues = mean(evento["latitude"] for evento in eventos[20:])
     assert abs(despues - antes) < 0.02
+
+
+def test_the_queue_source_delivers_every_event_in_order() -> None:
+    eventos = list(crime_stream(30, seed=1))
+    assert list(QueueSource(eventos)) == eventos
+
+
+def test_the_queue_source_produces_on_another_thread() -> None:
+    # El productor no puede correr en el hilo que consume: si lo hiciera, generar un evento
+    # frenaría el scoring, y el flujo dejaría de ser un flujo.
+    hilos: dict[str, int] = {}
+
+    def eventos() -> Iterator[dict[str, Any]]:
+        hilos["productor"] = threading.get_ident()
+        yield from crime_stream(5, seed=1)
+
+    for _ in QueueSource(eventos()):
+        hilos["consumidor"] = threading.get_ident()
+    assert hilos["productor"] != hilos["consumidor"]
