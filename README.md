@@ -1,14 +1,15 @@
 # Mini-TPs · Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
 
-Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos.
+Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos y puntuado sobre un flujo de eventos.
 
-Los tres mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es el protocolo, no el modelo ni la codificación. Cada uno tiene su propia presentación:
+Los cuatro mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Cada uno tiene su propia presentación:
 
 | Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
 | 1 | API REST con FastAPI | [`tp1_rest/README.md`](tp1_rest/README.md) | Listo |
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/README.md`](tp2_graphql/README.md) | Listo |
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
+| 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo, falta la reflexión |
 
 ## Puesta en marcha
 
@@ -26,12 +27,13 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ## Estructura
 
 ```
-├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, graphql-*, grpc-*)
+├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, graphql-*, grpc-*, stream-*)
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
 ├── tp2_graphql/     # Mini-TP 2: GraphQL (schema.py, app.py, client.py, compare.py, lineage.py, Dockerfile, README.md)
 ├── tp3_grpc/        # Mini-TP 3: gRPC (scoring.proto, server.py, client.py, benchmark.py, Dockerfile, README.md)
+├── tp4_streaming/   # Mini-TP 4: streaming (events.py, sources.py, metrics.py, consumer.py, compare.py, run.py, README.md)
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
 
@@ -79,4 +81,4 @@ make test
 
 Además de los tests de cada servicio, la codificación se verifica contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): tienen que dar las mismas features y la misma clase predicha que en el TP-final.
 
-Los tests del linaje necesitan Neo4j (`make neo4j-up`). Sin la base se saltean solos y el resto de la suite corre igual.
+Los tests del linaje necesitan Neo4j (`make neo4j-up`) y los del flujo contra el broker necesitan Redpanda (`make redpanda-up`). Sin esos contenedores se saltean solos y el resto de la suite corre igual.
