@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from arrest_model.features import encode_payload
+from arrest_model.features import Params, encode_payload
 from arrest_model.schemas import CrimeReport
 
 # Las features que el modelo estandariza con la media y el desvío del entrenamiento: ahí, por
@@ -34,7 +34,7 @@ def p95(latencies: Sequence[float]) -> float:
     return float(np.percentile(latencies, 95)) if len(latencies) else 0.0
 
 
-def drift_indicator(reports: Sequence[CrimeReport], params: dict) -> float:
+def drift_indicator(reports: Sequence[CrimeReport], params: Params) -> float:
     """Cuánto se corrieron las entradas respecto del entrenamiento, en desvíos.
 
     Codifica los reportes de la ventana y devuelve la mayor desviación absoluta entre las medias

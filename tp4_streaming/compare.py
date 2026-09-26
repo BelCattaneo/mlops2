@@ -60,17 +60,19 @@ def compare(events: Sequence[dict[str, Any]], bundle: dict[str, Any]) -> Compari
 
 def format_comparison(comparison: Comparison) -> str:
     """Arma la tabla en markdown, lista para el notebook o el README."""
-    por_evento = 1000 / comparison.events
+
+    def fila(camino: str, seconds: float) -> str:
+        total_ms = seconds * 1000
+        return f"| {camino} | {total_ms:.1f} | {total_ms / comparison.events:.3f} |"
+
     return "\n".join(
         [
             f"Los mismos {comparison.events} eventos, puntuados de las dos formas.",
             "",
             "| camino | total (ms) | por evento (ms) |",
             "|---|---|---|",
-            f"| online | {comparison.online_seconds * 1000:.1f} | "
-            f"{comparison.online_seconds * por_evento:.3f} |",
-            f"| batch | {comparison.batch_seconds * 1000:.1f} | "
-            f"{comparison.batch_seconds * por_evento:.3f} |",
+            fila("online", comparison.online_seconds),
+            fila("batch", comparison.batch_seconds),
             "",
             f"Las predicciones coinciden: {comparison.same_predictions}.",
         ]

@@ -9,6 +9,7 @@ en un entorno donde el grupo `streaming` no esté instalado.
 
 import json
 import queue
+import socket
 import threading
 import time
 from collections.abc import Iterable, Iterator, Sequence
@@ -60,6 +61,14 @@ TOPIC = "arrest-events"
 SERVERS = ("localhost:9092",)
 
 
+def broker_available(servers: Sequence[str] = SERVERS) -> bool:
+    """Dice si hay un broker aceptando conexiones, para saltear lo que lo necesita."""
+    host, _, port = servers[0].partition(":")
+    with socket.socket() as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex((host, int(port))) == 0
+
+
 def publish(
     events: Iterable[Event],
     topic: str = TOPIC,
@@ -94,8 +103,9 @@ class KafkaSource:
     """Fuente sobre un topic de Kafka, que es el camino de producción.
 
     Entrega lo mismo que `QueueSource`, así que el consumidor no cambia. Lee desde el principio
-    del topic y corta cuando pasa `timeout_ms` sin mensajes nuevos: en producción el consumo no
-    termina, pero un flujo infinito no se puede testear ni mostrar en un notebook.
+    del topic, sin grupo de consumidores: cada corrida es un lector nuevo, que es lo que hace
+    falta para un ejemplo repetible. Corta cuando pasa `timeout_ms` sin mensajes nuevos, porque
+    en producción el consumo no termina pero un notebook tiene que terminar.
     """
 
     def __init__(
@@ -103,12 +113,10 @@ class KafkaSource:
         topic: str = TOPIC,
         servers: Sequence[str] = SERVERS,
         timeout_ms: int = 10_000,
-        group: str | None = None,
     ) -> None:
         self.topic = topic
         self.servers = servers
         self.timeout_ms = timeout_ms
-        self.group = group
 
     def __iter__(self) -> Iterator[Event]:
         """Consume el topic y entrega cada mensaje ya decodificado."""
@@ -119,7 +127,6 @@ class KafkaSource:
             bootstrap_servers=list(self.servers),
             auto_offset_reset="earliest",
             enable_auto_commit=False,
-            group_id=self.group,
             consumer_timeout_ms=self.timeout_ms,
             value_deserializer=json.loads,
         )

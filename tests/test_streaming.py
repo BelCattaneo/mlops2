@@ -1,7 +1,6 @@
 """Mini-TP 4: el flujo de eventos que se puntúa evento por evento."""
 
 import itertools
-import socket
 import threading
 import uuid
 from collections.abc import Callable, Iterator
@@ -17,7 +16,7 @@ from tp4_streaming.consumer import DRIFT_THRESHOLD, score_stream
 from tp4_streaming.events import BASE_LATITUDE, BASE_LONGITUDE, crime_stream
 from tp4_streaming.metrics import drift_indicator, p95, window_throughput
 from tp4_streaming.run import run_stream
-from tp4_streaming.sources import KafkaSource, QueueSource, publish
+from tp4_streaming.sources import KafkaSource, QueueSource, broker_available, publish
 
 
 def test_the_same_seed_gives_the_same_stream() -> None:
@@ -226,15 +225,8 @@ def topic_nuevo(nombre: str) -> str:
     return f"tp4-test-{nombre}-{uuid.uuid4().hex[:8]}"
 
 
-def _broker_escuchando() -> bool:
-    """Dice si hay algo aceptando conexiones en el puerto de Kafka."""
-    with socket.socket() as sock:
-        sock.settimeout(0.5)
-        return sock.connect_ex(("127.0.0.1", 9092)) == 0
-
-
 @pytest.mark.kafka
-@pytest.mark.skipif(not _broker_escuchando(), reason="no hay broker escuchando en 9092")
+@pytest.mark.skipif(not broker_available(), reason="no hay broker escuchando en 9092")
 def test_the_broker_delivers_the_same_events_that_were_published() -> None:
     topic = topic_nuevo("eventos")
     eventos = list(crime_stream(30, seed=9))
@@ -243,7 +235,7 @@ def test_the_broker_delivers_the_same_events_that_were_published() -> None:
 
 
 @pytest.mark.kafka
-@pytest.mark.skipif(not _broker_escuchando(), reason="no hay broker escuchando en 9092")
+@pytest.mark.skipif(not broker_available(), reason="no hay broker escuchando en 9092")
 def test_the_stream_scores_the_same_from_the_queue_and_from_the_broker(
     bundle: dict[str, Any],
 ) -> None:

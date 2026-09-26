@@ -6,12 +6,11 @@ Uso: `uv run python -m tp4_streaming.run [--events N] [--drift-from N]`, o `make
 import argparse
 import threading
 from collections.abc import Iterable
-from typing import Any
 
 from arrest_model.model import load_bundle
 from tp4_streaming.consumer import REPORT_EVERY, WindowReport, score_stream
 from tp4_streaming.events import crime_stream
-from tp4_streaming.sources import TOPIC, KafkaSource, QueueSource, publish
+from tp4_streaming.sources import TOPIC, Event, KafkaSource, QueueSource, publish
 
 EVENTS = 400
 # Ritmo de llegada del flujo, en eventos por segundo, y largo de la ventana en segundos.
@@ -29,7 +28,7 @@ def format_window(window: WindowReport) -> str:
     )
 
 
-def build_source(events: Iterable[dict[str, Any]], source: str, rate: float) -> Any:
+def build_source(events: Iterable[Event], source: str, rate: float) -> Iterable[Event]:
     """Devuelve la fuente pedida; con `kafka`, publica en el topic mientras se consume."""
     if source != "kafka":
         return QueueSource(events, rate=rate)
@@ -48,9 +47,9 @@ def run_stream(
     source: str = "memoria",
 ) -> int:
     """Puntúa `events` eventos de a uno y devuelve 0; con `drift_from`, corre la zona desde ahí."""
-    source = build_source(crime_stream(events, drift_from=drift_from), source, rate)
+    stream = build_source(crime_stream(events, drift_from=drift_from), source, rate)
     for window in score_stream(
-        source, load_bundle(), window_seconds=WINDOW, report_every=report_every
+        stream, load_bundle(), window_seconds=WINDOW, report_every=report_every
     ):
         print(format_window(window))
     return 0

@@ -10,7 +10,7 @@ from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from statistics import mean
-from typing import Any
+from typing import Any, NamedTuple
 
 from arrest_model.model import predict
 from arrest_model.schemas import CrimeReport
@@ -21,6 +21,15 @@ REPORT_EVERY = 50
 # Medio desvío de corrimiento sostenido respecto del entrenamiento ya es un cambio real y no
 # ruido del flujo, que se mueve alrededor de 0.3.
 DRIFT_THRESHOLD = 0.5
+
+
+class Scored(NamedTuple):
+    """Un evento ya puntuado, tal como queda guardado en la ventana."""
+
+    at: float
+    report: CrimeReport
+    latency_ms: float
+    probability: float
 
 
 @dataclass(frozen=True)
@@ -58,7 +67,7 @@ def score_stream(
     El reloj entra por parámetro para que los tests fijen los tiempos y las métricas no dependan
     de cuánto tarde la máquina.
     """
-    window: deque[tuple[float, CrimeReport, float, float]] = deque()
+    window: deque[Scored] = deque()
     scored = 0
     drifting = False
     for event in source:
@@ -68,22 +77,22 @@ def score_stream(
         latency_ms = (time.perf_counter() - started) * 1000
 
         now = clock()
-        window.append((now, report, latency_ms, prediction.probability))
-        while window and now - window[0][0] >= window_seconds:
+        window.append(Scored(now, report, latency_ms, prediction.probability))
+        while window and now - window[0].at >= window_seconds:
             window.popleft()
 
         scored += 1
         if scored % report_every == 0:
-            elapsed = window[-1][0] - window[0][0]
-            drift = drift_indicator([item[1] for item in window], bundle["params"])
+            elapsed = window[-1].at - window[0].at
+            drift = drift_indicator([scored.report for scored in window], bundle["params"])
             crossed = drift > threshold and not drifting
             drifting = drift > threshold
             yield WindowReport(
                 scored=scored,
                 events=len(window),
                 throughput=window_throughput(len(window), elapsed),
-                p95_ms=p95([item[2] for item in window]),
+                p95_ms=p95([scored.latency_ms for scored in window]),
                 drift=drift,
-                mean_probability=mean(item[3] for item in window),
+                mean_probability=mean(scored.probability for scored in window),
                 alert=crossed,
             )
