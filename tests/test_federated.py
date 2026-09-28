@@ -3,10 +3,12 @@
 from collections import Counter
 
 import numpy as np
+import pytest
 
 from arrest_model.features import MODEL_FEATURES
 from tp5_federated.data import LABEL, load_sample, train_test
-from tp5_federated.model import accuracy, initial_weights, probabilities, train
+from tp5_federated.federated import Update, aggregate, local_update
+from tp5_federated.model import Weights, accuracy, initial_weights, probabilities, train
 from tp5_federated.partitions import by_zone, iid
 
 
@@ -101,3 +103,28 @@ def test_the_zone_split_also_uses_every_row_once() -> None:
     clientes = by_zone(x_train, y_train, clients=5)
     assert sum(len(c.y) for c in clientes) == len(y_train)
     assert min(len(c.y) for c in clientes) > 100
+
+
+def test_the_average_weighs_each_client_by_its_data() -> None:
+    # El corazón de FedAvg: un cliente con el triple de datos pesa el triple.
+    chico = Update(Weights(np.array([0.0, 0.0]), 0.0), samples=1)
+    grande = Update(Weights(np.array([4.0, 8.0]), 4.0), samples=3)
+    promedio = aggregate([chico, grande])
+    assert np.allclose(promedio.w, [3.0, 6.0])
+    assert promedio.b == pytest.approx(3.0)
+
+
+def test_averaging_a_single_client_returns_its_own_model() -> None:
+    solo = Update(Weights(np.array([1.5, -2.0]), 0.5), samples=10)
+    promedio = aggregate([solo])
+    assert np.allclose(promedio.w, solo.weights.w) and promedio.b == solo.weights.b
+
+
+def test_the_local_training_starts_from_the_global_model() -> None:
+    # Cada cliente parte del modelo global de la ronda, no de cero: eso es lo que acumula avance.
+    x_train, _, y_train, _ = train_test()
+    cliente = iid(x_train, y_train, clients=5)[0]
+    global_ = train(x_train, y_train, epochs=5)
+    desde_global = local_update(global_, cliente, epochs=0)
+    assert np.array_equal(desde_global.weights.w, global_.w)
+    assert desde_global.samples == len(cliente.y)
