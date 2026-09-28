@@ -33,10 +33,18 @@ def train_test(path: Path = SAMPLE, test_size: float = TEST_SIZE, seed: int = SE
 
     La semilla es fija: el mismo corte para el modelo centralizado y para el federado es lo que
     hace comparables sus accuracies.
+
+    Las features se estandarizan con la media y el desvío del entrenamiento, porque conviven
+    frecuencias del orden de las centésimas con coordenadas ya estandarizadas, y con esas escalas
+    tan distintas el descenso de gradiente tarda muchísimo en converger. Es una simplificación:
+    calcular esas estadísticas sobre todo el entrenamiento es un paso centralizado, y un sistema
+    federado de verdad tendría que acordarlas sin juntar los datos.
     """
     muestra = load_sample(path)
     features = muestra[list(MODEL_FEATURES)].to_numpy(dtype=float)
     labels = muestra[LABEL].to_numpy(dtype=int)
-    return train_test_split(
+    x_train, x_test, y_train, y_test = train_test_split(
         features, labels, test_size=test_size, random_state=seed, stratify=labels
     )
+    media, desvio = x_train.mean(axis=0), x_train.std(axis=0)
+    return (x_train - media) / desvio, (x_test - media) / desvio, y_train, y_test
