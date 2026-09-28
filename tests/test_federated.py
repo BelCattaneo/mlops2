@@ -7,6 +7,7 @@ import numpy as np
 from arrest_model.features import MODEL_FEATURES
 from tp5_federated.data import LABEL, load_sample, train_test
 from tp5_federated.model import accuracy, initial_weights, probabilities, train
+from tp5_federated.partitions import by_zone, iid
 
 
 def test_the_sample_has_the_model_features_and_the_label() -> None:
@@ -67,3 +68,36 @@ def test_the_features_arrive_standardized() -> None:
     x_train, _, _, _ = train_test()
     assert np.allclose(x_train.mean(axis=0), 0, atol=1e-9)
     assert np.allclose(x_train.std(axis=0), 1, atol=1e-9)
+
+
+def test_the_iid_split_uses_every_row_once() -> None:
+    x_train, _, y_train, _ = train_test()
+    clientes = iid(x_train, y_train, clients=5)
+    assert len(clientes) == 5
+    assert sum(len(c.y) for c in clientes) == len(y_train)
+    assert np.array_equal(np.sort(np.concatenate([c.y for c in clientes])), np.sort(y_train))
+
+
+def test_the_iid_split_gives_every_client_the_same_mix() -> None:
+    # Con reparto al azar, cada cliente ve una muestra parecida al total.
+    x_train, _, y_train, _ = train_test()
+    global_ = y_train.mean()
+    tasas = [c.y.mean() for c in iid(x_train, y_train, clients=5)]
+    assert max(abs(tasa - global_) for tasa in tasas) < 0.03
+
+
+def test_the_zone_split_gives_each_client_its_own_area() -> None:
+    # Cada cliente es una franja de la ciudad: sus coordenadas no se superponen con las del resto.
+    x_train, _, y_train, _ = train_test()
+    norte = MODEL_FEATURES.index("Y Coordinate_standardized")
+    clientes = by_zone(x_train, y_train, clients=5)
+    medias = [c.x[:, norte].mean() for c in clientes]
+    assert medias == sorted(medias)
+    assert medias[-1] - medias[0] > 1.0
+
+
+def test_the_zone_split_also_uses_every_row_once() -> None:
+    x_train, _, y_train, _ = train_test()
+    clientes = by_zone(x_train, y_train, clients=5)
+    assert sum(len(c.y) for c in clientes) == len(y_train)
+    assert min(len(c.y) for c in clientes) > 100
