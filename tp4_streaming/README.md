@@ -66,6 +66,10 @@ El consumidor no sabe de dónde vienen los eventos, así que corre igual contra 
 
 La cola en memoria es lo que usan los tests y el notebook, porque corre en cualquier máquina y da siempre lo mismo. El broker es el camino de producción y la capa de streaming del TP integrador.
 
+## Reflexión
+
+El streaming cuesta unas 300 veces más de procesamiento por evento que el batch, y a cambio deja la predicción lista 1.2 ms después de que el reporte entró, en lugar de esperar al próximo lote. El desarrollo está en la sección de reflexión del notebook.
+
 ## El notebook
 
 [`mini_tp4_actividad.ipynb`](mini_tp4_actividad.ipynb) es el starter de la cátedra completado, y se entrega ejecutado con sus salidas. Los `.py` de esta carpeta son la fuente y están cubiertos por tests; el notebook los importa y los muestra.

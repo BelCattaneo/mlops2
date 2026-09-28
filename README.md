@@ -9,7 +9,7 @@ Los cuatro mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model
 | 1 | API REST con FastAPI | [`tp1_rest/README.md`](tp1_rest/README.md) | Listo |
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/README.md`](tp2_graphql/README.md) | Listo |
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
-| 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo, falta la reflexión |
+| 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo |
 
 ## Puesta en marcha
 
