@@ -7,7 +7,7 @@ import pytest
 
 from arrest_model.features import MODEL_FEATURES
 from tp5_federated.data import LABEL, load_sample, train_test
-from tp5_federated.federated import Update, aggregate, local_update
+from tp5_federated.federated import Update, aggregate, local_update, run_rounds
 from tp5_federated.model import Weights, accuracy, initial_weights, probabilities, train
 from tp5_federated.partitions import by_zone, iid
 
@@ -128,3 +128,32 @@ def test_the_local_training_starts_from_the_global_model() -> None:
     desde_global = local_update(global_, cliente, epochs=0)
     assert np.array_equal(desde_global.weights.w, global_.w)
     assert desde_global.samples == len(cliente.y)
+
+
+def test_the_history_has_one_accuracy_per_round() -> None:
+    x_train, x_test, y_train, y_test = train_test()
+    historia = run_rounds(iid(x_train, y_train), x_test, y_test, rounds=4)
+    assert len(historia) == 4
+    assert all(0.0 <= accuracy <= 1.0 for accuracy in historia)
+
+
+def test_the_federated_model_learns_along_the_rounds() -> None:
+    x_train, x_test, y_train, y_test = train_test()
+    historia = run_rounds(iid(x_train, y_train), x_test, y_test, rounds=10)
+    assert historia[-1] > historia[0]
+
+
+def test_with_iid_clients_it_gets_close_to_the_centralized_model() -> None:
+    # Repartir al azar es el caso fácil: el federado tiene que quedar cerca del centralizado.
+    x_train, x_test, y_train, y_test = train_test()
+    centralizado = accuracy(train(x_train, y_train), x_test, y_test)
+    federado = run_rounds(iid(x_train, y_train), x_test, y_test, rounds=20)[-1]
+    assert centralizado - federado < 0.03
+
+
+def test_the_rounds_are_reproducible() -> None:
+    x_train, x_test, y_train, y_test = train_test()
+    clientes = iid(x_train, y_train)
+    assert run_rounds(clientes, x_test, y_test, rounds=5) == run_rounds(
+        clientes, x_test, y_test, rounds=5
+    )

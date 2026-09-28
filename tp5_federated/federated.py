@@ -4,15 +4,18 @@ Lo único que viaja del cliente al servidor son los pesos y cuántos datos los e
 datos no se mueven: esa es toda la idea del aprendizaje federado.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import NamedTuple
 
 import numpy as np
 
-from tp5_federated.model import LEARNING_RATE, Weights, train
+from tp5_federated.model import LEARNING_RATE, Weights, accuracy, initial_weights, train
 from tp5_federated.partitions import Client
 
 LOCAL_EPOCHS = 25
+ROUNDS = 20
+# Fracción de clientes que participa de cada ronda: en un sistema real no están todos siempre.
+FRACTION = 0.6
 
 
 class Update(NamedTuple):
@@ -43,3 +46,31 @@ def aggregate(updates: Sequence[Update]) -> Weights:
     w = sum(update.weights.w * (update.samples / total) for update in updates)
     b = sum(update.weights.b * (update.samples / total) for update in updates)
     return Weights(np.asarray(w), float(b))
+
+
+def run_rounds(
+    clients: Sequence[Client],
+    x_test: np.ndarray,
+    y_test: np.ndarray,
+    *,
+    rounds: int = ROUNDS,
+    fraction: float = FRACTION,
+    epochs: int = LOCAL_EPOCHS,
+    seed: int = 0,
+    aggregator: Callable[[Sequence[Update]], Weights] = aggregate,
+) -> list[float]:
+    """Corre las rondas y devuelve la accuracy del modelo global después de cada una.
+
+    En cada ronda participa solo una fracción de los clientes, como en un sistema real, donde no
+    todos están disponibles siempre. El agregador entra por parámetro para poder cambiarlo por
+    uno que agregue ruido sin tocar el bucle.
+    """
+    rng = np.random.default_rng(seed)
+    elegidos = max(1, round(fraction * len(clients)))
+    weights = initial_weights(x_test.shape[1])
+    history = []
+    for _ in range(rounds):
+        ronda = rng.choice(len(clients), elegidos, replace=False)
+        weights = aggregator([local_update(weights, clients[i], epochs) for i in ronda])
+        history.append(accuracy(weights, x_test, y_test))
+    return history
