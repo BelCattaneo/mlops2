@@ -11,6 +11,7 @@ from tp5_federated.federated import Update, aggregate, local_update, run_rounds
 from tp5_federated.model import Weights, accuracy, initial_weights, probabilities, train
 from tp5_federated.partitions import by_zone, iid
 from tp5_federated.privacy import noisy_aggregate
+from tp5_federated.run import compare, format_results, run_comparison
 
 
 def test_the_sample_has_the_model_features_and_the_label() -> None:
@@ -191,3 +192,23 @@ def test_more_noise_costs_accuracy() -> None:
         clientes, x_test, y_test, rounds=10, aggregator=noisy_aggregate(sigma=0.5, seed=3)
     )[-1]
     assert con_ruido < sin_ruido
+
+
+def test_the_comparison_covers_the_three_variants() -> None:
+    resultados = compare(rounds=3, clients=4)
+    assert len(resultados.iid) == len(resultados.zone) == 3
+    assert 0.5 < resultados.central < 1.0
+
+
+def test_the_table_shows_the_three_variants_and_the_privacy_cost() -> None:
+    tabla = format_results(compare(rounds=2, clients=4), {0.0: 0.64, 0.5: 0.61})
+    assert "| centralizado |" in tabla
+    assert "| federado IID |" in tabla
+    assert "| federado por zona |" in tabla
+    assert "| 0.5 |" in tabla
+
+
+def test_the_command_prints_the_tables(capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_comparison(rounds=2, clients=4, sigmas=(0.0, 0.5)) == 0
+    salida = capsys.readouterr().out
+    assert "centralizado" in salida and "sigma" in salida

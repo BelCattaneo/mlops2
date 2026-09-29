@@ -1,5 +1,5 @@
 # Atajos del repo. `make help` lista los comandos.
-# Los globales van sin prefijo; los de cada servicio llevan el suyo: rest-, graphql-, grpc- y stream-.
+# Los globales van sin prefijo; los de cada TP llevan el suyo: rest-, graphql-, grpc-, stream- y fed-.
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
@@ -19,7 +19,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
-.PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down
+.PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run
 
 help: ## Muestra los comandos disponibles
 	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -143,3 +143,6 @@ redpanda-up: ## TP4 · levanta Redpanda en Docker (API de Kafka en 9092)
 
 redpanda-down: ## TP4 · detiene Redpanda
 	docker stop $(REDPANDA_CONTAINER)
+
+fed-run: ## TP5 · compara el modelo federado contra el centralizado y mide el costo del ruido
+	uv run python -m tp5_federated.run
