@@ -37,19 +37,46 @@ Las features se estandarizan con la media y el desvío del entrenamiento, porque
 | partición | cómo reparte | qué representa |
 |---|---|---|
 | al azar | filas mezcladas entre los clientes | el caso fácil: todos ven una muestra parecida al total |
-| por zona | franjas de norte a sur de la ciudad | el caso realista: los reportes de un distrito se quedan en el distrito |
+| por zona | franjas de norte a sur, de ancho geográfico fijo | el caso realista: los reportes de una zona se quedan en la zona |
 
-Repartir por zona no solo separa la geografía: arrastra también la etiqueta. La tasa de arrestos por cliente va de 0.380 a 0.509, mientras que al azar queda entre 0.437 y 0.457. Esa disparidad es lo que le cuesta al promedio.
+Las franjas son de ancho fijo y no de igual cantidad de filas, así que cada cliente se queda con los reportes que de verdad ocurren en su zona:
+
+| zona | filas | del total | tasa de arrestos |
+|---|---|---|---|
+| 1 (sur) | 1.168 | 7.8% | 0.456 |
+| 2 | 3.844 | 25.6% | 0.414 |
+| 3 (centro) | 2.871 | 19.1% | 0.477 |
+| 4 | 5.293 | 35.3% | 0.469 |
+| 5 (norte) | 1.824 | 12.2% | 0.377 |
+
+La zona más densa tiene cuatro veces más reportes que la más vacía. Eso importa dos veces: es el reparto que habría en la realidad, y hace que ponderar por cantidad de datos en el promedio deje de ser un detalle. Además, repartir por zona arrastra la etiqueta: la tasa de arrestos va de 0.377 a 0.477, mientras que al azar queda entre 0.437 y 0.457.
 
 ## Resultados
 
-| variante | accuracy |
-|---|---|
-| centralizado | 0.6388 |
-| federado, reparto al azar | 0.6388 |
-| federado, reparto por zona | 0.6300 |
+| variante | accuracy | oscilación entre rondas |
+|---|---|---|
+| centralizado | 0.6388 | — |
+| federado, reparto al azar | 0.6388 | 0.0016 |
+| federado, reparto por zona | 0.6362 | 0.0025 |
 
-Con reparto al azar el federado iguala al centralizado: no cuesta nada no mover el dato. Con reparto por zona pierde 0.9 puntos, y además la curva oscila casi tres veces más entre rondas, porque cada ronda promedia un conjunto distinto de clientes que aprendieron de poblaciones distintas.
+Con reparto al azar el federado iguala al centralizado: no cuesta nada no mover el dato. Con reparto por zona pierde 0.26 puntos y la curva oscila 1.6 veces más.
+
+## Por qué oscila la curva por zonas
+
+Dos causas, y ninguna es el modelo:
+
+| participación por ronda | épocas locales | accuracy | oscilación |
+|---|---|---|---|
+| 60% | 25 | 0.6362 | 0.0025 |
+| 60% | 5 | 0.6366 | 0.0012 |
+| 100% | 25 | 0.6402 | 0.0000 |
+| 100% | 5 | 0.6400 | 0.0002 |
+
+La primera es quién participa: con 5 clientes y 60% de participación, cada ronda promedia 3 zonas elegidas al azar, y como son distintas entre sí, el modelo se mueve según cuáles tocaron. Con todos participando, la curva queda plana.
+
+La segunda es cuánto se aleja cada cliente antes de promediar: con 25 épocas locales cada uno casi converge a su propio óptimo, y los modelos llegan muy separados. Con 5 épocas la oscilación baja.
+
+Se dejan los valores que muestran el fenómeno, porque es lo que el TP pide observar. Los dos arreglos son conocidos y están medidos acá arriba.
 
 ## El costo de la privacidad
 
