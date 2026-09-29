@@ -36,7 +36,16 @@ def iid(x: np.ndarray, y: np.ndarray, clients: int = CLIENTS, seed: int = 0) -> 
 def by_zone(x: np.ndarray, y: np.ndarray, clients: int = CLIENTS) -> list[Client]:
     """Reparte por franjas de norte a sur: cada cliente ve una zona distinta de la ciudad.
 
-    Es el caso realista —los reportes de un distrito se quedan en el distrito— y también el
-    difícil: los modelos locales aprenden de poblaciones distintas y el promedio los concilia.
+    Las franjas son de ancho geográfico fijo, no de igual cantidad de filas, así que cada cliente
+    se queda con los reportes que de verdad ocurren en su zona: unas tienen el cuádruple que
+    otras. Con tamaños distintos, ponderar por cantidad de datos en el promedio deja de ser un
+    detalle.
+
+    Es el caso realista —los reportes de una zona se quedan en la zona— y también el difícil: los
+    modelos locales aprenden de poblaciones distintas y el promedio los concilia.
     """
-    return _split(x, y, np.argsort(x[:, NORTH_SOUTH]), clients)
+    coordinate = x[:, NORTH_SOUTH]
+    edges = np.linspace(coordinate.min(), coordinate.max(), clients + 1)
+    # `digitize` numera las franjas desde 1; la última incluye su borde derecho.
+    zone = np.clip(np.digitize(coordinate, edges[1:-1]), 0, clients - 1)
+    return [Client(x[zone == k], y[zone == k]) for k in range(clients)]

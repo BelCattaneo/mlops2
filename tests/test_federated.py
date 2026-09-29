@@ -212,3 +212,12 @@ def test_the_command_prints_the_tables(capsys: pytest.CaptureFixture[str]) -> No
     assert run_comparison(rounds=2, clients=4, sigmas=(0.0, 0.5)) == 0
     salida = capsys.readouterr().out
     assert "centralizado" in salida and "sigma" in salida
+
+
+def test_each_zone_keeps_the_reports_that_really_fall_in_it() -> None:
+    # Las franjas son de ancho geográfico fijo, así que cada cliente tiene los reportes que de
+    # verdad ocurren en su zona. Si todas tuvieran el mismo tamaño, ponderar por cantidad de
+    # datos en FedAvg no cambiaría nada.
+    x_train, _, y_train, _ = train_test()
+    tamanos = [len(c.y) for c in by_zone(x_train, y_train, clients=5)]
+    assert max(tamanos) > 2 * min(tamanos)
