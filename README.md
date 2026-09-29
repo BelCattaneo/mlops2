@@ -2,7 +2,7 @@
 
 Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos y puntuado sobre un flujo de eventos.
 
-Los cuatro mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Cada uno tiene su propia presentación:
+Los cinco mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Cada uno tiene su propia presentación:
 
 | Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
@@ -10,6 +10,7 @@ Los cuatro mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/README.md`](tp2_graphql/README.md) | Listo |
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
 | 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo |
+| 5 | Entrenamiento federado con FedAvg | [`tp5_federated/README.md`](tp5_federated/README.md) | Listo, falta la reflexión |
 
 ## Puesta en marcha
 
@@ -27,13 +28,14 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 ## Estructura
 
 ```
-├── Makefile         # atajos globales (install, test, lint) y por servicio (rest-*, graphql-*, grpc-*, stream-*)
+├── Makefile         # atajos globales (install, test, lint) y por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*)
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
 ├── tp2_graphql/     # Mini-TP 2: GraphQL (schema.py, app.py, client.py, compare.py, lineage.py, Dockerfile, README.md)
 ├── tp3_grpc/        # Mini-TP 3: gRPC (scoring.proto, server.py, client.py, benchmark.py, Dockerfile, README.md)
 ├── tp4_streaming/   # Mini-TP 4: streaming (events.py, sources.py, metrics.py, consumer.py, compare.py, run.py, README.md)
+├── tp5_federated/   # Mini-TP 5: federado (data.py, model.py, partitions.py, federated.py, privacy.py, run.py, README.md)
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
 

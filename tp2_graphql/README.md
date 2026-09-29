@@ -2,7 +2,7 @@
 
 Los metadatos del mismo modelo de arrestos de Chicago que el TP1 sirve por REST, expuestos por GraphQL: un esquema tipado con Strawberry, y un campo que lee el linaje del modelo desde Neo4j.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md)
+← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md)
 
 ## Cómo correrlo
 

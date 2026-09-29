@@ -1,0 +1,16 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "15px", "lineColor": "#8792A2", "clusterBkg": "#F7F9FB", "clusterBorder": "#C9D0DA", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 30, "rankSpacing": 60}}}%%
+flowchart TB
+  classDef servidor fill:#E8F0FB,stroke:#3A6EA5,color:#16324F,stroke-width:1.5px
+  classDef cliente fill:#E6F4EA,stroke:#2E7D4F,color:#173D27,stroke-width:1.5px
+
+  SRV["servidor<br/>promedia los pesos recibidos, pesando a cada<br/>cliente por su cantidad de datos"]:::servidor
+
+  subgraph clientes["Clientes · cada uno tiene sus reportes y no los comparte"]
+    direction TB
+    C1["cliente 1 · zona sur<br/>entrena con sus reportes"]:::cliente
+    C2["cliente 2 · zona centro<br/>entrena con sus reportes"]:::cliente
+    C3["cliente K · zona norte<br/>entrena con sus reportes"]:::cliente
+  end
+
+  SRV ==>|"1 · manda los pesos globales"| clientes
+  clientes ==>|"2 · devuelven solo sus pesos, nunca los datos"| SRV

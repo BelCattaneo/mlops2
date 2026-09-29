@@ -2,7 +2,7 @@
 
 El mismo modelo de arrestos de Chicago que los TPs anteriores sirven por REST, GraphQL y gRPC, ahora puntuando un flujo continuo de eventos: cada reporte se puntúa apenas llega, con métricas por ventana y una alerta cuando los datos de entrada se corren de lo que el modelo vio al entrenar.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md)
+← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md)
 
 ## Cómo correrlo
 
