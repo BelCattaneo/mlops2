@@ -94,6 +94,10 @@ Hasta 0.1 el costo no se distingue de la variación entre corridas. Desde 0.2 se
 
 Es la versión simple de privacidad diferencial, que es lo que la consigna pide como opcional. La formal además acota cuánto puede aportar cada cliente y lleva la cuenta del presupuesto de privacidad gastado entre rondas.
 
+## Reflexión
+
+Federar no cuesta accuracy con los datos repartidos al azar, y cuesta dos décimas de punto repartiendo por zonas, donde además la curva oscila 1.6 veces más por el muestreo de clientes de cada ronda. El desarrollo está en la sección de reflexión del notebook.
+
 ## El notebook
 
 [`mini_tp5_federado_actividad.ipynb`](mini_tp5_federado_actividad.ipynb) es el starter de la cátedra completado, y se entrega ejecutado con sus salidas. Los `.py` de esta carpeta son la fuente y están cubiertos por tests; el notebook los importa y los muestra.

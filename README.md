@@ -10,7 +10,7 @@ Los cinco mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.
 | 2 | Metadatos por GraphQL + linaje en Neo4j | [`tp2_graphql/README.md`](tp2_graphql/README.md) | Listo |
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
 | 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo |
-| 5 | Entrenamiento federado con FedAvg | [`tp5_federated/README.md`](tp5_federated/README.md) | Listo, falta la reflexión |
+| 5 | Entrenamiento federado con FedAvg | [`tp5_federated/README.md`](tp5_federated/README.md) | Listo |
 
 ## Puesta en marcha
 
