@@ -10,6 +10,7 @@ from tp5_federated.data import LABEL, load_sample, train_test
 from tp5_federated.federated import Update, aggregate, local_update, run_rounds
 from tp5_federated.model import Weights, accuracy, initial_weights, probabilities, train
 from tp5_federated.partitions import by_zone, iid
+from tp5_federated.privacy import noisy_aggregate
 
 
 def test_the_sample_has_the_model_features_and_the_label() -> None:
@@ -157,3 +158,36 @@ def test_the_rounds_are_reproducible() -> None:
     assert run_rounds(clientes, x_test, y_test, rounds=5) == run_rounds(
         clientes, x_test, y_test, rounds=5
     )
+
+
+def test_without_noise_the_aggregation_is_the_plain_average() -> None:
+    updates = [
+        Update(Weights(np.array([1.0, 2.0]), 0.5), samples=10),
+        Update(Weights(np.array([3.0, 4.0]), 1.5), samples=30),
+    ]
+    con_ruido = noisy_aggregate(sigma=0.0)(updates)
+    sin_ruido = aggregate(updates)
+    assert np.array_equal(con_ruido.w, sin_ruido.w) and con_ruido.b == sin_ruido.b
+
+
+def test_the_noise_moves_the_aggregated_weights() -> None:
+    updates = [Update(Weights(np.array([1.0, 2.0]), 0.5), samples=10)]
+    assert not np.allclose(noisy_aggregate(sigma=0.5, seed=1)(updates).w, aggregate(updates).w)
+
+
+def test_the_same_seed_gives_the_same_noise() -> None:
+    updates = [Update(Weights(np.array([1.0, 2.0]), 0.5), samples=10)]
+    assert np.array_equal(
+        noisy_aggregate(sigma=0.5, seed=7)(updates).w, noisy_aggregate(sigma=0.5, seed=7)(updates).w
+    )
+
+
+def test_more_noise_costs_accuracy() -> None:
+    # El trade-off que pide analizar la consigna: más privacidad, menos accuracy.
+    x_train, x_test, y_train, y_test = train_test()
+    clientes = iid(x_train, y_train)
+    sin_ruido = run_rounds(clientes, x_test, y_test, rounds=10)[-1]
+    con_ruido = run_rounds(
+        clientes, x_test, y_test, rounds=10, aggregator=noisy_aggregate(sigma=0.5, seed=3)
+    )[-1]
+    assert con_ruido < sin_ruido
