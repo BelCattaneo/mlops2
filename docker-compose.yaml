@@ -156,16 +156,21 @@ services:
       - backend
     environment:
       - MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE=true
+      # MLflow 3 levanta procesos de fondo para scoring online y archivado de trazas. Acá no se
+      # usan, y cada uno carga la librería entera: son varios cientos de MB por proceso.
+      - MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false
       - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minio}
       - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-minio123}
       - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
       - MLFLOW_S3_ADDRESSING_STYLE=path
+    # gunicorn arranca 4 workers por defecto y cada uno carga MLflow entero: 2 GB solo de
+    # tracking. Con 2 alcanza para el DAG de entrenamiento y para las APIs leyendo el champion.
     command: >
       mlflow server
       --backend-store-uri postgresql://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres:5432/mlflow_db
       --host 0.0.0.0
       --default-artifact-root s3://${MLFLOW_BUCKET_NAME:-mlflow}/
-      --gunicorn-opts "--timeout 180"
+      --gunicorn-opts "--timeout 180 --workers 2"
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://mlflow:5000 || exit 1
       interval: 60s
