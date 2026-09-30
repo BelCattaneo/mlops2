@@ -26,11 +26,12 @@ x-airflow-common: &airflow-common
     - airflow
     - all
   environment: &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor # LocalExecutor
+    # LocalExecutor en vez de Celery: las tareas corren en el proceso del scheduler, así que se
+    # van el worker y el broker. Un DAG de entrenamiento que se dispara a mano no necesita una
+    # cola distribuida, y en esta máquina esos dos contenedores son 1.3 GB.
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres/${PG_DATABASE:-airflow}
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres/${PG_DATABASE:-airflow}
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres/${PG_DATABASE:-airflow}
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__API_AUTH__JWT_SECRET: 'qt2Edq6LIRdv5k0DDznVOA=='
@@ -58,8 +59,6 @@ x-airflow-common: &airflow-common
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-0}"
   depends_on:  &airflow-common-depends-on
     postgres:
-      condition: service_healthy
-    redis:
       condition: service_healthy
 
 services:
@@ -92,20 +91,6 @@ services:
       interval: 60s
       timeout: 20s
       retries: 3
-
-  redis:
-    image: valkey/valkey:8.1-bookworm
-    expose:
-      - 6379
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 50
-      start_period: 30s
-    restart: always
 
   s3:
     restart: always
@@ -235,31 +220,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
   
-  airflow-worker:
-    <<: *airflow-common
-    command: celery worker
-    healthcheck:
-      # yamllint disable rule:line-length
-      test:
-        - "CMD-SHELL"
-        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 60s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    environment:
-      <<: *airflow-common-env
-      # Required to handle warm shutdown of the celery workers properly
-      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
-      DUMB_INIT_SETSID: "0"
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully       
-
   airflow-triggerer:
     <<: *airflow-common
     command: triggerer
