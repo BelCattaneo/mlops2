@@ -22,6 +22,7 @@ from tp6_datalake.lake import (
     put_bytes,
 )
 from tp6_datalake.models import load_model, publish_model
+from tp6_datalake.run import run_lake
 from tp6_datalake.tracking import artifacts_of, log_run, metrics_of, tracking_available
 
 pytestmark = [
@@ -195,3 +196,19 @@ def test_the_artifact_of_the_run_ends_up_in_the_lake() -> None:
     claves = list_keys(client(), bucket="mlflow")
     assert any(clave.endswith(f"{corrida}/artifacts/model.pkl") for clave in claves)
     assert artifacts_of(corrida) == ["model.pkl"]
+
+
+def test_the_command_walks_the_whole_lake(bucket: str, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_lake(bucket=bucket, with_mlflow=False) == 0
+    salida = capsys.readouterr().out
+    for zona in ZONES:
+        assert zona in salida
+    assert "predicción desde el lake" in salida
+
+
+def test_the_command_reports_where_the_raw_data_came_from(
+    bucket: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Si cayó al respaldo tiene que verse en la salida, no solo en el log.
+    run_lake(bucket=bucket, with_mlflow=False)
+    assert "socrata" in capsys.readouterr().out or "respaldo" in capsys.readouterr().out

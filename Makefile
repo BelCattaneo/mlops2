@@ -1,5 +1,6 @@
 # Atajos del repo. `make help` lista los comandos.
-# Los globales van sin prefijo; los de cada TP llevan el suyo: rest-, graphql-, grpc-, stream- y fed-.
+# Los globales van sin prefijo; los de cada TP llevan el suyo: rest-, graphql-, grpc-, stream-,
+# fed- y lake-.
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
@@ -19,7 +20,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
-.PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run
+.PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
 
 help: ## Muestra los comandos disponibles
 	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -146,3 +147,6 @@ redpanda-down: ## TP4 · detiene Redpanda
 
 fed-run: ## TP5 · compara el modelo federado contra el centralizado y mide el costo del ruido
 	uv run python -m tp5_federated.run
+
+lake-run: ## TP6 · sube datos y modelo al data lake y sirve el modelo desde ahí
+	uv run python -m tp6_datalake.run
