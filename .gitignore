@@ -10,6 +10,9 @@ __pycache__/
 # Va anclado con "/" para no ignorar también tests/data/.
 /data/
 
+# Registro de trabajo para el informe final: no es entregable.
+/notas/
+
 # Secretos
 .env
 
