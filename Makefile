@@ -31,8 +31,8 @@ test: ## Corre los tests
 	uv run pytest
 
 lint: ## Revisa estilo y formato con ruff
-	uv run ruff check arrest_model tp1_rest tp2_graphql tp3_grpc tp4_streaming tp5_federated tests
-	uv run ruff format --check arrest_model tp1_rest tp2_graphql tp3_grpc tp4_streaming tp5_federated tests
+	uv run ruff check arrest_model tp1_rest tp2_graphql tp3_grpc tp4_streaming tp5_federated tp6_datalake tests
+	uv run ruff format --check arrest_model tp1_rest tp2_graphql tp3_grpc tp4_streaming tp5_federated tp6_datalake tests
 
 # Sin `##` a propósito: es un paso interno de neo4j-up y graphql-up, no un comando para correr solo.
 docker-network:
