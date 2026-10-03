@@ -2,7 +2,7 @@
 
 import datetime
 
-from etl_helpers.partitions import partitions_in_window
+from etl_helpers.partitions import download_window, partition_date, partitions_in_window
 
 CLAVES = [
     "raw/crimes/month=2025-09/crimes.csv",
@@ -64,3 +64,53 @@ def test_a_window_inside_one_month_keeps_only_that_partition() -> None:
     elegidas = partitions_in_window(CLAVES, momento("2026-10-30"), days=15)
 
     assert elegidas == ["raw/crimes/month=2026-10/crimes.csv"]
+
+
+def test_the_window_is_the_run_interval_when_there_is_one() -> None:
+    inicio, fin = download_window(
+        momento("2026-10-01"), momento("2026-11-01"), now=momento("2026-10-03T15:00:00")
+    )
+
+    assert (inicio, fin) == (momento("2026-10-01"), momento("2026-11-01"))
+
+
+def test_without_an_interval_the_window_is_the_current_month() -> None:
+    # Un trigger manual sin fecha lógica deja el intervalo en None, y antes de esto la tarea
+    # se caía con AttributeError en su cuarta línea.
+    inicio, fin = download_window(None, None, now=momento("2026-10-03T15:00:00"))
+
+    assert inicio == momento("2026-10-01T00:00:00")
+    assert fin == momento("2026-10-03T15:00:00")
+
+
+def test_a_half_missing_interval_also_falls_back() -> None:
+    inicio, fin = download_window(momento("2026-10-01"), None, now=momento("2026-10-03T15:00:00"))
+
+    assert inicio == momento("2026-10-01T00:00:00")
+    assert fin == momento("2026-10-03T15:00:00")
+
+
+def test_the_partition_is_valid_either_way() -> None:
+    con_intervalo, _ = download_window(
+        momento("2026-10-01"), momento("2026-11-01"), now=momento("2026-10-03")
+    )
+    sin_intervalo, _ = download_window(None, None, now=momento("2026-10-03"))
+
+    assert con_intervalo.strftime("%Y-%m") == "2026-10"
+    assert sin_intervalo.strftime("%Y-%m") == "2026-10"
+
+
+def test_the_window_keeps_the_timezone_so_it_can_be_compared() -> None:
+    inicio, fin = download_window(None, None, now=momento("2026-10-03T15:00:00"))
+
+    assert inicio.tzinfo is not None
+    assert fin.tzinfo is not None
+
+
+def test_the_key_suffix_is_the_logical_date_when_there_is_one() -> None:
+    assert partition_date("2026-10-02", momento("2026-10-03T15:00:00")) == "2026-10-02"
+
+
+def test_without_a_logical_date_the_suffix_is_the_end_of_the_window() -> None:
+    # Sin fecha lógica no hay `ds`, y las claves derivadas lo usan de sufijo.
+    assert partition_date(None, momento("2026-10-03T15:00:00")) == "2026-10-03"

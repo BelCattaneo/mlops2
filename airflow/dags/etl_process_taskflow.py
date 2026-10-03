@@ -46,7 +46,7 @@ from etl_helpers.monitoring import (
     log_split_metrics,
 )
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
-from etl_helpers.partitions import partitions_in_window
+from etl_helpers.partitions import download_window, partition_date, partitions_in_window
 from etl_helpers.summary import summary_counts
 
 logger = logging.getLogger(__name__)
@@ -83,12 +83,21 @@ def process_etl_taskflow():
     @task.python
     def land_raw(**context):
         """Deja en la capa cruda los reportes del período y las comisarías, sin tocarlos."""
-        inicio = context["data_interval_start"]
-        fin = context["data_interval_end"]
+        inicio, fin = download_window(
+            context.get("data_interval_start"),
+            context.get("data_interval_end"),
+            now=datetime.datetime.now(datetime.UTC),
+        )
         crimes_key = f"{config.PREFIX_RAW}crimes/month={inicio.strftime('%Y-%m')}/crimes.csv"
+        # La ventana y el sufijo viajan en el XCom: así las capas de una misma corrida no
+        # pueden escribir en particiones distintas, y no dependen de que haya fecha lógica.
+        ventana = {
+            "window_end": fin.isoformat(),
+            "partition_date": partition_date(context.get("ds"), fin),
+        }
 
         if check_file_exists(BUCKET_NAME, crimes_key):
-            return {"status": "success", "crimes_file": crimes_key, "rows": None}
+            return {"status": "success", "crimes_file": crimes_key, "rows": None, **ventana}
 
         # Sin particiones previas hay que traer la ventana entera; con particiones, solo el
         # período de la corrida, porque el resto ya está en la capa cruda.
@@ -104,12 +113,17 @@ def process_etl_taskflow():
         try:
             crimes_df = download_crimes_incremental(desde, fin, output_file=crimes_temp.name)
             if len(crimes_df) == 0:
-                return {"status": "no_data", "rows": 0}
+                return {"status": "no_data", "rows": 0, **ventana}
 
             download_police_stations(output_file=stations_temp.name)
             upload_to_minio(crimes_temp.name, BUCKET_NAME, crimes_key)
             upload_to_minio(stations_temp.name, BUCKET_NAME, STATIONS_KEY)
-            return {"status": "success", "crimes_file": crimes_key, "rows": len(crimes_df)}
+            return {
+                "status": "success",
+                "crimes_file": crimes_key,
+                "rows": len(crimes_df),
+                **ventana,
+            }
         finally:
             for temporal in (crimes_temp.name, stations_temp.name):
                 if os.path.exists(temporal):
@@ -121,14 +135,18 @@ def process_etl_taskflow():
         if raw.get("status") == "no_data":
             return {"status": "no_data"}
 
-        sufijo = context["ds"]
+        sufijo = raw["partition_date"]
         destino = f"{config.PREFIX_ENRICHED}crimes/date={sufijo}/crimes.parquet"
         if check_file_exists(BUCKET_NAME, destino):
-            return {"status": "success", "enriched_file": destino}
+            return {
+                "status": "success",
+                "enriched_file": destino,
+                "partition_date": sufijo,
+            }
 
         particiones = partitions_in_window(
             list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
-            context["data_interval_end"],
+            datetime.datetime.fromisoformat(raw["window_end"]),
             config.ROLLING_WINDOW_DAYS,
         )
         logger.info("Capa cruda: %d particiones en la ventana", len(particiones))
@@ -145,6 +163,7 @@ def process_etl_taskflow():
         return {
             "status": "success",
             "enriched_file": destino,
+            "partition_date": sufijo,
             "raw_rows": len(crimenes),
             "rows": len(enriquecido),
         }
@@ -155,7 +174,7 @@ def process_etl_taskflow():
         if enriched.get("status") == "no_data":
             return {"status": "no_data"}
 
-        sufijo = context["ds"]
+        sufijo = enriched["partition_date"]
         train_key = f"{config.PREFIX_CURATED}train/date={sufijo}/train.parquet"
         test_key = f"{config.PREFIX_CURATED}test/date={sufijo}/test.parquet"
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -225,7 +244,7 @@ def process_etl_taskflow():
             logger.info("Las capas no recalcularon nada: no hay corrida que resumir")
             return {"status": "skipped"}
 
-        log_pipeline_summary(**conteos, run_name=f"pipeline_summary_{context['ds']}")
+        log_pipeline_summary(**conteos, run_name=f"pipeline_summary_{raw['partition_date']}")
         return {"status": "success"}
 
     crudo = land_raw()

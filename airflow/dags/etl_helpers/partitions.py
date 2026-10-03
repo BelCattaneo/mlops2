@@ -28,3 +28,30 @@ def partitions_in_window(keys: list[str], end: datetime.datetime, days: int) -> 
         if encontrado and (int(encontrado.group(1)), int(encontrado.group(2))) >= minimo:
             elegidas.append(clave)
     return sorted(elegidas)
+
+
+def download_window(
+    interval_start: datetime.datetime | None,
+    interval_end: datetime.datetime | None,
+    now: datetime.datetime,
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """La ventana de la corrida: su intervalo de datos, o el mes corriente si no tiene.
+
+    En Airflow 3 un trigger manual sin fecha lógica deja el intervalo en `None`, y el botón
+    "Trigger DAG" de la interfaz dispara así. Sin este reemplazo la tarea de descarga se cae
+    con `AttributeError` al armar la partición, o sea que el DAG solo se puede correr
+    programado, que es justo lo que un corrector no va a hacer.
+    """
+    if interval_start is not None and interval_end is not None:
+        return interval_start, interval_end
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0), now
+
+
+def partition_date(ds: str | None, window_end: datetime.datetime) -> str:
+    """El sufijo de las claves derivadas: la fecha lógica, o el fin de la ventana si no hay.
+
+    Sin fecha lógica Airflow no provee `ds`, así que el sufijo sale de la ventana ya resuelta.
+    Resolverlo una sola vez y hacerlo viajar por XCom es lo que evita que dos capas de la misma
+    corrida escriban en particiones distintas.
+    """
+    return ds or window_end.date().isoformat()
