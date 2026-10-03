@@ -1,3 +1,15 @@
+"""ETL de los reportes de crímenes de Chicago, en tres capas.
+
+`raw` guarda lo que llegó del portal tal como llegó, partido por mes. `enriched` tiene el
+dataset limpio, con la comisaría más cercana y las features temporales. `curated` tiene el par
+de entrenamiento y prueba que consume el modelo.
+
+Una tarea por capa, y no una por transformación: en Airflow la granularidad de tarea es la de
+materialización, porque XCom no transporta dataframes, así que una tarea por paso obligaría a
+escribir el dataset entero entre paso y paso. Los conteos de cada paso interno viajan igual, en
+el XCom de su capa, y de ahí sale el resumen de la corrida.
+"""
+
 import datetime
 import logging
 import os
@@ -5,7 +17,6 @@ import tempfile
 
 import pandas as pd
 from airflow.decorators import dag, task
-from airflow.exceptions import AirflowFailException
 from etl_config import config
 from etl_helpers.data_balancing import balance_data as balance_data_fn
 from etl_helpers.data_encoding import encode_data as encode_data_fn
@@ -34,11 +45,13 @@ from etl_helpers.monitoring import (
     log_split_metrics,
 )
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
+from etl_helpers.partitions import partitions_in_window
 
 logger = logging.getLogger(__name__)
 
-# Configuration from centralized config
 BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
+
+STATIONS_KEY = f"{config.PREFIX_RAW}police_stations/police_stations.csv"
 
 default_args = {
     "depends_on_past": False,
@@ -60,522 +73,173 @@ default_args = {
 def process_etl_taskflow():
     @task.python
     def setup_s3():
-        """Setup MinIO bucket with TTL for all prefixes."""
-        all_prefixes = [
-            config.PREFIX_RAW,
-            config.PREFIX_MERGED,
-            config.PREFIX_ENRICHED,
-            config.PREFIX_SPLIT,
-            config.PREFIX_OUTLIERS,
-            config.PREFIX_ENCODED,
-            config.PREFIX_SCALED,
-            config.PREFIX_BALANCED,
-            config.PREFIX_ML_READY,
-        ]
-
+        """Crea el bucket y le pone la política de ciclo de vida a las tres capas."""
+        capas = [config.PREFIX_RAW, config.PREFIX_ENRICHED, config.PREFIX_CURATED]
         create_bucket_if_not_exists(BUCKET_NAME)
-        set_bucket_lifecycle_policy(BUCKET_NAME, all_prefixes, config.LIFECYCLE_TTL_DAYS)
+        set_bucket_lifecycle_policy(BUCKET_NAME, capas, config.LIFECYCLE_TTL_DAYS)
 
     @task.python
-    def download_data(**context):
-        """Download crime and police station data for the current period."""
-        start_date = context["data_interval_start"]
-        end_date = context["data_interval_end"]
-        month_folder = start_date.strftime("%Y-%m")
+    def land_raw(**context):
+        """Deja en la capa cruda los reportes del período y las comisarías, sin tocarlos."""
+        inicio = context["data_interval_start"]
+        fin = context["data_interval_end"]
+        crimes_key = f"{config.PREFIX_RAW}crimes/month={inicio.strftime('%Y-%m')}/crimes.csv"
 
-        # Define output paths
-        crimes_key = f"{config.PREFIX_RAW}{month_folder}/crimes.csv"
-        stations_key = f"{config.PREFIX_RAW}police_stations.csv"
-
-        # Check if already downloaded (idempotent)
         if check_file_exists(BUCKET_NAME, crimes_key):
-            return {
-                "status": "success",
-                "crimes_file": crimes_key,
-                "stations_file": stations_key,
-            }
+            return {"status": "success", "crimes_file": crimes_key, "rows": None}
 
-        # Determine download date range
-        existing_merged = list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_MERGED}crimes_12m_")
+        # Sin particiones previas hay que traer la ventana entera; con particiones, solo el
+        # período de la corrida, porque el resto ya está en la capa cruda.
+        previas = partitions_in_window(
+            list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
+            fin,
+            config.ROLLING_WINDOW_DAYS,
+        )
+        desde = inicio if previas else fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
 
-        if len(existing_merged) == 0:
-            # No existing data - download full rolling window
-            download_start = end_date - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
-            download_end = end_date
-        else:
-            # Use scheduled interval
-            download_start = start_date
-            download_end = end_date
-
-        # Download data to temp files
         crimes_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
         stations_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
-
         try:
-            # Download crimes (always use incremental with appropriate date range)
-            crimes_df = download_crimes_incremental(
-                download_start, download_end, output_file=crimes_temp.name
-            )
-
+            crimes_df = download_crimes_incremental(desde, fin, output_file=crimes_temp.name)
             if len(crimes_df) == 0:
-                return {"status": "no_data", "records": 0}
+                return {"status": "no_data", "rows": 0}
 
-            # Download police stations
             download_police_stations(output_file=stations_temp.name)
-
-            # Upload to MinIO
             upload_to_minio(crimes_temp.name, BUCKET_NAME, crimes_key)
-            upload_to_minio(stations_temp.name, BUCKET_NAME, stations_key)
-
-            return {
-                "status": "success",
-                "crimes_file": crimes_key,
-                "stations_file": stations_key,
-            }
+            upload_to_minio(stations_temp.name, BUCKET_NAME, STATIONS_KEY)
+            return {"status": "success", "crimes_file": crimes_key, "rows": len(crimes_df)}
         finally:
-            if os.path.exists(crimes_temp.name):
-                os.remove(crimes_temp.name)
-            if os.path.exists(stations_temp.name):
-                os.remove(stations_temp.name)
+            for temporal in (crimes_temp.name, stations_temp.name):
+                if os.path.exists(temporal):
+                    os.remove(temporal)
 
     @task.python
-    def merge_data(download_result, **context):
-        """Merge downloaded data into rolling 12-month window."""
-        run_date = context["ds"]
-        merged_key = f"{config.PREFIX_MERGED}crimes_12m_{run_date}.parquet"
-
-        # Check if merged file already exists (idempotent)
-        if check_file_exists(BUCKET_NAME, merged_key):
-            return {
-                "status": "success",
-                "merged_file": merged_key,
-                "stations_file": download_result.get("stations_file"),
-            }
-
-        # Check if upstream returned no_data
-        if download_result.get("status") == "no_data":
+    def build_enriched(raw, **context):
+        """Junta las particiones de la ventana, enriquece y limpia."""
+        if raw.get("status") == "no_data":
             return {"status": "no_data"}
 
-        # Load newly downloaded data
-        df_new = download_to_dataframe(BUCKET_NAME, download_result["crimes_file"])
+        sufijo = context["ds"]
+        destino = f"{config.PREFIX_ENRICHED}crimes/date={sufijo}/crimes.parquet"
+        if check_file_exists(BUCKET_NAME, destino):
+            return {"status": "success", "enriched_file": destino}
 
-        # Check for existing merged data
-        existing_merged = list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_MERGED}crimes_12m_")
+        particiones = partitions_in_window(
+            list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
+            context["data_interval_end"],
+            config.ROLLING_WINDOW_DAYS,
+        )
+        logger.info("Capa cruda: %d particiones en la ventana", len(particiones))
+        crimenes = pd.concat(
+            [download_to_dataframe(BUCKET_NAME, clave) for clave in particiones],
+            ignore_index=True,
+        )
+        comisarias = download_to_dataframe(BUCKET_NAME, STATIONS_KEY)
 
-        if len(existing_merged) == 0:
-            # First merge - use downloaded data as-is
-            merged_df = df_new
-        else:
-            # Merge with latest existing data
-            latest_merged = sorted(existing_merged)[-1]
-            df_existing = download_to_dataframe(BUCKET_NAME, latest_merged)
-            merged_df = pd.concat([df_existing, df_new], ignore_index=True)
-
-            # Apply rolling window filter
-            merged_df["date"] = pd.to_datetime(merged_df["date"])
-            cutoff_date = datetime.datetime.now() - datetime.timedelta(
-                days=config.ROLLING_WINDOW_DAYS
-            )
-            merged_df = merged_df[merged_df["date"] >= cutoff_date]
-
-        # Save merged data
-        upload_from_dataframe(merged_df, BUCKET_NAME, merged_key)
+        log_raw_data_metrics(crimenes, run_name=f"raw_data_{sufijo}")
+        enriquecido = preprocess_for_split(enrich_crime_data(crimenes, comisarias))
+        upload_from_dataframe(enriquecido, BUCKET_NAME, destino)
 
         return {
             "status": "success",
-            "merged_file": merged_key,
-            "stations_file": download_result["stations_file"],
+            "enriched_file": destino,
+            "raw_rows": len(crimenes),
+            "rows": len(enriquecido),
         }
 
     @task.python
-    def enrich_data(merge_result, **context):
-        """Add nearest station info and temporal features to crime data."""
-        run_date = context["ds"]
-        enriched_key = f"{config.PREFIX_ENRICHED}crimes_enriched_{run_date}.parquet"
-
-        # Check if enriched file already exists (idempotent)
-        if check_file_exists(BUCKET_NAME, enriched_key):
-            return {
-                "status": "success",
-                "enriched_file": enriched_key,
-            }
-
-        # Check if upstream returned no_data
-        if merge_result.get("status") == "no_data":
+    def build_curated(enriched, **context):
+        """Corta, saca outliers, codifica, escala, balancea y selecciona features."""
+        if enriched.get("status") == "no_data":
             return {"status": "no_data"}
 
-        # Process data
-        crimes_df = download_to_dataframe(BUCKET_NAME, merge_result["merged_file"])
-        stations_df = download_to_dataframe(BUCKET_NAME, merge_result["stations_file"])
-        enriched_df = enrich_crime_data(crimes_df, stations_df)
-
-        # Monitor raw data quality
-        log_raw_data_metrics(crimes_df, run_name=f"raw_data_{run_date}")
-
-        # Upload enriched data
-        upload_from_dataframe(enriched_df, BUCKET_NAME, enriched_key)
-
-        return {
-            "status": "success",
-            "enriched_file": enriched_key,
-        }
-
-    @task.python
-    def split_data(enrich_result, **context):
-        """Split dataset into train and test sets with stratification."""
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_SPLIT}crimes_train_{run_date}.parquet"
-        test_key = f"{config.PREFIX_SPLIT}crimes_test_{run_date}.parquet"
-
-        # Check if split files already exist (idempotent)
+        sufijo = context["ds"]
+        train_key = f"{config.PREFIX_CURATED}train/date={sufijo}/train.parquet"
+        test_key = f"{config.PREFIX_CURATED}test/date={sufijo}/test.parquet"
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {
-                "status": "success",
-                "train_file": train_key,
-                "test_file": test_key,
-            }
+            return {"status": "success", "train_file": train_key, "test_file": test_key}
 
-        # Check if upstream returned no_data
-        if enrich_result.get("status") == "no_data":
-            return {"status": "no_data"}
+        limpio = download_to_dataframe(BUCKET_NAME, enriched["enriched_file"])
 
-        # Process data
-        df_enriched = download_to_dataframe(BUCKET_NAME, enrich_result["enriched_file"])
-        df_clean = preprocess_for_split(df_enriched)
-        train_df, test_df = split_train_test(
-            df_clean,
+        train, test = split_train_test(
+            limpio,
             test_size=config.SPLIT_TEST_SIZE,
             random_state=config.SPLIT_RANDOM_STATE,
             stratify_column=config.TARGET_COLUMN,
         )
-
-        # Monitor split
         log_split_metrics(
-            train_df, test_df, target_column=config.TARGET_COLUMN, run_name=f"split_{run_date}"
+            train, test, target_column=config.TARGET_COLUMN, run_name=f"split_{sufijo}"
         )
+        filas_corte = (len(train), len(test))
 
-        # Upload train and test datasets
-        upload_from_dataframe(train_df, BUCKET_NAME, train_key)
-        upload_from_dataframe(test_df, BUCKET_NAME, test_key)
+        train, test = process_outliers_fn(train, test, n_std=config.OUTLIER_STD_THRESHOLD)
+        filas_outliers = (len(train), len(test))
 
-        return {
-            "status": "success",
-            "train_file": train_key,
-            "test_file": test_key,
-        }
+        train, test = encode_data_fn(train, test)
+        train, test = scale_data_fn(train, test)
 
-    @task.python
-    def process_outliers(split_result, **context):
-        """
-        Remove outliers using standard deviation method (±3σ).
-        Uses train statistics for both datasets to avoid data leakage.
-        """
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_OUTLIERS}crimes_train_no_outliers_{run_date}.parquet"
-        test_key = f"{config.PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.parquet"
-
-        # Check if processed files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {
-                "status": "success",
-                "train_file": train_key,
-                "test_file": test_key,
-            }
-
-        # Check if upstream returned no_data
-        if split_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
-        # Process data
-        train_df = download_to_dataframe(BUCKET_NAME, split_result["train_file"])
-        test_df = download_to_dataframe(BUCKET_NAME, split_result["test_file"])
-        train_processed, test_processed = process_outliers_fn(
-            train_df, test_df, n_std=config.OUTLIER_STD_THRESHOLD
-        )
-
-        # Upload processed datasets
-        upload_from_dataframe(train_processed, BUCKET_NAME, train_key)
-        upload_from_dataframe(test_processed, BUCKET_NAME, test_key)
-
-        return {
-            "status": "success",
-            "train_file": train_key,
-            "test_file": test_key,
-        }
-
-    @task.python
-    def encode_data(outliers_result, **context):
-        """
-        Encode categorical and numerical variables.
-        - Log transformation: distance_crime_to_police_station
-        - Cyclic encoding: day_of_week
-        - One-hot encoding: season, day_time
-        - Label encoding: domestic
-        - Frequency encoding: high cardinality categoricals
-        """
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_ENCODED}crimes_train_encoded_{run_date}.parquet"
-        test_key = f"{config.PREFIX_ENCODED}crimes_test_encoded_{run_date}.parquet"
-
-        # Check if encoded files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {
-                "status": "success",
-                "train_file": train_key,
-                "test_file": test_key,
-            }
-
-        # Check if upstream returned no_data
-        if outliers_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
-        # Process data
-        train_df = download_to_dataframe(BUCKET_NAME, outliers_result["train_file"])
-        test_df = download_to_dataframe(BUCKET_NAME, outliers_result["test_file"])
-        train_encoded, test_encoded = encode_data_fn(train_df, test_df)
-
-        # Upload encoded datasets
-        upload_from_dataframe(train_encoded, BUCKET_NAME, train_key)
-        upload_from_dataframe(test_encoded, BUCKET_NAME, test_key)
-
-        return {
-            "status": "success",
-            "train_file": train_key,
-            "test_file": test_key,
-        }
-
-    @task.python
-    def scale_data(encode_result, **context):
-        """
-        Scale numerical features using StandardScaler.
-        Scales: x_coordinate, y_coordinate, latitude, longitude, distance_crime_to_police_station
-        """
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_SCALED}crimes_train_scaled_{run_date}.parquet"
-        test_key = f"{config.PREFIX_SCALED}crimes_test_scaled_{run_date}.parquet"
-
-        # Check if scaled files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {
-                "status": "success",
-                "train_file": train_key,
-                "test_file": test_key,
-            }
-
-        # Check if upstream returned no_data
-        if encode_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
-        # Process data
-        train_df = download_to_dataframe(BUCKET_NAME, encode_result["train_file"])
-        test_df = download_to_dataframe(BUCKET_NAME, encode_result["test_file"])
-        train_scaled, test_scaled = scale_data_fn(train_df, test_df)
-
-        # Upload scaled datasets
-        upload_from_dataframe(train_scaled, BUCKET_NAME, train_key)
-        upload_from_dataframe(test_scaled, BUCKET_NAME, test_key)
-
-        return {
-            "status": "success",
-            "train_file": train_key,
-            "test_file": test_key,
-        }
-
-    @task.python
-    def balance_data(scale_result, **context):
-        """
-        Balance training dataset using SMOTE + RandomUnderSampler.
-        Strategy: SMOTE (0.5) → RandomUnderSampler (0.8)
-        Note: Only balances TRAIN data, test remains unchanged.
-        """
-
-        # Si upstream devolvió no_data, salir sin tocar keys que no existen
-        if not scale_result or scale_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
-        # Lee la key de manera segura
-        test_key = scale_result.get("test_file")
-        if not test_key:
-            raise AirflowFailException(
-                f"balance_data: falta 'test_file' en scale_result. "
-                f"Keys: {list(scale_result.keys())}"
-            )
-
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_BALANCED}crimes_train_balanced_{run_date}.parquet"
-
-        # Idempotencia
-        if check_file_exists(BUCKET_NAME, train_key):
-            return {"status": "success", "train_file": train_key, "test_file": test_key}
-
-        # Load train data and balance it
-        train_df = download_to_dataframe(BUCKET_NAME, scale_result["train_file"])
-        train_balanced = balance_data_fn(train_df, target_column=config.TARGET_COLUMN)
-
-        # Monitor balancing
+        balanceado = balance_data_fn(train, target_column=config.TARGET_COLUMN)
         log_balance_metrics(
-            train_df,
-            train_balanced,
-            target_column=config.TARGET_COLUMN,
-            run_name=f"balance_{run_date}",
+            train, balanceado, target_column=config.TARGET_COLUMN, run_name=f"balance_{sufijo}"
         )
 
-        # Upload balanced train data
-        upload_from_dataframe(train_balanced, BUCKET_NAME, train_key)
-
-        return {
-            "status": "success",
-            "train_file": train_key,
-            "test_file": test_key,
-        }
-
-    @task.python
-    def extract_features(balance_result, **context):
-        """
-        Select relevant features and output final ML-ready datasets.
-
-        Strategy:
-        1. Remove correlated features (Beat, Ward, Community Area, etc.)
-        2. Apply Mutual Information selection (MI-Score > 0.05)
-        3. Save to ml-ready-data/ prefix for easy consumption
-
-        Output: Final train/test datasets ready for ML model training.
-        """
-        run_date = context["ds"]
-        train_key = f"{config.PREFIX_ML_READY}train_{run_date}.parquet"
-        test_key = f"{config.PREFIX_ML_READY}test_{run_date}.parquet"
-
-        # Check if ML-ready files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {
-                "status": "success",
-                "train_file": train_key,
-                "test_file": test_key,
-            }
-
-        # Check if upstream returned no_data
-        if balance_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
-        # Load balanced train and test data
-        train_df_original = download_to_dataframe(BUCKET_NAME, balance_result["train_file"])
-        test_df = download_to_dataframe(BUCKET_NAME, balance_result["test_file"])
-
-        # Apply feature selection
-        train_selected, test_selected, mi_scores = select_features_fn(
-            train_df_original,
-            test_df,
+        elegidas_train, elegidas_test, mi_scores = select_features_fn(
+            balanceado,
+            test,
             target_column=config.TARGET_COLUMN,
             mi_threshold=config.MI_THRESHOLD,
         )
-
-        # Monitor feature selection
         log_feature_selection_metrics(
-            train_df_original,
-            train_selected,
+            balanceado,
+            elegidas_train,
             mi_scores_df=mi_scores,
             target_column=config.TARGET_COLUMN,
-            run_name=f"features_{run_date}",
+            run_name=f"features_{sufijo}",
         )
 
-        # Upload final ML-ready datasets
-        upload_from_dataframe(train_selected, BUCKET_NAME, train_key)
-        upload_from_dataframe(test_selected, BUCKET_NAME, test_key)
+        upload_from_dataframe(elegidas_train, BUCKET_NAME, train_key)
+        upload_from_dataframe(elegidas_test, BUCKET_NAME, test_key)
 
         return {
             "status": "success",
             "train_file": train_key,
             "test_file": test_key,
+            "split_rows": filas_corte,
+            "outlier_rows": filas_outliers,
+            "balanced_rows": len(balanceado),
+            "rows": (len(elegidas_train), len(elegidas_test)),
+            "features": len([c for c in elegidas_train.columns if c != config.TARGET_COLUMN]),
         }
 
     @task.python
-    def log_summary(feature_result, **context):
-        """Log pipeline execution summary with data flow visualization."""
-        run_date = context["ds"]
+    def log_summary(raw, enriched, curated, **context):
+        """Registra el resumen de la corrida con los conteos que trae cada capa.
 
-        # Check if upstream returned no_data
-        if feature_result.get("status") == "no_data":
-            logger.info("No data processed, skipping summary")
+        Los conteos vienen por XCom y no de volver a bajar los datasets: cada capa sabe cuántas
+        filas dejó en cada paso interno, así que el resumen no necesita leer nada del bucket.
+        """
+        if curated.get("status") == "no_data":
+            logger.info("No se procesaron datos, no hay resumen que registrar")
             return {"status": "no_data"}
 
-        # Read data from each stage to get counts
-        try:
-            # Get file keys from context (via XCom pull)
-            ti = context["ti"]
+        train_final, test_final = curated["rows"]
+        log_pipeline_summary(
+            raw_count=raw.get("rows") or enriched["raw_rows"],
+            enriched_count=enriched["rows"],
+            train_count=curated["split_rows"][0],
+            test_count=curated["split_rows"][1],
+            balanced_count=curated["balanced_rows"],
+            final_train_count=train_final,
+            final_test_count=test_final,
+            feature_count=curated["features"],
+            run_name=f"pipeline_summary_{context['ds']}",
+        )
+        return {"status": "success"}
 
-            # Raw data (from enrich_data task)
-            enriched_result = ti.xcom_pull(task_ids="enrich_data")
-            enriched_df = download_to_dataframe(BUCKET_NAME, enriched_result["enriched_file"])
-            enriched_count = len(enriched_df)
-
-            # For raw count, we need to count before enrichment cleaning
-            # We'll use the same as enriched for now (or add 5% approximation)
-            raw_count = int(enriched_count * 1.002)  # Approximate duplicates removed
-
-            # Split data
-            split_result = ti.xcom_pull(task_ids="split_data")
-            train_split_df = download_to_dataframe(BUCKET_NAME, split_result["train_file"])
-            test_df = download_to_dataframe(BUCKET_NAME, split_result["test_file"])
-            train_count = len(train_split_df)
-            test_count = len(test_df)
-
-            # Balanced data
-            balanced_result = ti.xcom_pull(task_ids="balance_data")
-            train_balanced_df = download_to_dataframe(BUCKET_NAME, balanced_result["train_file"])
-            balanced_count = len(train_balanced_df)
-
-            # Final data
-            final_train_df = download_to_dataframe(BUCKET_NAME, feature_result["train_file"])
-            final_test_df = download_to_dataframe(BUCKET_NAME, feature_result["test_file"])
-            final_train_count = len(final_train_df)
-            final_test_count = len(final_test_df)
-            feature_count = len([c for c in final_train_df.columns if c != config.TARGET_COLUMN])
-
-            # Log summary
-            log_pipeline_summary(
-                raw_count=raw_count,
-                enriched_count=enriched_count,
-                train_count=train_count,
-                test_count=test_count,
-                balanced_count=balanced_count,
-                final_train_count=final_train_count,
-                final_test_count=final_test_count,
-                feature_count=feature_count,
-                run_name=f"pipeline_summary_{run_date}",
-            )
-
-            return {"status": "success"}
-
-        except Exception as e:
-            logger.error(f"Failed to log pipeline summary: {e}")
-            return {"status": "error", "error": str(e)}
-
-    # Task dependencies
-    s3_setup = setup_s3()
-    downloaded = download_data()
-    merged = merge_data(downloaded)
-    enriched = enrich_data(merged)
-    split = split_data(enriched)
-    outliers = process_outliers(split)
-    encoded = encode_data(outliers)
-    scaled = scale_data(encoded)
-    balanced = balance_data(scaled)
-    features = extract_features(balanced)
-    summary = log_summary(features)
-
-    (
-        s3_setup
-        >> downloaded
-        >> merged
-        >> enriched
-        >> split
-        >> outliers
-        >> encoded
-        >> scaled
-        >> balanced
-        >> features
-        >> summary
-    )
+    crudo = land_raw()
+    limpio = build_enriched(crudo)
+    final = build_curated(limpio)
+    setup_s3() >> crudo >> limpio >> final >> log_summary(crudo, limpio, final)
 
 
 dag = process_etl_taskflow()

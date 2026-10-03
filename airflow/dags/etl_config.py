@@ -12,16 +12,11 @@ from dataclasses import dataclass
 class ETLConfig:
     """ETL pipeline configuration parameters."""
 
-    # Bucket structure prefixes
-    PREFIX_RAW: str = "0-raw-data/"
-    PREFIX_MERGED: str = "1-merged-data/"
-    PREFIX_ENRICHED: str = "2-enriched-data/"
-    PREFIX_SPLIT: str = "3-split-data/"
-    PREFIX_OUTLIERS: str = "4-outliers/"
-    PREFIX_ENCODED: str = "5-encoded/"
-    PREFIX_SCALED: str = "6-scaled/"
-    PREFIX_BALANCED: str = "7-balanced/"
-    PREFIX_ML_READY: str = "ml-ready-data/"
+    # Las tres capas del lake. Los nombres son los del mini-TP 6, donde `curated` es lo que el
+    # modelo consume: son las capas del medallón con nombres de dominio.
+    PREFIX_RAW: str = "raw/"
+    PREFIX_ENRICHED: str = "enriched/"
+    PREFIX_CURATED: str = "curated/"
 
     # Data processing parameters
     LIFECYCLE_TTL_DAYS: int = 60
