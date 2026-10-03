@@ -15,50 +15,6 @@ logger = logging.getLogger(__name__)
 DISTANCE_COLUMN = "distance_crime_to_police_station"
 
 
-def remove_outliers_std_method(
-    df: pd.DataFrame,
-    column: str = DISTANCE_COLUMN,
-    n_std: int = 3,
-) -> pd.DataFrame:
-    """
-    Remove outliers using standard deviation method (mean +/- n*std).
-
-    Args:
-        df: Input dataframe (should be log-transformed)
-        column: Column name to check for outliers
-        n_std: Number of standard deviations for threshold (default: 3)
-
-    Returns:
-        DataFrame with outliers removed
-    """
-    if column not in df.columns:
-        logger.warning(f"Column '{column}' not found in DataFrame")
-        return df
-
-    initial_count = len(df)
-
-    # Calculate statistics
-    mean_val = df[column].mean()
-    std_val = df[column].std()
-
-    # Define bounds
-    lower_bound = mean_val - n_std * std_val
-    upper_bound = mean_val + n_std * std_val
-
-    # Filter outliers
-    df_no_outliers = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)].copy()
-
-    outliers_removed = initial_count - len(df_no_outliers)
-    outlier_pct = 100 * outliers_removed / initial_count if initial_count > 0 else 0
-
-    logger.info(f"Outlier detection using +/-{n_std} std method:")
-    logger.info(f"  Bounds: {lower_bound:.2f} to {upper_bound:.2f}")
-    logger.info(f"  Removed {outliers_removed} outliers ({outlier_pct:.2f}%)")
-    logger.info(f"  Remaining records: {len(df_no_outliers)}")
-
-    return df_no_outliers
-
-
 def process_outliers(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,

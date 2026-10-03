@@ -6,7 +6,7 @@ Functions for downloading Chicago crime data from Socrata API.
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 from etl_config import config
@@ -44,52 +44,6 @@ def get_socrata_client() -> Socrata:
     except Exception as e:
         logger.error(f"Failed to initialize Socrata client: {e}")
         raise DataLoadError(f"Failed to initialize Socrata client: {e}") from e
-
-
-def download_crimes_full(output_file: str | None = None) -> pd.DataFrame:
-    """
-    Download all crime records from the past year.
-    Used for initial/first run when no historical data exists.
-
-    Args:
-        output_file: Path to save CSV output (optional)
-
-    Returns:
-        Crime data for the past year
-
-    Raises:
-        DataLoadError: If download fails
-    """
-    client = get_socrata_client()
-
-    try:
-        one_year_ago = (datetime.now() - timedelta(days=config.ROLLING_WINDOW_DAYS)).strftime(
-            "%Y-%m-%d"
-        )
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        logger.info(f"Downloading full crime dataset from {one_year_ago} to {today}...")
-
-        results = client.get_all(
-            CRIME_DATASET_ID,
-            where=f"date >= '{one_year_ago}' AND date <= '{today}'",
-            order=":id",
-        )
-
-        df = pd.DataFrame.from_records(results)
-        logger.info(f"Downloaded {len(df)} crime records (full dataset)")
-
-        if output_file:
-            df.to_csv(output_file, index=False)
-            logger.info(f"Saved to {output_file}")
-
-        return df
-
-    except Exception as e:
-        logger.error(f"Error downloading full crime dataset: {e}")
-        raise DataLoadError(f"Error downloading full crime dataset: {e}") from e
-    finally:
-        client.close()
 
 
 def download_crimes_incremental(

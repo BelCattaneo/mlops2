@@ -22,22 +22,6 @@ except Exception as e:
     logger.warning(f"Failed to configure MLflow: {e}")
 
 
-def save_and_log_artifact(filepath: str, artifact_path: str) -> None:
-    """
-    Save file artifact to MLflow.
-
-    Args:
-        filepath: Local path to the file
-        artifact_path: Path in MLflow artifacts
-    """
-    try:
-        import mlflow
-
-        mlflow.log_artifact(filepath, artifact_path)
-    except ImportError:
-        logger.warning("MLflow not installed, skipping artifact logging")
-
-
 def log_metrics(metrics_dict: dict[str, Any]) -> None:
     """
     Log multiple metrics to MLflow.
