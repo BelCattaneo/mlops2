@@ -78,6 +78,10 @@ mlflow/1/3496d0b96fc948949ce0e7d3d737ced5/artifacts/model.pkl
 
 El cliente sube el artefacto él mismo, así que necesita el endpoint y las credenciales de MinIO; el módulo las fija al importarse. Se usa `mlflow-skinny`, que es el cliente sin el servidor: unos pocos MB en vez de los cientos del paquete completo.
 
+## Reflexión
+
+Con el modelo en el lake, publicar una versión nueva es subir un objeto en vez de reconstruir y redesplegar las tres imágenes que hoy lo llevan adentro. El desarrollo está en la sección de reflexión del notebook.
+
 ## El notebook
 
 [`mini_tp6_actividad.ipynb`](mini_tp6_actividad.ipynb) es el starter de la cátedra completado, y se entrega ejecutado con sus salidas. Los `.py` de esta carpeta son la fuente y están cubiertos por tests; el notebook los importa y los muestra.

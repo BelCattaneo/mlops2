@@ -11,7 +11,7 @@ Los seis mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.p
 | 3 | Scoring por gRPC | [`tp3_grpc/README.md`](tp3_grpc/README.md) | Listo |
 | 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo |
 | 5 | Entrenamiento federado con FedAvg | [`tp5_federated/README.md`](tp5_federated/README.md) | Listo |
-| 6 | El modelo en un Data Lake, servido desde ahí | [`tp6_datalake/README.md`](tp6_datalake/README.md) | Listo, falta la reflexión |
+| 6 | El modelo en un Data Lake, servido desde ahí | [`tp6_datalake/README.md`](tp6_datalake/README.md) | Listo |
 
 ## Puesta en marcha
 
