@@ -50,18 +50,56 @@ def get_minio_client() -> boto3.client:
         raise MinIOError(f"Failed to initialize MinIO client: {e}") from e
 
 
-def set_bucket_lifecycle_policy(
-    bucket_name: str,
-    prefixes: list[str] | str,
-    expiration_days: int,
-) -> bool:
+NONCURRENT_DAYS = 7
+
+
+def lifecycle_rules(policy: dict[str, int]) -> dict:
+    """Arma la configuración de ciclo de vida a partir de un TTL por prefijo.
+
+    Las capas que no figuran en la política no reciben regla: así se conservan. Cada regla
+    expira además las versiones no actuales, que en un bucket versionado es lo único que libera
+    espacio: `Expiration` por sí sola no borra bytes, pone una marca de borrado y deja la
+    versión vieja como no actual.
     """
-    Set lifecycle policy to automatically delete objects after specified days.
+    return {
+        "Rules": [
+            {
+                "ID": f"Delete-{prefix.replace('/', '-')}-after-{days}-days",
+                "Status": "Enabled",
+                "Filter": {"Prefix": prefix},
+                "Expiration": {"Days": days},
+                "NoncurrentVersionExpiration": {"NoncurrentDays": NONCURRENT_DAYS},
+            }
+            for prefix, days in sorted(policy.items())
+        ]
+    }
+
+
+def enable_versioning(bucket_name: str) -> bool:
+    """Habilita el versionado del bucket, que es lo que hace recuperable un borrado.
+
+    Con versionado, borrar una clave no borra bytes: agrega una marca de borrado y el objeto
+    sigue estando, recuperable por `VersionId`. Es lo que vuelve exigible la inmutabilidad que
+    la capa cruda promete. Correrlo de nuevo no cambia nada.
+    """
+    try:
+        get_minio_client().put_bucket_versioning(
+            Bucket=bucket_name, VersioningConfiguration={"Status": "Enabled"}
+        )
+        logger.info(f"Versioning enabled on '{bucket_name}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error enabling versioning: {e}")
+        raise MinIOError(f"Error enabling versioning: {e}") from e
+
+
+def set_bucket_lifecycle_policy(bucket_name: str, policy: dict[str, int]) -> bool:
+    """
+    Set the lifecycle policy of the bucket from a per-prefix TTL in days.
 
     Args:
         bucket_name: Name of the MinIO bucket
-        prefixes: Prefix(es) for objects to apply policy
-        expiration_days: Number of days after which objects are deleted
+        policy: Prefix -> days after which its objects are deleted
 
     Returns:
         True if policy set successfully
@@ -70,22 +108,7 @@ def set_bucket_lifecycle_policy(
         MinIOError: If setting lifecycle policy fails
     """
     client = get_minio_client()
-
-    if isinstance(prefixes, str):
-        prefixes = [prefixes]
-
-    rules = []
-    for prefix in prefixes:
-        rules.append(
-            {
-                "ID": f"Delete-{prefix.replace('/', '-')}-after-{expiration_days}-days",
-                "Status": "Enabled",
-                "Filter": {"Prefix": prefix},
-                "Expiration": {"Days": expiration_days},
-            }
-        )
-
-    lifecycle_config = {"Rules": rules}
+    lifecycle_config = lifecycle_rules(policy)
 
     try:
         client.put_bucket_lifecycle_configuration(
@@ -93,7 +116,7 @@ def set_bucket_lifecycle_policy(
         )
         logger.info(
             f"Lifecycle policy set for '{bucket_name}': "
-            f"{len(prefixes)} prefixes with {expiration_days} days TTL"
+            f"{len(lifecycle_config['Rules'])} rules ({', '.join(sorted(policy))})"
         )
         return True
     except Exception as e:

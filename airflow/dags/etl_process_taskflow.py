@@ -32,6 +32,7 @@ from etl_helpers.minio import (
     check_file_exists,
     create_bucket_if_not_exists,
     download_to_dataframe,
+    enable_versioning,
     list_objects,
     set_bucket_lifecycle_policy,
     upload_from_dataframe,
@@ -46,6 +47,7 @@ from etl_helpers.monitoring import (
 )
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
 from etl_helpers.partitions import partitions_in_window
+from etl_helpers.summary import summary_counts
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +75,10 @@ default_args = {
 def process_etl_taskflow():
     @task.python
     def setup_s3():
-        """Crea el bucket y le pone la política de ciclo de vida a las tres capas."""
-        capas = [config.PREFIX_RAW, config.PREFIX_ENRICHED, config.PREFIX_CURATED]
+        """Crea el bucket, lo versiona y le pone la retención de cada capa."""
         create_bucket_if_not_exists(BUCKET_NAME)
-        set_bucket_lifecycle_policy(BUCKET_NAME, capas, config.LIFECYCLE_TTL_DAYS)
+        enable_versioning(BUCKET_NAME)
+        set_bucket_lifecycle_policy(BUCKET_NAME, {config.PREFIX_ENRICHED: config.ENRICHED_TTL_DAYS})
 
     @task.python
     def land_raw(**context):
@@ -218,22 +220,12 @@ def process_etl_taskflow():
         Los conteos vienen por XCom y no de volver a bajar los datasets: cada capa sabe cuántas
         filas dejó en cada paso interno, así que el resumen no necesita leer nada del bucket.
         """
-        if curated.get("status") == "no_data":
-            logger.info("No se procesaron datos, no hay resumen que registrar")
-            return {"status": "no_data"}
+        conteos = summary_counts(raw, enriched, curated)
+        if conteos is None:
+            logger.info("Las capas no recalcularon nada: no hay corrida que resumir")
+            return {"status": "skipped"}
 
-        train_final, test_final = curated["rows"]
-        log_pipeline_summary(
-            raw_count=raw.get("rows") or enriched["raw_rows"],
-            enriched_count=enriched["rows"],
-            train_count=curated["split_rows"][0],
-            test_count=curated["split_rows"][1],
-            balanced_count=curated["balanced_rows"],
-            final_train_count=train_final,
-            final_test_count=test_final,
-            feature_count=curated["features"],
-            run_name=f"pipeline_summary_{context['ds']}",
-        )
+        log_pipeline_summary(**conteos, run_name=f"pipeline_summary_{context['ds']}")
         return {"status": "success"}
 
     crudo = land_raw()

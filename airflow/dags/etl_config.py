@@ -18,8 +18,11 @@ class ETLConfig:
     PREFIX_ENRICHED: str = "enriched/"
     PREFIX_CURATED: str = "curated/"
 
-    # Data processing parameters
-    LIFECYCLE_TTL_DAYS: int = 60
+    # Data processing parameters.
+    # Solo la capa intermedia expira: es derivable de la cruda en un minuto. La cruda se
+    # conserva porque es el sistema de registro, y la final porque es el dataset con el que se
+    # entrenó un modelo, que es lo que hace auditable una predicción.
+    ENRICHED_TTL_DAYS: int = 30
     ROLLING_WINDOW_DAYS: int = 365
     TARGET_COLUMN: str = "arrest"
     SPLIT_TEST_SIZE: float = 0.2

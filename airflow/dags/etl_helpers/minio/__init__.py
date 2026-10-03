@@ -6,6 +6,7 @@ Helper functions for interacting with MinIO storage using boto3.
 
 from .client import (
     create_bucket_if_not_exists,
+    enable_versioning,
     get_minio_client,
     set_bucket_lifecycle_policy,
 )
@@ -22,6 +23,7 @@ from .operations import (
 __all__ = [
     # Client
     "get_minio_client",
+    "enable_versioning",
     "set_bucket_lifecycle_policy",
     "create_bucket_if_not_exists",
     # Operations
