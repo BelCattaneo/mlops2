@@ -79,4 +79,9 @@ El DAG no aparece en Airflow, o aparece con error: `docker compose --profile all
 
 Una tarea falló: el log completo está en la interfaz de Airflow, y también en `airflow/logs/dag_id=etl_with_taskflow/`, que está montado desde el repo.
 
-La descarga de Socrata corta por límite de uso: poné el token en `.env` y recreá los contenedores de Airflow con `make stack-up`, que es lo que los hace releer el archivo.
+La descarga de Socrata corta por límite de uso: poné el token en `.env` y recreá los contenedores de Airflow, que es lo que los hace releer el archivo.
+
+```bash
+docker compose --profile all up -d --force-recreate \
+    airflow-scheduler airflow-apiserver airflow-dag-processor airflow-triggerer
+```
