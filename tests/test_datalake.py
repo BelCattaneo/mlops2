@@ -5,6 +5,9 @@ import uuid
 
 import pytest
 
+from arrest_model.features import MODEL_FEATURES
+from tp5_federated.data import LABEL, load_sample
+from tp6_datalake.curated import land_curated
 from tp6_datalake.ingest import SNAPSHOT_CRIMES, land_raw
 from tp6_datalake.lake import (
     ZONES,
@@ -105,3 +108,25 @@ def test_the_snapshot_has_the_fields_the_model_needs() -> None:
     reportes = pd.read_csv(io.BytesIO(SNAPSHOT_CRIMES.read_bytes()), compression="gzip")
     for campo in ("iucr", "primary_type", "location_description", "date", "latitude", "longitude"):
         assert campo in reportes.columns
+
+
+def test_the_curated_dataset_lands_as_parquet(bucket: str) -> None:
+    import pandas as pd
+
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    uri = land_curated(s3, bucket=bucket)
+    assert uri.endswith("curated/arrests/arrests.parquet")
+    tabla = pd.read_parquet(io.BytesIO(get_bytes(s3, "curated/arrests/arrests.parquet", bucket)))
+    assert list(tabla.columns) == [*MODEL_FEATURES, LABEL]
+    assert len(tabla) == len(load_sample())
+
+
+def test_parquet_takes_less_room_than_the_same_csv(bucket: str) -> None:
+    # Es la razón de usarlo en la zona curada: mismo contenido, tipado y más chico.
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    land_curated(s3, bucket=bucket)
+    parquet = len(get_bytes(s3, "curated/arrests/arrests.parquet", bucket))
+    csv = len(load_sample().to_csv(index=False).encode())
+    assert parquet < csv
