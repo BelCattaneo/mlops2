@@ -2,7 +2,7 @@
 
 El mismo problema de los TPs anteriores, predecir si un crimen reportado en Chicago termina en arresto, pero entrenando de otra forma: cada cliente entrena con sus propios datos y solo comparte los pesos del modelo. Se compara contra el entrenamiento centralizado y se mide qué cuesta sumar privacidad.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md)
+← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 

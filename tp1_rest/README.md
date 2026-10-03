@@ -2,7 +2,7 @@
 
 API que sirve el modelo de arrestos de Chicago por HTTP. Carga `model/model.pkl` una sola vez al arrancar, recibe los 6 campos crudos de un reporte, hace la codificación en el servidor y devuelve la predicción.
 
-← [README general del repo](../README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md)
+← [README general del repo](../README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 
