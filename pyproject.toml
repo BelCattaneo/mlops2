@@ -89,6 +89,5 @@ streaming = [
 etl = [
     "geopandas>=1.0.0",
     "imbalanced-learn>=0.13.0",
-    "seaborn>=0.13.0",
     "sodapy>=2.2.0",
 ]

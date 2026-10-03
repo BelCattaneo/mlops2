@@ -36,3 +36,27 @@ def enforce_feature_contract(df: pd.DataFrame, features: Sequence[str], label: s
             f"el dataset curado no cumple el contrato de features: {'; '.join(detalle)}"
         )
     return df[esperadas]
+
+
+def assert_no_missing(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Falla si el dataset tiene nulos o infinitos, diciendo en qué columnas.
+
+    El pipeline medía el porcentaje de nulos y lo dibujaba en un gráfico que subía a MLflow.
+    Medirlo no sirve si nadie mira: un nulo que llega al entrenamiento lo rompe o lo degrada en
+    silencio. Acá es una falla de la tarea.
+    """
+    nulos = {columna: int(cantidad) for columna, cantidad in df.isna().sum().items() if cantidad}
+    numericas = df.select_dtypes(include="number")
+    infinitos = {
+        columna: int(cantidad)
+        for columna, cantidad in numericas.isin([float("inf"), float("-inf")]).sum().items()
+        if cantidad
+    }
+    if nulos or infinitos:
+        detalle = []
+        if nulos:
+            detalle.append("nulos en " + ", ".join(f"{c} ({n})" for c, n in nulos.items()))
+        if infinitos:
+            detalle.append("infinitos en " + ", ".join(f"{c} ({n})" for c, n in infinitos.items()))
+        raise ValueError(f"el dataset {name} no está limpio: {'; '.join(detalle)}")
+    return df

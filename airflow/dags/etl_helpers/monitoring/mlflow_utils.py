@@ -6,10 +6,7 @@ Helper functions for logging metrics, parameters, and artifacts to MLflow.
 
 import logging
 import os
-import tempfile
 from typing import Any
-
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -39,40 +36,6 @@ def save_and_log_artifact(filepath: str, artifact_path: str) -> None:
         mlflow.log_artifact(filepath, artifact_path)
     except ImportError:
         logger.warning("MLflow not installed, skipping artifact logging")
-
-
-def save_figure_and_log(
-    fig: plt.Figure,
-    artifact_path: str,
-    dpi: int = 100,
-) -> None:
-    """
-    Save matplotlib figure to temp file and log to MLflow.
-
-    Args:
-        fig: Matplotlib figure
-        artifact_path: Full path including filename (e.g., 'charts/raw_data_overview.png')
-        dpi: Resolution for saved image
-    """
-    import mlflow
-
-    if "/" in artifact_path:
-        artifact_dir = "/".join(artifact_path.split("/")[:-1])
-        filename = artifact_path.split("/")[-1]
-    else:
-        artifact_dir = None
-        filename = artifact_path
-
-    temp_dir = tempfile.mkdtemp()
-    temp_filepath = os.path.join(temp_dir, filename)
-
-    try:
-        fig.savefig(temp_filepath, dpi=dpi, bbox_inches="tight")
-        mlflow.log_artifact(temp_filepath, artifact_dir)
-    finally:
-        os.unlink(temp_filepath)
-        os.rmdir(temp_dir)
-        plt.close(fig)
 
 
 def log_metrics(metrics_dict: dict[str, Any]) -> None:

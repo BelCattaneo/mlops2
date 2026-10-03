@@ -1,16 +1,10 @@
-"""
-Monitoring and MLflow Logging Package
+"""Métricas de cada capa del ETL, registradas en MLflow.
 
-Functions for monitoring ETL pipeline stages and logging metrics/artifacts to MLflow.
+Solo números: los gráficos salieron de acá. Un ETL que genera PNGs en cada corrida carga
+matplotlib para producir algo que nadie mira, y la calidad de datos no se vigila con imágenes
+sino con métricas y con aserciones del propio pipeline, como el contrato de features.
 """
 
-from .charts import (
-    create_bar_chart,
-    create_comparison_bar_chart,
-    create_correlation_heatmap,
-    create_pipeline_flow_chart,
-    create_raw_data_overview_chart,
-)
 from .loggers import (
     log_balance_metrics,
     log_feature_selection_metrics,
@@ -18,29 +12,15 @@ from .loggers import (
     log_raw_data_metrics,
     log_split_metrics,
 )
-from .mlflow_utils import (
-    get_value_distribution,
-    log_metrics,
-    log_params,
-    save_figure_and_log,
-)
+from .mlflow_utils import get_value_distribution, log_metrics, log_params
 
 __all__ = [
-    # Main loggers
     "log_raw_data_metrics",
     "log_split_metrics",
     "log_balance_metrics",
     "log_feature_selection_metrics",
     "log_pipeline_summary",
-    # MLflow utils
     "log_metrics",
     "log_params",
-    "save_figure_and_log",
     "get_value_distribution",
-    # Charts
-    "create_bar_chart",
-    "create_comparison_bar_chart",
-    "create_raw_data_overview_chart",
-    "create_correlation_heatmap",
-    "create_pipeline_flow_chart",
 ]

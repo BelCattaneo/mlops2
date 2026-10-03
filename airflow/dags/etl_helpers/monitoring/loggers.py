@@ -10,18 +10,10 @@ from typing import Any
 import pandas as pd
 from etl_config import config
 
-from .charts import (
-    create_bar_chart,
-    create_comparison_bar_chart,
-    create_correlation_heatmap,
-    create_pipeline_flow_chart,
-    create_raw_data_overview_chart,
-)
 from .mlflow_utils import (
     get_value_distribution,
     log_metrics,
     log_params,
-    save_figure_and_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,9 +76,6 @@ def log_raw_data_metrics(
         log_metrics(metrics)
         log_params(params)
 
-        fig = create_raw_data_overview_chart(df)
-        save_figure_and_log(fig, "charts/raw_data_overview.png")
-
         logger.info("Raw data metrics logged successfully")
         return {
             "total_records": total_records,
@@ -138,22 +127,6 @@ def log_split_metrics(
                 metrics[f"train_class_{class_val}_pct"] = pct
             for class_val, pct in test_dist.items():
                 metrics[f"test_class_{class_val}_pct"] = pct
-
-            # Generate comparison chart
-            train_values = [train_dist.get(0, 0), train_dist.get(1, 0)]
-            test_values = [test_dist.get(0, 0), test_dist.get(1, 0)]
-
-            fig = create_comparison_bar_chart(
-                train_values,
-                test_values,
-                labels=["Class 0", "Class 1"],
-                label1="Train",
-                label2="Test",
-                title=f"Train/Test Class Distribution - {target_column}",
-                xlabel="Class",
-                ylabel="Percentage (%)",
-            )
-            save_figure_and_log(fig, "charts/split_distribution.png")
 
         log_metrics(metrics)
 
@@ -213,22 +186,6 @@ def log_balance_metrics(
             bal_ratio = bal_dist.get(1, 0) / bal_dist.get(0, 1)
             metrics["original_class_ratio"] = orig_ratio
             metrics["balanced_class_ratio"] = bal_ratio
-
-            # Generate comparison chart
-            orig_values = [orig_dist.get(0, 0), orig_dist.get(1, 0)]
-            bal_values = [bal_dist.get(0, 0), bal_dist.get(1, 0)]
-
-            fig = create_comparison_bar_chart(
-                orig_values,
-                bal_values,
-                labels=["Class 0", "Class 1"],
-                label1="Before Balance",
-                label2="After Balance",
-                title=f"Class Distribution Before/After Balancing - {target_column}",
-                xlabel="Class",
-                ylabel="Percentage (%)",
-            )
-            save_figure_and_log(fig, "charts/balance_comparison.png")
 
         log_metrics(metrics)
 
@@ -291,27 +248,6 @@ def log_feature_selection_metrics(
 
         log_metrics(metrics)
         log_params(params)
-
-        # Generate visualizations
-        if mi_scores_df is not None:
-            top_features = mi_scores_df.head(10)
-            fig = create_bar_chart(
-                values=top_features["mi_score"].values,
-                labels=top_features["feature"].values,
-                title="Top 10 Features by Mutual Information",
-                xlabel="Mutual Information Score",
-                ylabel="Feature",
-                horizontal=True,
-                figsize=(10, 8),
-            )
-            save_figure_and_log(fig, "charts/feature_importance.png")
-
-        fig = create_correlation_heatmap(
-            selected_df,
-            title="Feature Correlation Heatmap (Final Dataset)",
-        )
-        if fig is not None:
-            save_figure_and_log(fig, "charts/correlation_heatmap.png")
 
         logger.info("Feature selection metrics logged successfully")
         return {
@@ -377,17 +313,6 @@ def log_pipeline_summary(
         }
 
         log_metrics(metrics)
-
-        fig = create_pipeline_flow_chart(
-            raw_count,
-            enriched_count,
-            train_count,
-            test_count,
-            balanced_count,
-            final_train_count,
-            final_test_count,
-        )
-        save_figure_and_log(fig, "charts/pipeline_flow.png")
 
         logger.info("Pipeline summary logged successfully")
         return metrics

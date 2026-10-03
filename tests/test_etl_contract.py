@@ -2,7 +2,7 @@
 
 import pandas as pd
 import pytest
-from etl_helpers.contract import enforce_feature_contract
+from etl_helpers.contract import assert_no_missing, enforce_feature_contract
 
 FEATURES = ("a_freq", "b_freq", "c_sin")
 ETIQUETA = "arrest"
@@ -54,3 +54,27 @@ def test_the_message_says_what_is_missing_and_what_is_extra() -> None:
 
     assert "c_sin" in str(error.value)
     assert "d_freq" in str(error.value)
+
+
+def test_a_clean_dataset_passes_untouched() -> None:
+    limpio = frame([*FEATURES, ETIQUETA])
+
+    pd.testing.assert_frame_equal(assert_no_missing(limpio, "curado"), limpio)
+
+
+def test_fails_naming_the_column_with_nulls_and_how_many() -> None:
+    con_nulos = frame([*FEATURES, ETIQUETA])
+    con_nulos.loc[0, "b_freq"] = None
+
+    with pytest.raises(ValueError, match=r"nulos en b_freq \(1\)"):
+        assert_no_missing(con_nulos, "curado")
+
+
+def test_fails_on_infinities_too() -> None:
+    # Una división por cero aguas arriba no deja nulos sino infinitos, y rompe el entrenamiento
+    # igual que un nulo.
+    con_infinitos = frame([*FEATURES, ETIQUETA])
+    con_infinitos.loc[1, "c_sin"] = float("inf")
+
+    with pytest.raises(ValueError, match="infinitos en c_sin"):
+        assert_no_missing(con_infinitos, "curado")
