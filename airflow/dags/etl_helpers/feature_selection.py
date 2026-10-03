@@ -6,7 +6,6 @@ and mutual information.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
 import pandas as pd
 from sklearn.feature_selection import mutual_info_classif
@@ -19,8 +18,8 @@ logger = logging.getLogger(__name__)
 def remove_correlated_features(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    threshold: Optional[float] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    threshold: float | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Remove highly correlated features based on Pearson correlation.
 
@@ -65,8 +64,8 @@ def select_features_mutual_info(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     target_column: str,
-    mi_threshold: Optional[float] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, List[str], pd.DataFrame]:
+    mi_threshold: float | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[str], pd.DataFrame]:
     """
     Select features using Mutual Information with threshold filtering.
 
@@ -82,9 +81,7 @@ def select_features_mutual_info(
     if mi_threshold is None:
         mi_threshold = config.MI_THRESHOLD
 
-    logger.info(
-        f"Applying Mutual Information feature selection (threshold={mi_threshold})..."
-    )
+    logger.info(f"Applying Mutual Information feature selection (threshold={mi_threshold})...")
 
     # Separate features and target
     X_train = train_df.drop(columns=[target_column])
@@ -92,19 +89,15 @@ def select_features_mutual_info(
     X_test = test_df.drop(columns=[target_column])
 
     # Calculate mutual information
-    mi_scores = mutual_info_classif(
-        X_train, y_train, random_state=config.SPLIT_RANDOM_STATE
-    )
+    mi_scores = mutual_info_classif(X_train, y_train, random_state=config.SPLIT_RANDOM_STATE)
 
     # Create scores DataFrame
-    mi_scores_df = pd.DataFrame(
-        {"feature": X_train.columns, "mi_score": mi_scores}
-    ).sort_values("mi_score", ascending=False)
+    mi_scores_df = pd.DataFrame({"feature": X_train.columns, "mi_score": mi_scores}).sort_values(
+        "mi_score", ascending=False
+    )
 
     # Select features above threshold
-    selected_features = mi_scores_df[mi_scores_df["mi_score"] > mi_threshold][
-        "feature"
-    ].tolist()
+    selected_features = mi_scores_df[mi_scores_df["mi_score"] > mi_threshold]["feature"].tolist()
 
     logger.info("Mutual Information results:")
     logger.info(f"  Features before: {len(X_train.columns)}")
@@ -129,9 +122,9 @@ def select_features_mutual_info(
 def select_features(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    target_column: Optional[str] = None,
-    mi_threshold: Optional[float] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    target_column: str | None = None,
+    mi_threshold: float | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Apply complete feature selection pipeline:
     1. Remove correlated features (correlation analysis)
@@ -160,13 +153,11 @@ def select_features(
 
     # Step 1: Remove correlated features
     train_df, test_df = remove_correlated_features(train_df, test_df)
-    logger.info(
-        f"After correlation filtering: train={train_df.shape}, test={test_df.shape}"
-    )
+    logger.info(f"After correlation filtering: train={train_df.shape}, test={test_df.shape}")
 
     # Step 2: Mutual Information selection
-    train_selected, test_selected, selected_features, mi_scores = (
-        select_features_mutual_info(train_df, test_df, target_column, mi_threshold)
+    train_selected, test_selected, selected_features, mi_scores = select_features_mutual_info(
+        train_df, test_df, target_column, mi_threshold
     )
 
     logger.info("\nFeature selection completed:")

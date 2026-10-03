@@ -4,16 +4,15 @@ MinIO File Operations
 Functions for uploading, downloading, and managing files in MinIO.
 """
 
-import os
 import logging
+import os
 from io import BytesIO, StringIO
-from typing import List
 
 import pandas as pd
 from botocore.exceptions import ClientError
 
-from .client import get_minio_client, create_bucket_if_not_exists
 from ..exceptions import MinIOError
+from .client import create_bucket_if_not_exists, get_minio_client
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +46,7 @@ def upload_to_minio(
         create_bucket_if_not_exists(bucket_name)
         client.upload_file(file_path, bucket_name, object_key)
         file_size = os.path.getsize(file_path) / (1024 * 1024)
-        logger.info(
-            f"Uploaded '{file_path}' ({file_size:.2f} MB) to '{bucket_name}/{object_key}'"
-        )
+        logger.info(f"Uploaded '{file_path}' ({file_size:.2f} MB) to '{bucket_name}/{object_key}'")
         return True
     except Exception as e:
         logger.error(f"Error uploading file to MinIO: {e}")
@@ -128,7 +125,7 @@ def check_file_exists(bucket_name: str, object_key: str) -> bool:
             raise MinIOError(f"Error checking file existence: {e}") from e
 
 
-def list_objects(bucket_name: str, prefix: str = "") -> List[str]:
+def list_objects(bucket_name: str, prefix: str = "") -> list[str]:
     """
     List objects in a MinIO bucket with optional prefix filter.
 
@@ -152,9 +149,7 @@ def list_objects(bucket_name: str, prefix: str = "") -> List[str]:
             return []
 
         objects = [obj["Key"] for obj in response["Contents"]]
-        logger.info(
-            f"Found {len(objects)} objects in '{bucket_name}' with prefix '{prefix}'"
-        )
+        logger.info(f"Found {len(objects)} objects in '{bucket_name}' with prefix '{prefix}'")
         return objects
     except Exception as e:
         logger.error(f"Error listing objects: {e}")
@@ -210,8 +205,7 @@ def download_to_dataframe(bucket_name: str, object_key: str) -> pd.DataFrame:
         df = pd.read_csv(BytesIO(csv_bytes))
         file_size = len(csv_bytes) / (1024 * 1024)
         logger.info(
-            f"Downloaded {len(df)} records ({file_size:.2f} MB) "
-            f"from '{bucket_name}/{object_key}'"
+            f"Downloaded {len(df)} records ({file_size:.2f} MB) from '{bucket_name}/{object_key}'"
         )
         return df
     except ClientError as e:
@@ -266,8 +260,7 @@ def upload_from_dataframe(
 
         file_size = len(csv_bytes) / (1024 * 1024)
         logger.info(
-            f"Uploaded {len(df)} records ({file_size:.2f} MB) "
-            f"to '{bucket_name}/{object_key}'"
+            f"Uploaded {len(df)} records ({file_size:.2f} MB) to '{bucket_name}/{object_key}'"
         )
         return True
     except Exception as e:

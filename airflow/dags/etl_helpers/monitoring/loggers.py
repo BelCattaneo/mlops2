@@ -5,40 +5,38 @@ Functions for logging metrics and visualizations to MLflow for each pipeline sta
 """
 
 import logging
-from typing import Dict, Optional, Any
+from typing import Any
 
 import pandas as pd
 
-from .mlflow_utils import (
-    log_metrics,
-    log_params,
-    save_figure_and_log,
-    get_value_distribution,
-)
 from .charts import (
     create_bar_chart,
     create_comparison_bar_chart,
-    create_raw_data_overview_chart,
     create_correlation_heatmap,
     create_pipeline_flow_chart,
+    create_raw_data_overview_chart,
+)
+from .mlflow_utils import (
+    get_value_distribution,
+    log_metrics,
+    log_params,
+    save_figure_and_log,
 )
 
 logger = logging.getLogger(__name__)
 
 # Import config for default values
-import sys  # noqa: E402
 import os  # noqa: E402
+import sys  # noqa: E402
 
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from etl_config import config  # noqa: E402
 
 
 def log_raw_data_metrics(
     df: pd.DataFrame,
     run_name: str = "raw_data",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Log raw data quality metrics and visualizations to MLflow.
 
@@ -105,9 +103,9 @@ def log_raw_data_metrics(
 def log_split_metrics(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    target_column: Optional[str] = None,
+    target_column: str | None = None,
     run_name: str = "split",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Log train/test split metrics to MLflow.
 
@@ -175,9 +173,9 @@ def log_split_metrics(
 def log_balance_metrics(
     original_df: pd.DataFrame,
     balanced_df: pd.DataFrame,
-    target_column: Optional[str] = None,
+    target_column: str | None = None,
     run_name: str = "balance",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Log data balancing metrics to MLflow.
 
@@ -205,9 +203,7 @@ def log_balance_metrics(
         metrics = {
             "original_size": len(original_df),
             "balanced_size": len(balanced_df),
-            "size_change_pct": (len(balanced_df) - len(original_df))
-            / len(original_df)
-            * 100,
+            "size_change_pct": (len(balanced_df) - len(original_df)) / len(original_df) * 100,
         }
 
         if target_column in original_df.columns:
@@ -252,10 +248,10 @@ def log_balance_metrics(
 def log_feature_selection_metrics(
     original_df: pd.DataFrame,
     selected_df: pd.DataFrame,
-    mi_scores_df: Optional[pd.DataFrame] = None,
-    target_column: Optional[str] = None,
+    mi_scores_df: pd.DataFrame | None = None,
+    target_column: str | None = None,
     run_name: str = "features",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Log feature selection metrics to MLflow.
 
@@ -340,7 +336,7 @@ def log_pipeline_summary(
     final_test_count: int,
     feature_count: int,
     run_name: str = "pipeline_summary",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Log overall pipeline summary showing data flow through all stages.
 
@@ -376,16 +372,12 @@ def log_pipeline_summary(
             "final_train_records": final_train_count,
             "final_test_records": final_test_count,
             "final_features": feature_count,
-            "enrichment_retention_pct": (enriched_count / raw_count * 100)
-            if raw_count > 0
-            else 0,
+            "enrichment_retention_pct": (enriched_count / raw_count * 100) if raw_count > 0 else 0,
             "balancing_change_pct": ((balanced_count - train_count) / train_count * 100)
             if train_count > 0
             else 0,
             "total_final_records": final_train_count + final_test_count,
-            "overall_retention_pct": (
-                (final_train_count + final_test_count) / raw_count * 100
-            )
+            "overall_retention_pct": ((final_train_count + final_test_count) / raw_count * 100)
             if raw_count > 0
             else 0,
         }

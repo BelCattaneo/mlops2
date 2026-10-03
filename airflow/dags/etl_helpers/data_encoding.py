@@ -5,7 +5,6 @@ Functions for encoding categorical and numerical variables.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -20,7 +19,7 @@ def apply_log_transformation(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     column: str = "distance_crime_to_police_station",
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Apply log1p transformation to reduce skewness.
 
@@ -67,7 +66,7 @@ def apply_cyclic_encoding(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     column: str = "day_of_week",
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Apply cyclic encoding to day of week (sine transformation).
 
@@ -89,14 +88,10 @@ def apply_cyclic_encoding(
         train_nan = train_encoded[column].isna().sum()
         test_nan = test_encoded[column].isna().sum()
         if train_nan > 0 or test_nan > 0:
-            logger.warning(
-                f"NaN values found in '{column}': train={train_nan}, test={test_nan}"
-            )
+            logger.warning(f"NaN values found in '{column}': train={train_nan}, test={test_nan}")
             # Fill NaN with mode (most common day)
             mode_val = (
-                train_encoded[column].mode()[0]
-                if len(train_encoded[column].mode()) > 0
-                else 0
+                train_encoded[column].mode()[0] if len(train_encoded[column].mode()) > 0 else 0
             )
             train_encoded[column] = train_encoded[column].fillna(mode_val)
             test_encoded[column] = test_encoded[column].fillna(mode_val)
@@ -120,8 +115,8 @@ def apply_cyclic_encoding(
 def apply_onehot_encoding(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, OneHotEncoder]]:
+    columns: list[str] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, OneHotEncoder]]:
     """
     Apply one-hot encoding to low cardinality categorical variables.
 
@@ -140,7 +135,7 @@ def apply_onehot_encoding(
 
     train_encoded = train_df.copy()
     test_encoded = test_df.copy()
-    encoders: Dict[str, OneHotEncoder] = {}
+    encoders: dict[str, OneHotEncoder] = {}
 
     for col in columns:
         if col not in train_encoded.columns:
@@ -151,14 +146,10 @@ def apply_onehot_encoding(
         train_nan = train_encoded[col].isna().sum()
         test_nan = test_encoded[col].isna().sum()
         if train_nan > 0 or test_nan > 0:
-            logger.warning(
-                f"NaN values found in '{col}': train={train_nan}, test={test_nan}"
-            )
+            logger.warning(f"NaN values found in '{col}': train={train_nan}, test={test_nan}")
             # Fill with most frequent value
             mode_val = (
-                train_encoded[col].mode()[0]
-                if len(train_encoded[col].mode()) > 0
-                else "UNKNOWN"
+                train_encoded[col].mode()[0] if len(train_encoded[col].mode()) > 0 else "UNKNOWN"
             )
             train_encoded[col] = train_encoded[col].fillna(mode_val)
             test_encoded[col] = test_encoded[col].fillna(mode_val)
@@ -177,12 +168,8 @@ def apply_onehot_encoding(
         feature_names = [name.lower().replace(" ", "_") for name in raw_feature_names]
 
         # Create DataFrames and join
-        train_ohe_df = pd.DataFrame(
-            train_array, columns=feature_names, index=train_encoded.index
-        )
-        test_ohe_df = pd.DataFrame(
-            test_array, columns=feature_names, index=test_encoded.index
-        )
+        train_ohe_df = pd.DataFrame(train_array, columns=feature_names, index=train_encoded.index)
+        test_ohe_df = pd.DataFrame(test_array, columns=feature_names, index=test_encoded.index)
 
         train_encoded = train_encoded.join(train_ohe_df)
         test_encoded = test_encoded.join(test_ohe_df)
@@ -196,8 +183,8 @@ def apply_onehot_encoding(
 def apply_label_encoding(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    columns: list[str] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Apply label encoding to boolean variables (True=1, False=0).
 
@@ -226,9 +213,7 @@ def apply_label_encoding(
         train_nan = train_encoded[col].isna().sum()
         test_nan = test_encoded[col].isna().sum()
         if train_nan > 0 or test_nan > 0:
-            logger.warning(
-                f"NaN values found in '{col}': train={train_nan}, test={test_nan}"
-            )
+            logger.warning(f"NaN values found in '{col}': train={train_nan}, test={test_nan}")
             # Fill with False (0) for boolean columns
             train_encoded[col] = train_encoded[col].fillna(False)
             test_encoded[col] = test_encoded[col].fillna(False)
@@ -247,8 +232,8 @@ def apply_label_encoding(
 def apply_frequency_encoding(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, pd.Series]]:
+    columns: list[str] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.Series]]:
     """
     Apply frequency encoding to high cardinality categorical variables.
     Uses normalized value counts from training data.
@@ -268,7 +253,7 @@ def apply_frequency_encoding(
 
     train_encoded = train_df.copy()
     test_encoded = test_df.copy()
-    freq_maps: Dict[str, pd.Series] = {}
+    freq_maps: dict[str, pd.Series] = {}
 
     for col in columns:
         if col not in train_encoded.columns:
@@ -282,14 +267,10 @@ def apply_frequency_encoding(
         # Create new column with _freq suffix
         new_col = f"{col}_freq"
         # Use fillna(0) for both train and test to handle any NaN values consistently
-        train_encoded[new_col] = (
-            train_encoded[col].map(freq_encoding).fillna(0).astype(float)
-        )
+        train_encoded[new_col] = train_encoded[col].map(freq_encoding).fillna(0).astype(float)
 
         # For test: use 0 for unseen categories
-        test_encoded[new_col] = (
-            test_encoded[col].map(freq_encoding).fillna(0).astype(float)
-        )
+        test_encoded[new_col] = test_encoded[col].map(freq_encoding).fillna(0).astype(float)
 
         logger.info(f"  {col}: {len(freq_encoding)} unique values -> {new_col}")
 
@@ -299,7 +280,7 @@ def apply_frequency_encoding(
 def encode_data(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Apply all encoding transformations to train and test datasets.
 

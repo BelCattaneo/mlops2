@@ -4,10 +4,10 @@ MLflow Utility Functions
 Helper functions for logging metrics, parameters, and artifacts to MLflow.
 """
 
+import logging
 import os
 import tempfile
-import logging
-from typing import Dict, Any
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -75,7 +75,7 @@ def save_figure_and_log(
         plt.close(fig)
 
 
-def log_metrics(metrics_dict: Dict[str, Any]) -> None:
+def log_metrics(metrics_dict: dict[str, Any]) -> None:
     """
     Log multiple metrics to MLflow.
 
@@ -91,7 +91,7 @@ def log_metrics(metrics_dict: Dict[str, Any]) -> None:
         pass
 
 
-def log_params(params_dict: Dict[str, Any]) -> None:
+def log_params(params_dict: dict[str, Any]) -> None:
     """
     Log multiple parameters to MLflow.
 
@@ -111,7 +111,7 @@ def get_value_distribution(
     series,
     normalize: bool = True,
     as_percentage: bool = True,
-) -> Dict[Any, float]:
+) -> dict[Any, float]:
     """
     Get value distribution from a pandas Series.
 

@@ -4,10 +4,9 @@ Data Loading Functions
 Functions for downloading Chicago crime data from Socrata API.
 """
 
-import os
 import logging
+import os
 from datetime import datetime, timedelta
-from typing import Optional
 
 import pandas as pd
 from sodapy import Socrata
@@ -47,7 +46,7 @@ def get_socrata_client() -> Socrata:
         raise DataLoadError(f"Failed to initialize Socrata client: {e}") from e
 
 
-def download_crimes_full(output_file: Optional[str] = None) -> pd.DataFrame:
+def download_crimes_full(output_file: str | None = None) -> pd.DataFrame:
     """
     Download all crime records from the past year.
     Used for initial/first run when no historical data exists.
@@ -64,9 +63,9 @@ def download_crimes_full(output_file: Optional[str] = None) -> pd.DataFrame:
     client = get_socrata_client()
 
     try:
-        one_year_ago = (
-            datetime.now() - timedelta(days=config.ROLLING_WINDOW_DAYS)
-        ).strftime("%Y-%m-%d")
+        one_year_ago = (datetime.now() - timedelta(days=config.ROLLING_WINDOW_DAYS)).strftime(
+            "%Y-%m-%d"
+        )
         today = datetime.now().strftime("%Y-%m-%d")
 
         logger.info(f"Downloading full crime dataset from {one_year_ago} to {today}...")
@@ -96,7 +95,7 @@ def download_crimes_full(output_file: Optional[str] = None) -> pd.DataFrame:
 def download_crimes_incremental(
     start_date: str | datetime,
     end_date: str | datetime,
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
 ) -> pd.DataFrame:
     """
     Download crime records for a specific date range (incremental update).
@@ -120,9 +119,7 @@ def download_crimes_incremental(
         if isinstance(end_date, datetime):
             end_date = end_date.strftime("%Y-%m-%d")
 
-        logger.info(
-            f"Downloading incremental crime data from {start_date} to {end_date}..."
-        )
+        logger.info(f"Downloading incremental crime data from {start_date} to {end_date}...")
 
         results = client.get_all(
             CRIME_DATASET_ID,
@@ -146,7 +143,7 @@ def download_crimes_incremental(
         client.close()
 
 
-def download_police_stations(output_file: Optional[str] = None) -> pd.DataFrame:
+def download_police_stations(output_file: str | None = None) -> pd.DataFrame:
     """
     Download Chicago police stations dataset.
 

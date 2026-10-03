@@ -4,9 +4,8 @@ MinIO Client and Bucket Management
 Functions for initializing MinIO client and managing buckets.
 """
 
-import os
 import logging
-from typing import List, Optional, Union
+import os
 
 import boto3
 from botocore.exceptions import ClientError
@@ -53,7 +52,7 @@ def get_minio_client() -> boto3.client:
 
 def set_bucket_lifecycle_policy(
     bucket_name: str,
-    prefixes: Union[List[str], str],
+    prefixes: list[str] | str,
     expiration_days: int,
 ) -> bool:
     """
@@ -104,8 +103,8 @@ def set_bucket_lifecycle_policy(
 
 def create_bucket_if_not_exists(
     bucket_name: str,
-    lifecycle_prefix: Optional[str] = None,
-    lifecycle_days: Optional[int] = None,
+    lifecycle_prefix: str | None = None,
+    lifecycle_days: int | None = None,
 ) -> bool:
     """
     Create a MinIO bucket if it doesn't already exist.

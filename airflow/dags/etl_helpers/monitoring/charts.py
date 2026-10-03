@@ -5,24 +5,23 @@ Functions for creating visualizations for monitoring and logging.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
 
 def create_bar_chart(
-    values: List[float],
-    labels: List[str],
+    values: list[float],
+    labels: list[str],
     title: str,
     xlabel: str,
     ylabel: str,
     horizontal: bool = False,
-    figsize: Tuple[int, int] = (10, 6),
+    figsize: tuple[int, int] = (10, 6),
 ) -> plt.Figure:
     """
     Create a bar chart.
@@ -62,15 +61,15 @@ def create_bar_chart(
 
 
 def create_comparison_bar_chart(
-    values1: List[float],
-    values2: List[float],
-    labels: List[str],
+    values1: list[float],
+    values2: list[float],
+    labels: list[str],
     label1: str,
     label2: str,
     title: str,
     xlabel: str,
     ylabel: str,
-    figsize: Tuple[int, int] = (10, 6),
+    figsize: tuple[int, int] = (10, 6),
 ) -> plt.Figure:
     """
     Create a side-by-side comparison bar chart.
@@ -172,7 +171,7 @@ def create_raw_data_overview_chart(df: pd.DataFrame) -> plt.Figure:
 def create_correlation_heatmap(
     df: pd.DataFrame,
     title: str = "Feature Correlation Heatmap",
-) -> Optional[plt.Figure]:
+) -> plt.Figure | None:
     """
     Generate correlation heatmap of numeric features.
 
@@ -256,7 +255,7 @@ def create_pipeline_flow_chart(
 
     bars = ax.bar(x_positions, counts, color=colors, alpha=0.7, width=0.6)
 
-    for bar, count in zip(bars, counts):
+    for bar, count in zip(bars, counts, strict=True):
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2.0,
@@ -275,14 +274,12 @@ def create_pipeline_flow_chart(
         f"{(enriched_count / raw_count * 100):.1f}%" if raw_count > 0 else "N/A",
         f"{(train_count / enriched_count * 100):.1f}%" if enriched_count > 0 else "N/A",
         f"{(balanced_count / train_count * 100):.1f}%" if train_count > 0 else "N/A",
-        f"{(final_train_count / balanced_count * 100):.1f}%"
-        if balanced_count > 0
-        else "N/A",
+        f"{(final_train_count / balanced_count * 100):.1f}%" if balanced_count > 0 else "N/A",
     ]
 
     arrow_positions = [(0, 1), (1, 2.5), (2.5, 3.5), (3.5, 5)]
 
-    for (start, end), text in zip(arrow_positions, retention_texts):
+    for (start, end), text in zip(arrow_positions, retention_texts, strict=True):
         mid_x = (start + end) / 2
         mid_y = max(counts) * 0.5
         ax.annotate(
@@ -306,9 +303,7 @@ def create_pipeline_flow_chart(
     )
 
     ax.set_ylabel("Record Count", fontsize=12, fontweight="bold")
-    ax.set_title(
-        "ETL Pipeline Data Flow - Record Count by Stage", fontsize=14, fontweight="bold"
-    )
+    ax.set_title("ETL Pipeline Data Flow - Record Count by Stage", fontsize=14, fontweight="bold")
     ax.grid(axis="y", alpha=0.3, linestyle="--")
     ax.set_ylim(0, max(counts) * 1.15)
 

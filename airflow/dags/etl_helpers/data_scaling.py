@@ -5,7 +5,6 @@ Functions for scaling numerical features using StandardScaler.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -19,8 +18,8 @@ logger = logging.getLogger(__name__)
 def scale_data(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    columns: list[str] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Scale numerical features using StandardScaler.
     Fits scaler on train data and transforms both train and test.

@@ -5,12 +5,11 @@ Functions for balancing the training dataset using SMOTE and undersampling.
 """
 
 import logging
-from typing import Optional
 
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
+from imblearn.under_sampling import RandomUnderSampler
 
 from . import config
 from .exceptions import DataValidationError
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def balance_data(
     train_df: pd.DataFrame,
-    target_column: Optional[str] = None,
+    target_column: str | None = None,
 ) -> pd.DataFrame:
     """
     Balance training data using combined SMOTE + RandomUnderSampler strategy.
@@ -72,12 +71,8 @@ def balance_data(
     nan_counts = X.isna().sum()
     if nan_counts.any():
         nan_cols = nan_counts[nan_counts > 0].to_dict()
-        logger.error(
-            f"NaN values found in columns (this should not happen): {nan_cols}"
-        )
-        logger.error(
-            "NaN values should be handled in upstream steps (enrichment, encoding)"
-        )
+        logger.error(f"NaN values found in columns (this should not happen): {nan_cols}")
+        logger.error("NaN values should be handled in upstream steps (enrichment, encoding)")
         raise DataValidationError(
             f"Unexpected NaN values in {len(nan_cols)} columns: {list(nan_cols.keys())}. "
             f"Check data_enrichment.py and data_encoding.py for missing NaN handling."
@@ -120,12 +115,8 @@ def balance_data(
     logger.info("Balanced class distribution:")
     final_class_0 = final_counts.loc[0] if 0 in final_counts.index else 0
     final_class_1 = final_counts.loc[1] if 1 in final_counts.index else 0
-    logger.info(
-        f"  Class 0: {final_class_0} ({100 * final_class_0 / len(y_resampled):.1f}%)"
-    )
-    logger.info(
-        f"  Class 1: {final_class_1} ({100 * final_class_1 / len(y_resampled):.1f}%)"
-    )
+    logger.info(f"  Class 0: {final_class_0} ({100 * final_class_0 / len(y_resampled):.1f}%)")
+    logger.info(f"  Class 1: {final_class_1} ({100 * final_class_1 / len(y_resampled):.1f}%)")
     logger.info(f"  Final ratio (min/max): {final_ratio:.3f}")
 
     # Combine back into DataFrame

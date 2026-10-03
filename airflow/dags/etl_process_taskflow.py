@@ -5,7 +5,8 @@ import tempfile
 
 import pandas as pd
 from airflow.decorators import dag, task
-
+from airflow.exceptions import AirflowFailException
+from etl_config import config
 from etl_helpers.data_balancing import balance_data as balance_data_fn
 from etl_helpers.data_encoding import encode_data as encode_data_fn
 from etl_helpers.data_enrichment import enrich_crime_data
@@ -32,7 +33,6 @@ from etl_helpers.monitoring import (
     log_raw_data_metrics,
     log_split_metrics,
 )
-from etl_config import config
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
 
 logger = logging.getLogger(__name__)
@@ -64,9 +64,7 @@ default_args = {
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": datetime.timedelta(minutes=5),
-    "dagrun_timeout": datetime.timedelta(
-        minutes=60
-    ),  # Increased for large data downloads
+    "dagrun_timeout": datetime.timedelta(minutes=60),  # Increased for large data downloads
 }
 
 
@@ -118,9 +116,7 @@ def process_etl_taskflow():
             }
 
         # Determine download date range
-        existing_merged = list_objects(
-            BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_"
-        )
+        existing_merged = list_objects(BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_")
 
         if len(existing_merged) == 0:
             # No existing data - download full rolling window
@@ -133,9 +129,7 @@ def process_etl_taskflow():
 
         # Download data to temp files
         crimes_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
-        stations_temp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".csv", delete=False
-        )
+        stations_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
 
         try:
             # Download crimes (always use incremental with appropriate date range)
@@ -186,9 +180,7 @@ def process_etl_taskflow():
         df_new = download_to_dataframe(BUCKET_NAME, download_result["crimes_file"])
 
         # Check for existing merged data
-        existing_merged = list_objects(
-            BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_"
-        )
+        existing_merged = list_objects(BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_")
 
         if len(existing_merged) == 0:
             # First merge - use downloaded data as-is
@@ -201,9 +193,7 @@ def process_etl_taskflow():
 
             # Apply rolling window filter
             merged_df["date"] = pd.to_datetime(merged_df["date"])
-            cutoff_date = datetime.datetime.now() - datetime.timedelta(
-                days=ROLLING_WINDOW_DAYS
-            )
+            cutoff_date = datetime.datetime.now() - datetime.timedelta(days=ROLLING_WINDOW_DAYS)
             merged_df = merged_df[merged_df["date"] >= cutoff_date]
 
         # Save merged data
@@ -256,9 +246,7 @@ def process_etl_taskflow():
         test_key = f"{PREFIX_SPLIT}crimes_test_{run_date}.csv"
 
         # Check if split files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(
-            BUCKET_NAME, test_key
-        ):
+        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
             return {
                 "status": "success",
                 "train_file": train_key,
@@ -305,9 +293,7 @@ def process_etl_taskflow():
         test_key = f"{PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.csv"
 
         # Check if processed files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(
-            BUCKET_NAME, test_key
-        ):
+        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
             return {
                 "status": "success",
                 "train_file": train_key,
@@ -350,9 +336,7 @@ def process_etl_taskflow():
         test_key = f"{PREFIX_ENCODED}crimes_test_encoded_{run_date}.csv"
 
         # Check if encoded files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(
-            BUCKET_NAME, test_key
-        ):
+        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
             return {
                 "status": "success",
                 "train_file": train_key,
@@ -389,9 +373,7 @@ def process_etl_taskflow():
         test_key = f"{PREFIX_SCALED}crimes_test_scaled_{run_date}.csv"
 
         # Check if scaled files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(
-            BUCKET_NAME, test_key
-        ):
+        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
             return {
                 "status": "success",
                 "train_file": train_key,
@@ -424,7 +406,7 @@ def process_etl_taskflow():
         Strategy: SMOTE (0.5) → RandomUnderSampler (0.8)
         Note: Only balances TRAIN data, test remains unchanged.
         """
-        
+
         # Si upstream devolvió no_data, salir sin tocar keys que no existen
         if not scale_result or scale_result.get("status") == "no_data":
             return {"status": "no_data"}
@@ -433,8 +415,9 @@ def process_etl_taskflow():
         test_key = scale_result.get("test_file")
         if not test_key:
             raise AirflowFailException(
-            f"balance_data: falta 'test_file' en scale_result. Keys: {list(scale_result.keys())}"
-        )
+                f"balance_data: falta 'test_file' en scale_result. "
+                f"Keys: {list(scale_result.keys())}"
+            )
 
         run_date = context["ds"]
         train_key = f"{PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
@@ -442,7 +425,7 @@ def process_etl_taskflow():
         # Idempotencia
         if check_file_exists(BUCKET_NAME, train_key):
             return {"status": "success", "train_file": train_key, "test_file": test_key}
-        
+
         # run_date = context["ds"]
         # train_key = f"{PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
         # test_key = scale_result["test_file"]  # Test unchanged, just pass through
@@ -497,9 +480,7 @@ def process_etl_taskflow():
         test_key = f"{PREFIX_ML_READY}test_{run_date}.csv"
 
         # Check if ML-ready files already exist (idempotent)
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(
-            BUCKET_NAME, test_key
-        ):
+        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
             return {
                 "status": "success",
                 "train_file": train_key,
@@ -511,9 +492,7 @@ def process_etl_taskflow():
             return {"status": "no_data"}
 
         # Load balanced train and test data
-        train_df_original = download_to_dataframe(
-            BUCKET_NAME, balance_result["train_file"]
-        )
+        train_df_original = download_to_dataframe(BUCKET_NAME, balance_result["train_file"])
         test_df = download_to_dataframe(BUCKET_NAME, balance_result["test_file"])
 
         # Apply feature selection
@@ -560,9 +539,7 @@ def process_etl_taskflow():
 
             # Raw data (from enrich_data task)
             enriched_result = ti.xcom_pull(task_ids="enrich_data")
-            enriched_df = download_to_dataframe(
-                BUCKET_NAME, enriched_result["enriched_file"]
-            )
+            enriched_df = download_to_dataframe(BUCKET_NAME, enriched_result["enriched_file"])
             enriched_count = len(enriched_df)
 
             # For raw count, we need to count before enrichment cleaning
@@ -571,32 +548,22 @@ def process_etl_taskflow():
 
             # Split data
             split_result = ti.xcom_pull(task_ids="split_data")
-            train_split_df = download_to_dataframe(
-                BUCKET_NAME, split_result["train_file"]
-            )
+            train_split_df = download_to_dataframe(BUCKET_NAME, split_result["train_file"])
             test_df = download_to_dataframe(BUCKET_NAME, split_result["test_file"])
             train_count = len(train_split_df)
             test_count = len(test_df)
 
             # Balanced data
             balanced_result = ti.xcom_pull(task_ids="balance_data")
-            train_balanced_df = download_to_dataframe(
-                BUCKET_NAME, balanced_result["train_file"]
-            )
+            train_balanced_df = download_to_dataframe(BUCKET_NAME, balanced_result["train_file"])
             balanced_count = len(train_balanced_df)
 
             # Final data
-            final_train_df = download_to_dataframe(
-                BUCKET_NAME, feature_result["train_file"]
-            )
-            final_test_df = download_to_dataframe(
-                BUCKET_NAME, feature_result["test_file"]
-            )
+            final_train_df = download_to_dataframe(BUCKET_NAME, feature_result["train_file"])
+            final_test_df = download_to_dataframe(BUCKET_NAME, feature_result["test_file"])
             final_train_count = len(final_train_df)
             final_test_count = len(final_test_df)
-            feature_count = len(
-                [c for c in final_train_df.columns if c != TARGET_COLUMN]
-            )
+            feature_count = len([c for c in final_train_df.columns if c != TARGET_COLUMN])
 
             # Log summary
             log_pipeline_summary(
