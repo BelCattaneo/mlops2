@@ -153,6 +153,12 @@ def process_etl_taskflow():
             datetime.datetime.fromisoformat(raw["window_end"]),
             config.ROLLING_WINDOW_DAYS,
         )
+        if not particiones:
+            raise ValueError(
+                f"no hay particiones crudas en los últimos {config.ROLLING_WINDOW_DAYS} días "
+                f"bajo {config.PREFIX_RAW}crimes/: la capa cruda está vacía o quedó fuera de "
+                "la ventana"
+            )
         logger.info("Capa cruda: %d particiones en la ventana", len(particiones))
         crimenes = pd.concat(
             [download_to_dataframe(BUCKET_NAME, clave) for clave in particiones],
@@ -173,7 +179,7 @@ def process_etl_taskflow():
         }
 
     @task.python
-    def build_curated(enriched, **context):
+    def build_curated(enriched):
         """Corta, saca outliers, codifica, escala, balancea y selecciona features."""
         if enriched.get("status") == "no_data":
             return {"status": "no_data"}
@@ -198,7 +204,6 @@ def process_etl_taskflow():
         filas_corte = (len(train), len(test))
 
         train, test = process_outliers_fn(train, test, n_std=config.OUTLIER_STD_THRESHOLD)
-        filas_outliers = (len(train), len(test))
 
         train, test = encode_data_fn(train, test)
         train, test = scale_data_fn(train, test)
@@ -239,14 +244,13 @@ def process_etl_taskflow():
             "train_file": train_key,
             "test_file": test_key,
             "split_rows": filas_corte,
-            "outlier_rows": filas_outliers,
             "balanced_rows": len(balanceado),
             "rows": (len(elegidas_train), len(elegidas_test)),
             "features": len([c for c in elegidas_train.columns if c != config.TARGET_COLUMN]),
         }
 
     @task.python
-    def log_summary(raw, enriched, curated, **context):
+    def log_summary(raw, enriched, curated):
         """Registra el resumen de la corrida con los conteos que trae cada capa.
 
         Los conteos vienen por XCom y no de volver a bajar los datasets: cada capa sabe cuántas
