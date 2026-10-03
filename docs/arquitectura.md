@@ -12,7 +12,7 @@ Equipo: trabajo individual. Bel Cattaneo cubre diseño, implementación y docume
 
 | capa | componentes | qué hace |
 |---|---|---|
-| Ingesta y orquestación | Airflow, ValKey | el DAG de ETL baja los reportes de Socrata y los procesa |
+| Ingesta y orquestación | Airflow | el DAG de ETL baja los reportes de Socrata y los procesa |
 | Data lake | MinIO | guarda los datasets (`s3://data`) y los artefactos de modelos (`s3://mlflow`) |
 | Entrenamiento y ciclo de vida | trainer, MLflow, PostgreSQL | entrena el XGBoost, lo registra y le asigna el alias `champion` |
 | Servicio | REST, gRPC, GraphQL con Neo4j | predicciones y metadatos del modelo `champion`, con la codificación compartida de `arrest_model` |
