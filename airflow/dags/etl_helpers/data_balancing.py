@@ -7,11 +7,11 @@ Functions for balancing the training dataset using SMOTE and undersampling.
 import logging
 
 import pandas as pd
+from etl_config import config
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
 from imblearn.under_sampling import RandomUnderSampler
 
-from . import config
 from .exceptions import DataValidationError
 
 logger = logging.getLogger(__name__)

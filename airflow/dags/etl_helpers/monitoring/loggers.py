@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 import pandas as pd
+from etl_config import config
 
 from .charts import (
     create_bar_chart,
@@ -24,13 +25,6 @@ from .mlflow_utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Import config for default values
-import os  # noqa: E402
-import sys  # noqa: E402
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from etl_config import config  # noqa: E402
 
 
 def log_raw_data_metrics(

@@ -8,9 +8,8 @@ import logging
 
 import numpy as np
 import pandas as pd
+from etl_config import config
 from sklearn.preprocessing import OneHotEncoder
-
-from . import config
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,8 @@ Functions for preprocessing and splitting Chicago crime data into train/test set
 import logging
 
 import pandas as pd
+from etl_config import config
 from sklearn.model_selection import train_test_split
-
-from . import config
 
 logger = logging.getLogger(__name__)
 

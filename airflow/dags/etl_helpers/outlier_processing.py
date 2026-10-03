@@ -7,8 +7,7 @@ Functions for detecting and removing outliers from crime data.
 import logging
 
 import pandas as pd
-
-from . import config
+from etl_config import config
 
 logger = logging.getLogger(__name__)
 

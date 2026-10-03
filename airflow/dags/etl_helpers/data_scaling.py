@@ -7,9 +7,9 @@ Functions for scaling numerical features using StandardScaler.
 import logging
 
 import pandas as pd
+from etl_config import config
 from sklearn.preprocessing import StandardScaler
 
-from . import config
 from .exceptions import DataValidationError
 
 logger = logging.getLogger(__name__)

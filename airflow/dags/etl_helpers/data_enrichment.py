@@ -9,8 +9,8 @@ import os
 
 import geopandas as gpd
 import pandas as pd
+from etl_config import config
 
-from . import config
 from .exceptions import EnrichmentError
 
 logger = logging.getLogger(__name__)

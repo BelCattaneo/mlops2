@@ -426,22 +426,6 @@ def process_etl_taskflow():
         if check_file_exists(BUCKET_NAME, train_key):
             return {"status": "success", "train_file": train_key, "test_file": test_key}
 
-        # run_date = context["ds"]
-        # train_key = f"{PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
-        # test_key = scale_result["test_file"]  # Test unchanged, just pass through
-
-        # # Check if balanced file already exists (idempotent)
-        # if check_file_exists(BUCKET_NAME, train_key):
-        #     return {
-        #         "status": "success",
-        #         "train_file": train_key,
-        #         "test_file": test_key,
-        #     }
-
-        # Check if upstream returned no_data
-        if scale_result.get("status") == "no_data":
-            return {"status": "no_data"}
-
         # Load train data and balance it
         train_df = download_to_dataframe(BUCKET_NAME, scale_result["train_file"])
         train_balanced = balance_data_fn(train_df, target_column=TARGET_COLUMN)

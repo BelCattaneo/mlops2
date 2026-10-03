@@ -61,16 +61,3 @@ class EnrichmentError(ETLError):
     """
 
     pass
-
-
-class FeatureEngineeringError(ETLError):
-    """
-    Error raised during feature engineering operations.
-
-    Examples:
-        - Encoding failures
-        - Scaling errors
-        - Feature selection issues
-    """
-
-    pass

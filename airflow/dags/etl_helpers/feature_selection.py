@@ -8,9 +8,8 @@ and mutual information.
 import logging
 
 import pandas as pd
+from etl_config import config
 from sklearn.feature_selection import mutual_info_classif
-
-from . import config
 
 logger = logging.getLogger(__name__)
 

@@ -9,9 +9,9 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
+from etl_config import config
 from sodapy import Socrata
 
-from . import config
 from .exceptions import DataLoadError
 
 logger = logging.getLogger(__name__)
