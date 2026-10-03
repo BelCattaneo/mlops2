@@ -2,8 +2,10 @@
 
 import io
 import uuid
+from collections.abc import Iterator
 
 import pytest
+from botocore.exceptions import ClientError
 
 from arrest_model.features import MODEL_FEATURES
 from arrest_model.model import load_bundle, predict
@@ -32,9 +34,23 @@ pytestmark = [
 
 
 @pytest.fixture
-def bucket() -> str:
-    """Un bucket propio por test: los objetos del lake sobreviven entre corridas."""
-    return f"test-lake-{uuid.uuid4().hex[:8]}"
+def bucket() -> Iterator[str]:
+    """Un bucket propio por test, que se borra al terminar.
+
+    Propio porque los objetos del lake sobreviven entre corridas y un nombre fijo haría que
+    una corrida vea lo que dejó la anterior. Y se borra porque si no, cada pasada de la suite
+    deja sus buckets en el MinIO de la máquina.
+    """
+    nombre = f"test-lake-{uuid.uuid4().hex[:8]}"
+    yield nombre
+    s3 = client()
+    try:
+        for clave in list_keys(s3, bucket=nombre):
+            s3.delete_object(Bucket=nombre, Key=clave)
+        s3.delete_bucket(Bucket=nombre)
+    except ClientError:
+        # El test puede no haber llegado a crearlo.
+        pass
 
 
 def test_the_bucket_starts_with_its_three_zones(bucket: str) -> None:
