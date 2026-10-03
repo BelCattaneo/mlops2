@@ -18,6 +18,9 @@ from tp6_datalake.lake import ACCESS_KEY, ENDPOINT, SECRET_KEY
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 EXPERIMENT = "chicago-arrest"
 
+# El cliente imprime una sugerencia sobre una skill propia en cada import; en el notebook
+# entregable solo agrega ruido.
+os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 os.environ.setdefault("MLFLOW_S3_ENDPOINT_URL", ENDPOINT)
 os.environ.setdefault("AWS_ACCESS_KEY_ID", ACCESS_KEY)
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", SECRET_KEY)
