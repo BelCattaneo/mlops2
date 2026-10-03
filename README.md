@@ -34,7 +34,7 @@ La plataforma del TP integrador se documenta aparte: [arquitectura](docs/arquite
 ├── Makefile         # atajos globales (install, test, lint) y por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*)
 ├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL y MinIO
 ├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
-├── airflow/         # dags/: el ETL de Chicago que alimenta la plataforma, y secrets/ con sus conexiones
+├── airflow/         # dags/: el ETL de Chicago que alimenta la plataforma, en tres capas
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
