@@ -22,6 +22,7 @@ from tp6_datalake.lake import (
     put_bytes,
 )
 from tp6_datalake.models import load_model, publish_model
+from tp6_datalake.tracking import artifacts_of, log_run, metrics_of, tracking_available
 
 pytestmark = [
     pytest.mark.minio,
@@ -169,3 +170,28 @@ def test_asking_for_a_version_that_is_not_there_says_so(bucket: str) -> None:
     ensure_bucket(s3, bucket)
     with pytest.raises(FileNotFoundError, match="v9"):
         load_model(s3, bucket=bucket, version="v9")
+
+
+necesita_mlflow = pytest.mark.skipif(
+    not tracking_available(), reason="no hay servidor de MLflow en 5001"
+)
+
+
+@pytest.mark.mlflow
+@necesita_mlflow
+def test_the_run_records_the_metrics_of_the_model() -> None:
+    corrida = log_run(experiment="tp6-test")
+    metricas = metrics_of(corrida)
+    assert metricas["mcc"] == pytest.approx(load_bundle()["metadata"]["metrics"]["mcc"], abs=1e-6)
+
+
+@pytest.mark.mlflow
+@necesita_mlflow
+def test_the_artifact_of_the_run_ends_up_in_the_lake() -> None:
+    # Lo que se prueba acá es la integración: MLflow guarda su metadata en Postgres, pero el
+    # artefacto viaja a MinIO. Si no, el modelo quedaría dentro del contenedor de MLflow.
+    corrida = log_run(experiment="tp6-test")
+    # MLflow ordena el bucket como experimento/corrida/artifacts/...
+    claves = list_keys(client(), bucket="mlflow")
+    assert any(clave.endswith(f"{corrida}/artifacts/model.pkl") for clave in claves)
+    assert artifacts_of(corrida) == ["model.pkl"]

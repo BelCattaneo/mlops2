@@ -49,6 +49,7 @@ markers = [
     "neo4j: requiere Neo4j corriendo en localhost:7687",
     "kafka: requiere un broker corriendo en localhost:9092",
     "minio: requiere MinIO corriendo en localhost:9000",
+    "mlflow: requiere el servidor de MLflow corriendo en localhost:5001",
 ]
 
 [dependency-groups]
@@ -76,6 +77,7 @@ rest = [
 ]
 lake = [
     "boto3>=1.40.0",
+    "mlflow-skinny>=3.16.1",
     "pyarrow>=21.0.0",
 ]
 streaming = [
