@@ -14,12 +14,16 @@ corregir en la máquina de otro.
 """
 
 import os
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from arrest_model.log import service_logger
 from tp6_datalake.lake import BUCKET, put_bytes
+
+logger = service_logger("tp6_datalake")
 
 DOMAIN = "https://data.cityofchicago.org/resource"
 CRIMES = "ijzp-q8t2"
@@ -36,7 +40,9 @@ def fetch_csv(dataset: str, rows: int = ROWS, timeout: float = 30, **params: str
     El token va si está definido: sin él la consulta igual funciona, pero el portal agrupa el
     límite de uso por dirección IP y corta antes.
     """
-    consulta = "&".join([f"$limit={rows}", *(f"${k}={v}" for k, v in params.items())])
+    # Los valores van codificados: un "$order=date DESC" sin escapar rompe la URL por el espacio.
+    partes = {"$limit": str(rows), **{f"${clave}": valor for clave, valor in params.items()}}
+    consulta = urllib.parse.urlencode(partes)
     pedido = urllib.request.Request(f"{DOMAIN}/{dataset}.csv?{consulta}")
     token = os.getenv("SOCRATA_APP_TOKEN")
     if token:
@@ -57,6 +63,8 @@ def land_raw(
         comisarias = download(STATIONS)
         origen = "socrata"
     except Exception:
+        # Se avisa con la traza: un respaldo silencioso esconde que la fuente dejó de responder.
+        logger.exception("No se pudo bajar de Socrata; se usa la copia versionada del repo")
         reportes = SNAPSHOT_CRIMES.read_bytes()
         comisarias = SNAPSHOT_STATIONS.read_bytes()
         origen = "respaldo"
