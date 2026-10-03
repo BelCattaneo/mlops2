@@ -18,6 +18,7 @@ import tempfile
 import pandas as pd
 from airflow.decorators import dag, task
 from etl_config import config
+from etl_helpers.contract import enforce_feature_contract
 from etl_helpers.data_balancing import balance_data as balance_data_fn
 from etl_helpers.data_encoding import encode_data as encode_data_fn
 from etl_helpers.data_enrichment import enrich_crime_data
@@ -219,6 +220,15 @@ def process_etl_taskflow():
             mi_scores_df=mi_scores,
             target_column=config.TARGET_COLUMN,
             run_name=f"features_{sufijo}",
+        )
+
+        # El contrato se verifica antes de subir: si la selección cambió de features, la
+        # tarea falla en vez de dejar en el lake un dataset que el modelo no puede consumir.
+        elegidas_train = enforce_feature_contract(
+            elegidas_train, config.CURATED_FEATURES, config.TARGET_COLUMN
+        )
+        elegidas_test = enforce_feature_contract(
+            elegidas_test, config.CURATED_FEATURES, config.TARGET_COLUMN
         )
 
         upload_from_dataframe(elegidas_train, BUCKET_NAME, train_key)
