@@ -1,9 +1,11 @@
 """Mini-TP 6: el modelo y los datos viviendo en el data lake."""
 
+import io
 import uuid
 
 import pytest
 
+from tp6_datalake.ingest import SNAPSHOT_CRIMES, land_raw
 from tp6_datalake.lake import (
     ZONES,
     client,
@@ -58,3 +60,48 @@ def test_the_zones_are_prefixes_not_folders(bucket: str) -> None:
     put_bytes(s3, "curated/arrests.parquet", b"y", bucket)
     assert "raw/crimes/dia=2026-10-03/crimes.csv" in list_keys(s3, "raw/", bucket)
     assert "raw/crimes/dia=2026-10-03/crimes.csv" not in list_keys(s3, "curated/", bucket)
+
+
+class DescargaQueFalla:
+    """Socrata sin responder: ni red, ni token, ni portal."""
+
+    def __call__(self, dataset: str, **kwargs: object) -> bytes:
+        raise OSError("no hay red")
+
+
+def test_the_reports_land_partitioned_by_day(bucket: str) -> None:
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    aterrizado = land_raw(
+        s3, bucket=bucket, day="2026-10-03", download=lambda *a, **k: b"id,date\n1,x\n"
+    )
+    assert aterrizado["crimes"].endswith("raw/crimes/dia=2026-10-03/crimes.csv")
+    assert "raw/crimes/dia=2026-10-03/crimes.csv" in list_keys(s3, "raw/", bucket)
+
+
+def test_the_stations_land_without_partition(bucket: str) -> None:
+    # Las comisarías son 23 filas que no cambian desde 2016: particionarlas por día sería ruido.
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    aterrizado = land_raw(
+        s3, bucket=bucket, day="2026-10-03", download=lambda *a, **k: b"district\n1\n"
+    )
+    assert aterrizado["stations"].endswith("raw/police_stations/police_stations.csv")
+
+
+def test_without_the_portal_it_falls_back_to_the_snapshot(bucket: str) -> None:
+    # Lo que se corrige acá: en la corrección del TP anterior el pipeline murió porque la
+    # descarga falló. El respaldo versionado deja que el flujo corra igual.
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    aterrizado = land_raw(s3, bucket=bucket, day="2026-10-03", download=DescargaQueFalla())
+    assert aterrizado["origen"] == "respaldo"
+    assert len(get_bytes(s3, "raw/crimes/dia=2026-10-03/crimes.csv", bucket)) > 1000
+
+
+def test_the_snapshot_has_the_fields_the_model_needs() -> None:
+    import pandas as pd
+
+    reportes = pd.read_csv(io.BytesIO(SNAPSHOT_CRIMES.read_bytes()), compression="gzip")
+    for campo in ("iucr", "primary_type", "location_description", "date", "latitude", "longitude"):
+        assert campo in reportes.columns
