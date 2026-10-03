@@ -6,6 +6,8 @@ Parte de la infraestructura del TP final de MLOps I y de los servicios de los mi
 
 Equipo: trabajo individual. Bel Cattaneo cubre diseño, implementación y documentación.
 
+Se levanta con `make stack-up`; el detalle está en [cómo levantarla](plataforma.md).
+
 ![Arquitectura de la plataforma por capas](arquitectura.png)
 
 ## Capas

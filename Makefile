@@ -1,6 +1,13 @@
 # Atajos del repo. `make help` lista los comandos.
 # Los globales van sin prefijo; los de cada TP llevan el suyo: rest-, graphql-, grpc-, stream-,
 # fed- y lake-.
+# Los puertos de la plataforma: si hay .env, manda lo que diga; si no, los mismos valores por
+# defecto que usa el compose. El `-` hace que no falle cuando .env no existe.
+AIRFLOW_PORT ?= 8081
+MLFLOW_PORT ?= 5001
+MINIO_PORT_UI ?= 9001
+-include .env
+
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
 REST_PORT := 8000
@@ -21,9 +28,10 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
+.PHONY: stack-up stack-down stack-ps stack-logs stack-dag
 
 help: ## Muestra los comandos disponibles
-	@grep -E '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
+	@grep -hE '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
 
 install: ## Instala las dependencias con uv
 	uv sync
@@ -150,3 +158,26 @@ fed-run: ## TP5 · compara el modelo federado contra el centralizado y mide el c
 
 lake-run: ## TP6 · sube datos y modelo al data lake y sirve el modelo desde ahí
 	uv run python -m tp6_datalake.run
+
+stack-up: ## Integrador · levanta la plataforma y espera a que responda
+	@test -f .env || { echo "Falta .env: copiá .env.example y poné ahí el token de Socrata"; exit 1; }
+	docker compose --profile all up -d --build
+	@curl -s -o /dev/null --retry 90 --retry-all-errors --retry-delay 2 --max-time 5 \
+		http://127.0.0.1:$(AIRFLOW_PORT)/api/v2/version \
+		&& echo "Airflow   http://127.0.0.1:$(AIRFLOW_PORT)  (airflow / airflow)"
+	@curl -s -o /dev/null --retry 60 --retry-all-errors --retry-delay 2 --max-time 5 \
+		http://127.0.0.1:$(MLFLOW_PORT) && echo "MLflow    http://127.0.0.1:$(MLFLOW_PORT)"
+	@echo "MinIO     http://127.0.0.1:$(MINIO_PORT_UI)  (minio / minio123)"
+
+stack-down: ## Integrador · detiene la plataforma y conserva los volúmenes
+	docker compose --profile all down
+
+stack-ps: ## Integrador · muestra el estado de los servicios
+	docker compose --profile all ps
+
+stack-logs: ## Integrador · sigue los logs de la plataforma
+	docker compose --profile all logs -f
+
+stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
+	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow
+	docker compose --profile all exec -T airflow-scheduler airflow dags trigger etl_with_taskflow

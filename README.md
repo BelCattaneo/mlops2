@@ -26,12 +26,12 @@ make help      # lista completa de comandos
 
 Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 
-La plataforma del TP integrador se documenta aparte: [arquitectura](docs/arquitectura.md).
+La plataforma del TP integrador se levanta con `make stack-up` y se documenta aparte: [cómo levantarla](docs/plataforma.md) y [la arquitectura](docs/arquitectura.md).
 
 ## Estructura
 
 ```
-├── Makefile         # atajos globales (install, test, lint) y por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*)
+├── Makefile         # atajos globales (install, test, lint), por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*) y de la plataforma (stack-*)
 ├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL y MinIO
 ├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
 ├── airflow/         # dags/: el ETL de Chicago que alimenta la plataforma, en tres capas
