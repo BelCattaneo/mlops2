@@ -40,26 +40,6 @@ logger = logging.getLogger(__name__)
 # Configuration from centralized config
 BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
 
-# Bucket structure (from config)
-PREFIX_RAW = config.PREFIX_RAW
-PREFIX_MERGED = config.PREFIX_MERGED
-PREFIX_ENRICHED = config.PREFIX_ENRICHED
-PREFIX_SPLIT = config.PREFIX_SPLIT
-PREFIX_OUTLIERS = config.PREFIX_OUTLIERS
-PREFIX_ENCODED = config.PREFIX_ENCODED
-PREFIX_SCALED = config.PREFIX_SCALED
-PREFIX_BALANCED = config.PREFIX_BALANCED
-PREFIX_ML_READY = config.PREFIX_ML_READY
-
-# Data processing parameters (from config)
-LIFECYCLE_TTL_DAYS = config.LIFECYCLE_TTL_DAYS
-ROLLING_WINDOW_DAYS = config.ROLLING_WINDOW_DAYS
-TARGET_COLUMN = config.TARGET_COLUMN
-SPLIT_TEST_SIZE = config.SPLIT_TEST_SIZE
-SPLIT_RANDOM_STATE = config.SPLIT_RANDOM_STATE
-OUTLIER_STD_THRESHOLD = config.OUTLIER_STD_THRESHOLD
-MI_THRESHOLD = config.MI_THRESHOLD
-
 default_args = {
     "depends_on_past": False,
     "retries": 1,
@@ -82,19 +62,19 @@ def process_etl_taskflow():
     def setup_s3():
         """Setup MinIO bucket with TTL for all prefixes."""
         all_prefixes = [
-            PREFIX_RAW,
-            PREFIX_MERGED,
-            PREFIX_ENRICHED,
-            PREFIX_SPLIT,
-            PREFIX_OUTLIERS,
-            PREFIX_ENCODED,
-            PREFIX_SCALED,
-            PREFIX_BALANCED,
-            PREFIX_ML_READY,
+            config.PREFIX_RAW,
+            config.PREFIX_MERGED,
+            config.PREFIX_ENRICHED,
+            config.PREFIX_SPLIT,
+            config.PREFIX_OUTLIERS,
+            config.PREFIX_ENCODED,
+            config.PREFIX_SCALED,
+            config.PREFIX_BALANCED,
+            config.PREFIX_ML_READY,
         ]
 
         create_bucket_if_not_exists(BUCKET_NAME)
-        set_bucket_lifecycle_policy(BUCKET_NAME, all_prefixes, LIFECYCLE_TTL_DAYS)
+        set_bucket_lifecycle_policy(BUCKET_NAME, all_prefixes, config.LIFECYCLE_TTL_DAYS)
 
     @task.python
     def download_data(**context):
@@ -104,8 +84,8 @@ def process_etl_taskflow():
         month_folder = start_date.strftime("%Y-%m")
 
         # Define output paths
-        crimes_key = f"{PREFIX_RAW}{month_folder}/crimes.csv"
-        stations_key = f"{PREFIX_RAW}police_stations.csv"
+        crimes_key = f"{config.PREFIX_RAW}{month_folder}/crimes.csv"
+        stations_key = f"{config.PREFIX_RAW}police_stations.csv"
 
         # Check if already downloaded (idempotent)
         if check_file_exists(BUCKET_NAME, crimes_key):
@@ -116,11 +96,11 @@ def process_etl_taskflow():
             }
 
         # Determine download date range
-        existing_merged = list_objects(BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_")
+        existing_merged = list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_MERGED}crimes_12m_")
 
         if len(existing_merged) == 0:
             # No existing data - download full rolling window
-            download_start = end_date - datetime.timedelta(days=ROLLING_WINDOW_DAYS)
+            download_start = end_date - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
             download_end = end_date
         else:
             # Use scheduled interval
@@ -162,7 +142,7 @@ def process_etl_taskflow():
     def merge_data(download_result, **context):
         """Merge downloaded data into rolling 12-month window."""
         run_date = context["ds"]
-        merged_key = f"{PREFIX_MERGED}crimes_12m_{run_date}.csv"
+        merged_key = f"{config.PREFIX_MERGED}crimes_12m_{run_date}.csv"
 
         # Check if merged file already exists (idempotent)
         if check_file_exists(BUCKET_NAME, merged_key):
@@ -180,7 +160,7 @@ def process_etl_taskflow():
         df_new = download_to_dataframe(BUCKET_NAME, download_result["crimes_file"])
 
         # Check for existing merged data
-        existing_merged = list_objects(BUCKET_NAME, prefix=f"{PREFIX_MERGED}crimes_12m_")
+        existing_merged = list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_MERGED}crimes_12m_")
 
         if len(existing_merged) == 0:
             # First merge - use downloaded data as-is
@@ -193,7 +173,9 @@ def process_etl_taskflow():
 
             # Apply rolling window filter
             merged_df["date"] = pd.to_datetime(merged_df["date"])
-            cutoff_date = datetime.datetime.now() - datetime.timedelta(days=ROLLING_WINDOW_DAYS)
+            cutoff_date = datetime.datetime.now() - datetime.timedelta(
+                days=config.ROLLING_WINDOW_DAYS
+            )
             merged_df = merged_df[merged_df["date"] >= cutoff_date]
 
         # Save merged data
@@ -209,7 +191,7 @@ def process_etl_taskflow():
     def enrich_data(merge_result, **context):
         """Add nearest station info and temporal features to crime data."""
         run_date = context["ds"]
-        enriched_key = f"{PREFIX_ENRICHED}crimes_enriched_{run_date}.csv"
+        enriched_key = f"{config.PREFIX_ENRICHED}crimes_enriched_{run_date}.csv"
 
         # Check if enriched file already exists (idempotent)
         if check_file_exists(BUCKET_NAME, enriched_key):
@@ -242,8 +224,8 @@ def process_etl_taskflow():
     def split_data(enrich_result, **context):
         """Split dataset into train and test sets with stratification."""
         run_date = context["ds"]
-        train_key = f"{PREFIX_SPLIT}crimes_train_{run_date}.csv"
-        test_key = f"{PREFIX_SPLIT}crimes_test_{run_date}.csv"
+        train_key = f"{config.PREFIX_SPLIT}crimes_train_{run_date}.csv"
+        test_key = f"{config.PREFIX_SPLIT}crimes_test_{run_date}.csv"
 
         # Check if split files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -262,14 +244,14 @@ def process_etl_taskflow():
         df_clean = preprocess_for_split(df_enriched)
         train_df, test_df = split_train_test(
             df_clean,
-            test_size=SPLIT_TEST_SIZE,
-            random_state=SPLIT_RANDOM_STATE,
-            stratify_column=TARGET_COLUMN,
+            test_size=config.SPLIT_TEST_SIZE,
+            random_state=config.SPLIT_RANDOM_STATE,
+            stratify_column=config.TARGET_COLUMN,
         )
 
         # Monitor split
         log_split_metrics(
-            train_df, test_df, target_column=TARGET_COLUMN, run_name=f"split_{run_date}"
+            train_df, test_df, target_column=config.TARGET_COLUMN, run_name=f"split_{run_date}"
         )
 
         # Upload train and test datasets
@@ -289,8 +271,8 @@ def process_etl_taskflow():
         Uses train statistics for both datasets to avoid data leakage.
         """
         run_date = context["ds"]
-        train_key = f"{PREFIX_OUTLIERS}crimes_train_no_outliers_{run_date}.csv"
-        test_key = f"{PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.csv"
+        train_key = f"{config.PREFIX_OUTLIERS}crimes_train_no_outliers_{run_date}.csv"
+        test_key = f"{config.PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.csv"
 
         # Check if processed files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -308,7 +290,7 @@ def process_etl_taskflow():
         train_df = download_to_dataframe(BUCKET_NAME, split_result["train_file"])
         test_df = download_to_dataframe(BUCKET_NAME, split_result["test_file"])
         train_processed, test_processed = process_outliers_fn(
-            train_df, test_df, n_std=OUTLIER_STD_THRESHOLD
+            train_df, test_df, n_std=config.OUTLIER_STD_THRESHOLD
         )
 
         # Upload processed datasets
@@ -332,8 +314,8 @@ def process_etl_taskflow():
         - Frequency encoding: high cardinality categoricals
         """
         run_date = context["ds"]
-        train_key = f"{PREFIX_ENCODED}crimes_train_encoded_{run_date}.csv"
-        test_key = f"{PREFIX_ENCODED}crimes_test_encoded_{run_date}.csv"
+        train_key = f"{config.PREFIX_ENCODED}crimes_train_encoded_{run_date}.csv"
+        test_key = f"{config.PREFIX_ENCODED}crimes_test_encoded_{run_date}.csv"
 
         # Check if encoded files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -369,8 +351,8 @@ def process_etl_taskflow():
         Scales: x_coordinate, y_coordinate, latitude, longitude, distance_crime_to_police_station
         """
         run_date = context["ds"]
-        train_key = f"{PREFIX_SCALED}crimes_train_scaled_{run_date}.csv"
-        test_key = f"{PREFIX_SCALED}crimes_test_scaled_{run_date}.csv"
+        train_key = f"{config.PREFIX_SCALED}crimes_train_scaled_{run_date}.csv"
+        test_key = f"{config.PREFIX_SCALED}crimes_test_scaled_{run_date}.csv"
 
         # Check if scaled files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -420,7 +402,7 @@ def process_etl_taskflow():
             )
 
         run_date = context["ds"]
-        train_key = f"{PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
+        train_key = f"{config.PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
 
         # Idempotencia
         if check_file_exists(BUCKET_NAME, train_key):
@@ -428,13 +410,13 @@ def process_etl_taskflow():
 
         # Load train data and balance it
         train_df = download_to_dataframe(BUCKET_NAME, scale_result["train_file"])
-        train_balanced = balance_data_fn(train_df, target_column=TARGET_COLUMN)
+        train_balanced = balance_data_fn(train_df, target_column=config.TARGET_COLUMN)
 
         # Monitor balancing
         log_balance_metrics(
             train_df,
             train_balanced,
-            target_column=TARGET_COLUMN,
+            target_column=config.TARGET_COLUMN,
             run_name=f"balance_{run_date}",
         )
 
@@ -460,8 +442,8 @@ def process_etl_taskflow():
         Output: Final train/test datasets ready for ML model training.
         """
         run_date = context["ds"]
-        train_key = f"{PREFIX_ML_READY}train_{run_date}.csv"
-        test_key = f"{PREFIX_ML_READY}test_{run_date}.csv"
+        train_key = f"{config.PREFIX_ML_READY}train_{run_date}.csv"
+        test_key = f"{config.PREFIX_ML_READY}test_{run_date}.csv"
 
         # Check if ML-ready files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -483,8 +465,8 @@ def process_etl_taskflow():
         train_selected, test_selected, mi_scores = select_features_fn(
             train_df_original,
             test_df,
-            target_column=TARGET_COLUMN,
-            mi_threshold=MI_THRESHOLD,
+            target_column=config.TARGET_COLUMN,
+            mi_threshold=config.MI_THRESHOLD,
         )
 
         # Monitor feature selection
@@ -492,7 +474,7 @@ def process_etl_taskflow():
             train_df_original,
             train_selected,
             mi_scores_df=mi_scores,
-            target_column=TARGET_COLUMN,
+            target_column=config.TARGET_COLUMN,
             run_name=f"features_{run_date}",
         )
 
@@ -547,7 +529,7 @@ def process_etl_taskflow():
             final_test_df = download_to_dataframe(BUCKET_NAME, feature_result["test_file"])
             final_train_count = len(final_train_df)
             final_test_count = len(final_test_df)
-            feature_count = len([c for c in final_train_df.columns if c != TARGET_COLUMN])
+            feature_count = len([c for c in final_train_df.columns if c != config.TARGET_COLUMN])
 
             # Log summary
             log_pipeline_summary(
