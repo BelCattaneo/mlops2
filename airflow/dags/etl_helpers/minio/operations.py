@@ -6,7 +6,7 @@ Functions for uploading, downloading, and managing files in MinIO.
 
 import logging
 import os
-from io import BytesIO, StringIO
+from io import BytesIO
 
 import pandas as pd
 from botocore.exceptions import ClientError
@@ -181,10 +181,30 @@ def delete_object(bucket_name: str, object_key: str) -> bool:
         raise MinIOError(f"Error deleting object: {e}") from e
 
 
+def frame_to_bytes(df: pd.DataFrame, object_key: str, index: bool = False) -> bytes:
+    """Serializa el dataframe en el formato que dice la extensión de la clave.
+
+    Las capas derivadas van en Parquet, que guarda los tipos y comprime por columna; la capa
+    cruda se queda en CSV porque ahí el dato se conserva tal como llegó de la fuente.
+    """
+    if object_key.endswith(".parquet"):
+        buffer = BytesIO()
+        df.to_parquet(buffer, index=index, engine="pyarrow", compression="snappy")
+        return buffer.getvalue()
+    return df.to_csv(index=index).encode("utf-8")
+
+
+def frame_from_bytes(data: bytes, object_key: str) -> pd.DataFrame:
+    """Reconstruye el dataframe leyendo el formato que dice la extensión de la clave."""
+    if object_key.endswith(".parquet"):
+        return pd.read_parquet(BytesIO(data))
+    return pd.read_csv(BytesIO(data))
+
+
 def download_to_dataframe(bucket_name: str, object_key: str) -> pd.DataFrame:
     """
-    Download a CSV file from MinIO directly to a pandas DataFrame.
-    No temporary files needed - works entirely in memory.
+    Download an object from MinIO directly to a pandas DataFrame.
+    The format comes from the key extension. No temporary files needed.
 
     Args:
         bucket_name: Name of the MinIO bucket
@@ -201,9 +221,9 @@ def download_to_dataframe(bucket_name: str, object_key: str) -> pd.DataFrame:
     try:
         logger.info(f"Downloading '{bucket_name}/{object_key}' to DataFrame...")
         response = client.get_object(Bucket=bucket_name, Key=object_key)
-        csv_bytes = response["Body"].read()
-        df = pd.read_csv(BytesIO(csv_bytes))
-        file_size = len(csv_bytes) / (1024 * 1024)
+        crudo = response["Body"].read()
+        df = frame_from_bytes(crudo, object_key)
+        file_size = len(crudo) / (1024 * 1024)
         logger.info(
             f"Downloaded {len(df)} records ({file_size:.2f} MB) from '{bucket_name}/{object_key}'"
         )
@@ -228,8 +248,8 @@ def upload_from_dataframe(
     index: bool = False,
 ) -> bool:
     """
-    Upload a pandas DataFrame directly to MinIO as a CSV file.
-    No temporary files needed - works entirely in memory.
+    Upload a pandas DataFrame directly to MinIO.
+    The format comes from the key extension. No temporary files needed.
 
     Args:
         df: DataFrame to upload
@@ -247,18 +267,16 @@ def upload_from_dataframe(
 
     try:
         create_bucket_if_not_exists(bucket_name)
-        csv_buffer = StringIO()
-        df.to_csv(csv_buffer, index=index)
-        csv_bytes = csv_buffer.getvalue().encode("utf-8")
+        serializado = frame_to_bytes(df, object_key, index=index)
 
         client.put_object(
             Bucket=bucket_name,
             Key=object_key,
-            Body=BytesIO(csv_bytes),
-            ContentLength=len(csv_bytes),
+            Body=BytesIO(serializado),
+            ContentLength=len(serializado),
         )
 
-        file_size = len(csv_bytes) / (1024 * 1024)
+        file_size = len(serializado) / (1024 * 1024)
         logger.info(
             f"Uploaded {len(df)} records ({file_size:.2f} MB) to '{bucket_name}/{object_key}'"
         )

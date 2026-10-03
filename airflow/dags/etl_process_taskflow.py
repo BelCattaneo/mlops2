@@ -142,7 +142,7 @@ def process_etl_taskflow():
     def merge_data(download_result, **context):
         """Merge downloaded data into rolling 12-month window."""
         run_date = context["ds"]
-        merged_key = f"{config.PREFIX_MERGED}crimes_12m_{run_date}.csv"
+        merged_key = f"{config.PREFIX_MERGED}crimes_12m_{run_date}.parquet"
 
         # Check if merged file already exists (idempotent)
         if check_file_exists(BUCKET_NAME, merged_key):
@@ -191,7 +191,7 @@ def process_etl_taskflow():
     def enrich_data(merge_result, **context):
         """Add nearest station info and temporal features to crime data."""
         run_date = context["ds"]
-        enriched_key = f"{config.PREFIX_ENRICHED}crimes_enriched_{run_date}.csv"
+        enriched_key = f"{config.PREFIX_ENRICHED}crimes_enriched_{run_date}.parquet"
 
         # Check if enriched file already exists (idempotent)
         if check_file_exists(BUCKET_NAME, enriched_key):
@@ -224,8 +224,8 @@ def process_etl_taskflow():
     def split_data(enrich_result, **context):
         """Split dataset into train and test sets with stratification."""
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_SPLIT}crimes_train_{run_date}.csv"
-        test_key = f"{config.PREFIX_SPLIT}crimes_test_{run_date}.csv"
+        train_key = f"{config.PREFIX_SPLIT}crimes_train_{run_date}.parquet"
+        test_key = f"{config.PREFIX_SPLIT}crimes_test_{run_date}.parquet"
 
         # Check if split files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -271,8 +271,8 @@ def process_etl_taskflow():
         Uses train statistics for both datasets to avoid data leakage.
         """
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_OUTLIERS}crimes_train_no_outliers_{run_date}.csv"
-        test_key = f"{config.PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.csv"
+        train_key = f"{config.PREFIX_OUTLIERS}crimes_train_no_outliers_{run_date}.parquet"
+        test_key = f"{config.PREFIX_OUTLIERS}crimes_test_no_outliers_{run_date}.parquet"
 
         # Check if processed files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -314,8 +314,8 @@ def process_etl_taskflow():
         - Frequency encoding: high cardinality categoricals
         """
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_ENCODED}crimes_train_encoded_{run_date}.csv"
-        test_key = f"{config.PREFIX_ENCODED}crimes_test_encoded_{run_date}.csv"
+        train_key = f"{config.PREFIX_ENCODED}crimes_train_encoded_{run_date}.parquet"
+        test_key = f"{config.PREFIX_ENCODED}crimes_test_encoded_{run_date}.parquet"
 
         # Check if encoded files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -351,8 +351,8 @@ def process_etl_taskflow():
         Scales: x_coordinate, y_coordinate, latitude, longitude, distance_crime_to_police_station
         """
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_SCALED}crimes_train_scaled_{run_date}.csv"
-        test_key = f"{config.PREFIX_SCALED}crimes_test_scaled_{run_date}.csv"
+        train_key = f"{config.PREFIX_SCALED}crimes_train_scaled_{run_date}.parquet"
+        test_key = f"{config.PREFIX_SCALED}crimes_test_scaled_{run_date}.parquet"
 
         # Check if scaled files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
@@ -402,7 +402,7 @@ def process_etl_taskflow():
             )
 
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_BALANCED}crimes_train_balanced_{run_date}.csv"
+        train_key = f"{config.PREFIX_BALANCED}crimes_train_balanced_{run_date}.parquet"
 
         # Idempotencia
         if check_file_exists(BUCKET_NAME, train_key):
@@ -442,8 +442,8 @@ def process_etl_taskflow():
         Output: Final train/test datasets ready for ML model training.
         """
         run_date = context["ds"]
-        train_key = f"{config.PREFIX_ML_READY}train_{run_date}.csv"
-        test_key = f"{config.PREFIX_ML_READY}test_{run_date}.csv"
+        train_key = f"{config.PREFIX_ML_READY}train_{run_date}.parquet"
+        test_key = f"{config.PREFIX_ML_READY}test_{run_date}.parquet"
 
         # Check if ML-ready files already exist (idempotent)
         if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
