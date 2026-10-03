@@ -96,38 +96,41 @@ def process_etl_taskflow():
             "partition_date": partition_date(context.get("ds"), fin),
         }
 
-        if check_file_exists(BUCKET_NAME, crimes_key):
+        # Las dos claves se chequean por separado. Si se chequeara solo la de crímenes, una
+        # corrida cortada entre las dos subidas dejaría la capa sin comisarías para siempre: el
+        # reintento saltearía todo y la capa intermedia fallaría en cada corrida. Y separarlas
+        # evita bajar de nuevo el año entero cuando lo único que falta son 23 comisarías.
+        faltan_reportes = not check_file_exists(BUCKET_NAME, crimes_key)
+        faltan_comisarias = not check_file_exists(BUCKET_NAME, STATIONS_KEY)
+        if not faltan_reportes and not faltan_comisarias:
             return {"status": "success", "crimes_file": crimes_key, "rows": None, **ventana}
 
-        # Sin particiones previas hay que traer la ventana entera; con particiones, solo el
-        # período de la corrida, porque el resto ya está en la capa cruda.
-        previas = partitions_in_window(
-            list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
-            fin,
-            config.ROLLING_WINDOW_DAYS,
-        )
-        desde = inicio if previas else fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
+        filas = None
+        with tempfile.TemporaryDirectory() as temporal:
+            if faltan_comisarias:
+                comisarias = os.path.join(temporal, "police_stations.csv")
+                download_police_stations(output_file=comisarias)
+                upload_to_minio(comisarias, BUCKET_NAME, STATIONS_KEY)
 
-        crimes_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
-        stations_temp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
-        try:
-            crimes_df = download_crimes_incremental(desde, fin, output_file=crimes_temp.name)
-            if len(crimes_df) == 0:
-                return {"status": "no_data", "rows": 0, **ventana}
+            if faltan_reportes:
+                # Sin particiones previas hay que traer la ventana entera; con particiones, solo
+                # el período de la corrida, porque el resto ya está en la capa cruda.
+                previas = partitions_in_window(
+                    list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
+                    fin,
+                    config.ROLLING_WINDOW_DAYS,
+                )
+                desde = (
+                    inicio if previas else fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
+                )
+                reportes = os.path.join(temporal, "crimes.csv")
+                crimes_df = download_crimes_incremental(desde, fin, output_file=reportes)
+                if len(crimes_df) == 0:
+                    return {"status": "no_data", "rows": 0, **ventana}
+                upload_to_minio(reportes, BUCKET_NAME, crimes_key)
+                filas = len(crimes_df)
 
-            download_police_stations(output_file=stations_temp.name)
-            upload_to_minio(crimes_temp.name, BUCKET_NAME, crimes_key)
-            upload_to_minio(stations_temp.name, BUCKET_NAME, STATIONS_KEY)
-            return {
-                "status": "success",
-                "crimes_file": crimes_key,
-                "rows": len(crimes_df),
-                **ventana,
-            }
-        finally:
-            for temporal in (crimes_temp.name, stations_temp.name):
-                if os.path.exists(temporal):
-                    os.remove(temporal)
+        return {"status": "success", "crimes_file": crimes_key, "rows": filas, **ventana}
 
     @task.python
     def build_enriched(raw, **context):
