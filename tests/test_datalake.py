@@ -6,6 +6,9 @@ import uuid
 import pytest
 
 from arrest_model.features import MODEL_FEATURES
+from arrest_model.model import load_bundle, predict
+from arrest_model.schemas import CrimeReport
+from tp4_streaming.events import crime_stream
 from tp5_federated.data import LABEL, load_sample
 from tp6_datalake.curated import land_curated
 from tp6_datalake.ingest import SNAPSHOT_CRIMES, land_raw
@@ -18,6 +21,7 @@ from tp6_datalake.lake import (
     list_keys,
     put_bytes,
 )
+from tp6_datalake.models import load_model, publish_model
 
 pytestmark = [
     pytest.mark.minio,
@@ -130,3 +134,38 @@ def test_parquet_takes_less_room_than_the_same_csv(bucket: str) -> None:
     parquet = len(get_bytes(s3, "curated/arrests/arrests.parquet", bucket))
     csv = len(load_sample().to_csv(index=False).encode())
     assert parquet < csv
+
+
+def test_the_model_is_published_under_its_version(bucket: str) -> None:
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    uri = publish_model(s3, bucket=bucket, version="v1")
+    assert uri.endswith("models/v1/model.pkl")
+    assert "models/v1/model.pkl" in list_keys(s3, "models/", bucket)
+
+
+def test_the_model_from_the_lake_predicts_exactly_like_the_local_one(bucket: str) -> None:
+    # El invariante del TP: el modelo que viajó al lake y volvió tiene que dar lo mismo que el
+    # del disco. Si difiere, algo se corrompió en el camino y las predicciones no son confiables.
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    publish_model(s3, bucket=bucket, version="v1")
+    reportes = [CrimeReport.model_validate(evento) for evento in crime_stream(50, seed=4)]
+    desde_el_lake = load_model(s3, bucket=bucket, version="v1")
+    assert predict(desde_el_lake, reportes) == predict(load_bundle(), reportes)
+
+
+def test_two_versions_live_side_by_side(bucket: str) -> None:
+    # Así se publica un modelo nuevo sin tocar el que está sirviendo: cambia el prefijo.
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    publish_model(s3, bucket=bucket, version="v1")
+    publish_model(s3, bucket=bucket, version="v2")
+    assert {"models/v1/model.pkl", "models/v2/model.pkl"} <= set(list_keys(s3, "models/", bucket))
+
+
+def test_asking_for_a_version_that_is_not_there_says_so(bucket: str) -> None:
+    s3 = client()
+    ensure_bucket(s3, bucket)
+    with pytest.raises(FileNotFoundError, match="v9"):
+        load_model(s3, bucket=bucket, version="v9")
