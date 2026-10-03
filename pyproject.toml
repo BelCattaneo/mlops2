@@ -45,6 +45,9 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Los helpers del ETL viven en el directorio de los DAGs, que es lo que Airflow pone en el
+# path cuando los carga; acá se lo agrega pytest para poder testearlos sin levantar Airflow.
+pythonpath = ["airflow/dags"]
 markers = [
     "neo4j: requiere Neo4j corriendo en localhost:7687",
     "kafka: requiere un broker corriendo en localhost:9092",
@@ -82,4 +85,10 @@ lake = [
 ]
 streaming = [
     "kafka-python>=3.0.11",
+]
+etl = [
+    "geopandas>=1.0.0",
+    "imbalanced-learn>=0.13.0",
+    "seaborn>=0.13.0",
+    "sodapy>=2.2.0",
 ]

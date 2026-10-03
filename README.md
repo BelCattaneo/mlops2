@@ -30,6 +30,9 @@ Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 
 ```
 ├── Makefile         # atajos globales (install, test, lint) y por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*)
+├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL y MinIO
+├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
+├── airflow/         # dags/: el ETL de Chicago traído de MLOps I, y secrets/ con sus conexiones
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
@@ -84,5 +87,7 @@ make test
 ```
 
 Además de los tests de cada servicio, la codificación se verifica contra 50 filas reales de `final_test.csv` (`tests/data/encoding_cases.csv`): tienen que dar las mismas features y la misma clase predicha que en el TP-final.
+
+Los tests del ETL corren los helpers del DAG sobre fixtures chicas (`tests/data/sample_crimes.csv` y `sample_stations.csv`), sin MinIO ni Airflow.
 
 Los tests del linaje necesitan Neo4j (`make neo4j-up`) y los del flujo contra el broker necesitan Redpanda (`make redpanda-up`). Sin esos contenedores se saltean solos y el resto de la suite corre igual.
