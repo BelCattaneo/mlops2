@@ -8,24 +8,23 @@ boto3~=1.34
 # no menciona ni a pyOpenSSL ni a la versión. El stack quedaba sano y el DAG listado, pero sin
 # poder importarse.
 cryptography<46
-# Las que deciden el resultado numérico van pinneadas a la versión del repo, no con `>=`: la
+# El stack numérico va pinneado a la versión del repo, no con `>=`. El motivo es medido: la
 # salida del balanceo depende del desempate entre distancias del vecino más cercano, así que una
-# versión distinta de scikit-learn cambia unas filas sintéticas del dataset de entrenamiento.
+# versión distinta cambia unas filas sintéticas del dataset de entrenamiento. Alinearlo es lo que
+# hace que una corrida en el contenedor y una en la máquina den el mismo resultado.
+#
+# Esto es posible porque el Dockerfile desinstala los providers de Google y Snowflake, que
+# imponían `pandas<2.2`.
+pandas==3.0.5
+numpy==2.5.3
+scipy==1.18.1
 scikit-learn==1.9.1
 imbalanced-learn==0.14.2
 joblib==1.6.0
-
-# Estas NO se pueden alinear con el repo (pandas 3.0.5, numpy 2.5.3, scipy 1.18.1, geopandas
-# 1.2.0). La imagen base trae apache-airflow-providers-google y -snowflake, las dos con
-# `pandas>=2.1.2,<2.2` como dependencia OBLIGATORIA. De ahí cascadea todo: pandas 2.1 declara
-# `numpy<2`, y scipy 1.18 y geopandas 1.2 piden `numpy>=2`. Subirlas exige desinstalar esos dos
-# providers, que nuestro DAG no usa y que ningún paquete necesita salvo detrás de un `extra`.
-pandas>=2.0.0,<2.2
-numpy>=1.26.0,<2
-scipy>=1.10.0
-geopandas>=0.14.0
+geopandas==1.2.0
 shapely>=2.0.0
 sodapy>=1.8.0
+
 # La variante sin CUDA: el wheel normal declara nvidia-nccl en Linux y mete 347 MB de runtime
 # de GPU en un contenedor que nunca va a ver una. Provee el mismo módulo `xgboost`, que es lo que
 # necesita joblib para desempaquetar el XGBClassifier del bundle.
