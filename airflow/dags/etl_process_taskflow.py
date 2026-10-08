@@ -41,6 +41,7 @@ from etl_helpers.minio import (
     enable_versioning,
     list_objects,
     set_bucket_lifecycle_policy,
+    upload_bytes,
     upload_from_dataframe,
     upload_to_minio,
 )
@@ -52,6 +53,7 @@ from etl_helpers.monitoring import (
     log_split_metrics,
 )
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
+from etl_helpers.params import build_params, dump_params
 from etl_helpers.partitions import download_window, partition_date, partitions_in_window
 from etl_helpers.summary import summary_counts
 
@@ -202,8 +204,8 @@ def process_etl_taskflow():
 
         train, test = process_outliers_fn(train, test, n_std=config.OUTLIER_STD_THRESHOLD)
 
-        train, test = encode_data_fn(train, test)
-        train, test = scale_data_fn(train, test)
+        train, test, frecuencias = encode_data_fn(train, test)
+        train, test, escala = scale_data_fn(train, test)
 
         balanceado = balance_data_fn(train, target_column=config.TARGET_COLUMN)
         log_balance_metrics(
@@ -240,6 +242,14 @@ def process_etl_taskflow():
             "curated/test",
         )
 
+        # Los parámetros del preprocesamiento se guardan al lado del dataset: el modelo que
+        # se entrene con él tiene que servirse con estos, no con otros ajustados aparte.
+        params_key = f"{config.PREFIX_CURATED}params/date={sufijo}/params.json"
+        comisarias = download_to_dataframe(BUCKET_NAME, STATIONS_KEY)
+        upload_bytes(
+            dump_params(build_params(frecuencias, escala, comisarias)), BUCKET_NAME, params_key
+        )
+
         upload_from_dataframe(elegidas_train, BUCKET_NAME, train_key)
         upload_from_dataframe(elegidas_test, BUCKET_NAME, test_key)
 
@@ -247,6 +257,7 @@ def process_etl_taskflow():
             "status": "success",
             "train_file": train_key,
             "test_file": test_key,
+            "params_file": params_key,
             "split_rows": filas_corte,
             "balanced_rows": len(balanceado),
             "rows": (len(elegidas_train), len(elegidas_test)),

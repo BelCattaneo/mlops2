@@ -19,7 +19,7 @@ def scale_data(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     columns: list[str] | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, tuple[float, float]]]:
     """
     Scale numerical features using StandardScaler.
     Fits scaler on train data and transforms both train and test.
@@ -52,7 +52,7 @@ def scale_data(
 
     if not existing_columns:
         logger.warning("No columns to scale found in DataFrame")
-        return train_scaled, test_scaled
+        return train_scaled, test_scaled, {}
 
     # Extract columns to scale
     train_subset = train_df[existing_columns]
@@ -80,6 +80,14 @@ def scale_data(
     scaler = StandardScaler()
     train_array = scaler.fit_transform(train_subset)
     test_array = scaler.transform(test_subset)
+    # La media y el desvío se devuelven: son parte de los parámetros con los que hay que servir
+    # el modelo. Si se reajustaran en otro lado, no coincidirían con los del entrenamiento.
+    estadisticos = {
+        columna: (float(media), float(desvio))
+        for columna, media, desvio in zip(
+            existing_columns, scaler.mean_, scaler.scale_, strict=True
+        )
+    }
 
     # Create scaled DataFrames with _standardized suffix
     train_scaled_df = pd.DataFrame(
@@ -104,4 +112,4 @@ def scale_data(
     logger.info(f"  Train shape: {train_scaled.shape}")
     logger.info(f"  Test shape: {test_scaled.shape}")
 
-    return train_scaled, test_scaled
+    return train_scaled, test_scaled, estadisticos

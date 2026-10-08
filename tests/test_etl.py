@@ -238,7 +238,7 @@ class TestDataEncoding:
         test = test_df.copy()
 
         # When: we encode the data
-        train_encoded, test_encoded = encode_data(train, test)
+        train_encoded, test_encoded, _ = encode_data(train, test)
 
         # Then: frequency encoded columns should exist
         freq_cols = [col for col in train_encoded.columns if col.endswith("_freq")]
@@ -253,7 +253,7 @@ class TestDataEncoding:
         test = test_df.copy()
 
         # When: we encode the data
-        train_encoded, test_encoded = encode_data(train, test)
+        train_encoded, test_encoded, _ = encode_data(train, test)
 
         # Then: cyclic sine column should exist with values in [-1, 1]
         assert "day_of_week_sin" in train_encoded.columns
@@ -272,7 +272,7 @@ class TestDataEncoding:
         test = test_df.copy()
 
         # When: we encode the data
-        train_encoded, test_encoded = encode_data(train, test)
+        train_encoded, test_encoded, _ = encode_data(train, test)
 
         # Then: original categorical columns should be dropped
         assert "season" not in train_encoded.columns
@@ -289,7 +289,7 @@ class TestDataEncoding:
         test = test_df.copy()
 
         # When: we encode the data
-        train_encoded, test_encoded = encode_data(train, test)
+        train_encoded, test_encoded, _ = encode_data(train, test)
 
         # Then: all columns should be numeric
         non_numeric = train_encoded.select_dtypes(exclude=[np.number, bool]).columns
@@ -305,10 +305,10 @@ class TestDataScaling:
         from etl_helpers.data_scaling import scale_data
 
         # Given: encoded train and test data
-        train_encoded, test_encoded = encode_data(train_df.copy(), test_df.copy())
+        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
 
         # When: we scale the data
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
 
         # Then: standardized columns should have mean≈0 and std≈1
         std_cols = [col for col in train_scaled.columns if col.endswith("_standardized")]
@@ -325,10 +325,10 @@ class TestDataScaling:
         from etl_helpers.data_scaling import scale_data
 
         # Given: encoded train and test data
-        train_encoded, test_encoded = encode_data(train_df.copy(), test_df.copy())
+        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
 
         # When: we scale the data
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
 
         # Then: coordinate columns should be standardized
         # Note: latitude/longitude excluded (redundant with x/y coordinates)
@@ -347,8 +347,8 @@ class TestDataBalancing:
         from etl_helpers.data_scaling import scale_data
 
         # Given: encoded and scaled train data
-        train_encoded, _ = encode_data(train_df.copy(), train_df.copy())
-        train_scaled, _ = scale_data(train_encoded, train_encoded)
+        train_encoded, _, _ = encode_data(train_df.copy(), train_df.copy())
+        train_scaled, _, _ = scale_data(train_encoded, train_encoded)
         original_counts = train_scaled["arrest"].value_counts()
         original_ratio = original_counts.min() / original_counts.max()
 
@@ -372,8 +372,8 @@ class TestDataBalancing:
         from etl_helpers.data_scaling import scale_data
 
         # Given: encoded and scaled train data
-        train_encoded, _ = encode_data(train_df.copy(), train_df.copy())
-        train_scaled, _ = scale_data(train_encoded, train_encoded)
+        train_encoded, _, _ = encode_data(train_df.copy(), train_df.copy())
+        train_scaled, _, _ = scale_data(train_encoded, train_encoded)
         original_counts = train_scaled["arrest"].value_counts()
         original_ratio = original_counts.min() / original_counts.max()
 
@@ -399,8 +399,8 @@ class TestFeatureSelection:
         from etl_helpers.feature_selection import select_features
 
         # Given: encoded and scaled data
-        train_encoded, test_encoded = encode_data(train_df.copy(), test_df.copy())
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
         original_col_count = train_scaled.shape[1]
 
         # When: we select features
@@ -418,8 +418,8 @@ class TestFeatureSelection:
         from etl_helpers.feature_selection import select_features
 
         # Given: encoded and scaled data with target column
-        train_encoded, test_encoded = encode_data(train_df.copy(), test_df.copy())
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
 
         # When: we select features
         train_selected, test_selected, _ = select_features(train_scaled, test_scaled)
@@ -465,11 +465,11 @@ class TestFullPipeline:
         assert len(train_no_outliers) > 0
 
         # Step 4: Encode
-        train_encoded, test_encoded = encode_data(train_no_outliers, test_no_outliers)
+        train_encoded, test_encoded, _ = encode_data(train_no_outliers, test_no_outliers)
         assert len(train_encoded) > 0
 
         # Step 5: Scale
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
         assert len(train_scaled) > 0
 
         # Step 6: Skip balancing for sample data (already balanced)
@@ -514,8 +514,8 @@ class TestFullPipeline:
         preprocessed = preprocess_for_split(enriched)
         train_df, test_df = split_train_test(preprocessed)
         train_no_outliers, test_no_outliers = process_outliers(train_df, test_df)
-        train_encoded, test_encoded = encode_data(train_no_outliers, test_no_outliers)
-        train_scaled, test_scaled = scale_data(train_encoded, test_encoded)
+        train_encoded, test_encoded, _ = encode_data(train_no_outliers, test_no_outliers)
+        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
         train_final, test_final, _ = select_features(train_scaled, test_scaled)
 
         # Then: no NaN values should exist in final output

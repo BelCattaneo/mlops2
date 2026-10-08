@@ -17,6 +17,7 @@ from .operations import (
     download_to_dataframe,
     list_objects,
     list_objects_with_times,
+    upload_bytes,
     upload_from_dataframe,
     upload_to_minio,
 )
@@ -35,5 +36,6 @@ __all__ = [
     "list_objects_with_times",
     "delete_object",
     "download_to_dataframe",
+    "upload_bytes",
     "upload_from_dataframe",
 ]

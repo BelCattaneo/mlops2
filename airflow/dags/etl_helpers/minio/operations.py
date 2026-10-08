@@ -125,6 +125,21 @@ def check_file_exists(bucket_name: str, object_key: str) -> bool:
             raise MinIOError(f"Error checking file existence: {e}") from e
 
 
+def upload_bytes(data: bytes, bucket_name: str, object_key: str) -> bool:
+    """Sube bytes sueltos, para lo que no es un dataframe."""
+    client = get_minio_client()
+    try:
+        create_bucket_if_not_exists(bucket_name)
+        client.put_object(
+            Bucket=bucket_name, Key=object_key, Body=BytesIO(data), ContentLength=len(data)
+        )
+        logger.info(f"Uploaded {len(data)} bytes to '{bucket_name}/{object_key}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error uploading bytes to MinIO: {e}")
+        raise MinIOError(f"Error uploading bytes to MinIO: {e}") from e
+
+
 def list_objects_with_times(bucket_name: str, prefix: str = "") -> list[tuple[str, float]]:
     """Las claves del prefijo con su marca de última modificación.
 

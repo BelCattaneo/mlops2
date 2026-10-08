@@ -279,7 +279,7 @@ def apply_frequency_encoding(
 def encode_data(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.Series]]:
     """
     Apply all encoding transformations to train and test datasets.
 
@@ -313,7 +313,9 @@ def encode_data(
     train_df, test_df = apply_label_encoding(train_df, test_df)
 
     # 5. Frequency encoding
-    train_df, test_df, _ = apply_frequency_encoding(train_df, test_df)
+    # Los mapas se devuelven: son parte de los parámetros con los que hay que servir el
+    # modelo, y descartarlos obligaría a reajustarlos en otro lado y a que no coincidan.
+    train_df, test_df, frequencies = apply_frequency_encoding(train_df, test_df)
 
     # 6. Drop original categorical columns
     columns_to_drop = [
@@ -341,4 +343,4 @@ def encode_data(
 
     logger.info(f"Encoding completed: train={train_df.shape}, test={test_df.shape}")
 
-    return train_df, test_df
+    return train_df, test_df, frequencies
