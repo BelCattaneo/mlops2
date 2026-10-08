@@ -2,7 +2,15 @@
 
 import pandas as pd
 import pytest
-from etl_helpers.contract import assert_no_missing, enforce_feature_contract
+from etl_helpers.contract import (
+    CURATED_FEATURES,
+    CURATED_RENAMES,
+    assert_no_missing,
+    enforce_feature_contract,
+    rename_to_model,
+)
+
+from arrest_model.features import MODEL_FEATURES
 
 FEATURES = ("a_freq", "b_freq", "c_sin")
 ETIQUETA = "arrest"
@@ -78,3 +86,36 @@ def test_fails_on_infinities_too() -> None:
 
     with pytest.raises(ValueError, match="infinitos en c_sin"):
         assert_no_missing(con_infinitos, "curado")
+
+
+def test_the_mapping_lands_exactly_on_the_model_features() -> None:
+    # Este es el test que impide que las dos cosas se separen: si alguien agrega una feature al
+    # modelo y no al mapeo del ETL, o al revés, falla acá y no en producción.
+    assert list(CURATED_RENAMES.values()) == list(MODEL_FEATURES)
+
+
+def test_renames_the_etl_columns_to_the_model_names() -> None:
+    del_etl = frame([*CURATED_RENAMES, ETIQUETA])
+
+    renombrado = rename_to_model(del_etl)
+
+    assert list(renombrado.columns) == [*MODEL_FEATURES, ETIQUETA]
+
+
+def test_leaves_the_label_and_anything_unmapped_untouched() -> None:
+    # Una columna que el ETL produzca y el mapeo no conozca tiene que sobrevivir con su nombre,
+    # para que el contrato la vea y falle diciendo que sobra.
+    con_extra = frame([*CURATED_RENAMES, "fbi_code_freq", ETIQUETA])
+
+    renombrado = rename_to_model(con_extra)
+
+    assert "fbi_code_freq" in renombrado.columns
+    assert ETIQUETA in renombrado.columns
+
+
+def test_the_renamed_frame_passes_the_contract() -> None:
+    del_etl = frame([*CURATED_RENAMES, ETIQUETA])
+
+    verificado = enforce_feature_contract(rename_to_model(del_etl), CURATED_FEATURES, ETIQUETA)
+
+    assert list(verificado.columns) == [*MODEL_FEATURES, ETIQUETA]

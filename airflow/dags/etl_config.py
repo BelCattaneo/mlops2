@@ -105,20 +105,6 @@ class ETLConfig:
         "distance_crime_to_police_station",
     )
 
-    # El contrato de features del dataset curado: estas columnas, en este orden, más la
-    # etiqueta. La selección por información mutua depende de los datos, así que sin este
-    # contrato el espacio de features podría cambiar de un mes a otro sin que nadie se entere,
-    # y el modelo que sirve la plataforma dejaría de corresponder al dataset que produce.
-    CURATED_FEATURES: tuple = (
-        "iucr_freq",
-        "primary_type_freq",
-        "location_description_freq",
-        "day_of_week_sin",
-        "x_coordinate_standardized",
-        "y_coordinate_standardized",
-        "distance_crime_to_police_station_standardized",
-    )
-
     # Columns to drop in feature selection (high correlation)
     # These are the encoded column names (_freq suffix) created during encoding
     FEATURE_SELECTION_DROP: tuple = (
