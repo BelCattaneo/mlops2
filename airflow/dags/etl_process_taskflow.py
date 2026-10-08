@@ -17,7 +17,7 @@ import tempfile
 
 import pandas as pd
 from airflow.decorators import dag, task
-from etl_config import config
+from etl_config import BUCKET_NAME, DEFAULT_ARGS, config
 from etl_helpers.contract import (
     CURATED_FEATURES,
     assert_no_missing,
@@ -57,22 +57,14 @@ from etl_helpers.summary import summary_counts
 
 logger = logging.getLogger(__name__)
 
-BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
 
 STATIONS_KEY = f"{config.PREFIX_RAW}police_stations/police_stations.csv"
-
-default_args = {
-    "depends_on_past": False,
-    "retries": 1,
-    "retry_delay": datetime.timedelta(minutes=5),
-    "dagrun_timeout": datetime.timedelta(minutes=60),  # Increased for large data downloads
-}
 
 
 @dag(
     dag_id="etl_with_taskflow",
     description="Chicago Crime Data ETL Pipeline with TaskFlow API",
-    default_args=default_args,
+    default_args=DEFAULT_ARGS,
     schedule="@monthly",  # Run monthly for incremental updates
     start_date=datetime.datetime(2024, 1, 1),
     catchup=False,

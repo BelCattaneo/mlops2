@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 import pandas as pd
-from etl_config import config
+from etl_config import ETL_EXPERIMENT, config
 
 from .mlflow_utils import (
     get_value_distribution,
@@ -41,6 +41,7 @@ def log_raw_data_metrics(
 
     logger.info(f"Logging raw data metrics to MLflow: {run_name}")
 
+    mlflow.set_experiment(ETL_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         total_records = len(df)
         metrics = {
@@ -112,6 +113,7 @@ def log_split_metrics(
 
     logger.info(f"Logging split metrics to MLflow: {run_name}")
 
+    mlflow.set_experiment(ETL_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         metrics = {
             "train_size": len(train_df),
@@ -166,6 +168,7 @@ def log_balance_metrics(
 
     logger.info(f"Logging balance metrics to MLflow: {run_name}")
 
+    mlflow.set_experiment(ETL_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         metrics = {
             "original_size": len(original_df),
@@ -227,6 +230,7 @@ def log_feature_selection_metrics(
 
     logger.info(f"Logging feature selection metrics to MLflow: {run_name}")
 
+    mlflow.set_experiment(ETL_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         orig_features = [c for c in original_df.columns if c != target_column]
         selected_features = [c for c in selected_df.columns if c != target_column]
@@ -292,6 +296,7 @@ def log_pipeline_summary(
 
     logger.info(f"Logging pipeline summary to MLflow: {run_name}")
 
+    mlflow.set_experiment(ETL_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         metrics = {
             "raw_records": raw_count,

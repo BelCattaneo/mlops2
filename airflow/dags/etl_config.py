@@ -5,7 +5,25 @@ Centralized configuration for the Chicago Crime ETL pipeline.
 All hardcoded constants are defined here for easy modification.
 """
 
+import datetime
+import os
 from dataclasses import dataclass
+
+# El bucket y los argumentos por defecto los comparten los dos DAGs: definidos dos veces, se
+# separan en silencio el día que alguien cambia uno.
+BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
+
+DEFAULT_ARGS = {
+    "depends_on_past": False,
+    "retries": 1,
+    "retry_delay": datetime.timedelta(minutes=5),
+    "dagrun_timeout": datetime.timedelta(minutes=60),
+}
+
+# Dos experimentos con nombre, para que nada caiga en "Default": las métricas de cada capa
+# del pipeline por un lado y los entrenamientos por el otro. No son lo mismo ni se comparan.
+ETL_EXPERIMENT = "chicago-arrest-etl"
+TRAINING_EXPERIMENT = "chicago-arrest"
 
 
 @dataclass(frozen=True)

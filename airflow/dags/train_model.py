@@ -13,8 +13,9 @@ import logging
 import os
 
 import mlflow
+import mlflow.xgboost
 from airflow.decorators import dag, task
-from etl_config import config
+from etl_config import BUCKET_NAME, DEFAULT_ARGS, TRAINING_EXPERIMENT, config
 from etl_helpers.contract import CURATED_FEATURES, enforce_feature_contract
 from etl_helpers.minio import download_to_dataframe, list_objects_with_times
 from etl_helpers.partitions import newest_partition, partition_date
@@ -24,16 +25,7 @@ from arrest_model.config import MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
-BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
-EXPERIMENT = "chicago-arrest"
-
-default_args = {
-    "depends_on_past": False,
-    "retries": 1,
-    "retry_delay": datetime.timedelta(minutes=5),
-    "dagrun_timeout": datetime.timedelta(minutes=60),
-}
 
 
 def latest_partition(keys: list[str]) -> str | None:
@@ -50,7 +42,7 @@ def latest_partition(keys: list[str]) -> str | None:
 @dag(
     dag_id="train_arrest_model",
     description="Entrena el modelo de arrestos con el dataset curado y lo registra en MLflow",
-    default_args=default_args,
+    default_args=DEFAULT_ARGS,
     schedule=None,
     start_date=datetime.datetime(2024, 1, 1),
     catchup=False,
@@ -89,7 +81,7 @@ def train_arrest_model():
         logger.info("Métricas sobre el test curado: %s", metricas)
 
         mlflow.set_tracking_uri(TRACKING_URI)
-        mlflow.set_experiment(EXPERIMENT)
+        mlflow.set_experiment(TRAINING_EXPERIMENT)
         sufijo = partition_date(context.get("ds"), datetime.datetime.now(datetime.UTC))
         with mlflow.start_run(run_name=f"train_{sufijo}") as corrida:
             mlflow.log_params(
@@ -103,26 +95,25 @@ def train_arrest_model():
             mlflow.log_metrics(metricas)
             # El modelo se registra con los nombres de features puestos, así que servirlo con
             # columnas en otro orden falla en vez de devolver números equivocados.
-            mlflow.xgboost.log_model(
+            # La versión sale de lo que devuelve el registro, no de buscar la mayor: con dos
+            # entrenamientos a la vez, buscar la mayor marcaría como champion la del otro.
+            registrado = mlflow.xgboost.log_model(
                 modelo,
                 name="model",
                 registered_model_name=MODEL_NAME,
                 input_example=test[features].head(3),
             )
             registrada = corrida.info.run_id
+            version = registrado.registered_model_version
 
         cliente = mlflow.MlflowClient(TRACKING_URI)
-        version = max(
-            cliente.search_model_versions(f"name='{MODEL_NAME}'"),
-            key=lambda v: int(v.version),
-        )
-        cliente.set_registered_model_alias(MODEL_NAME, "champion", version.version)
-        logger.info("Versión %s registrada y marcada como champion", version.version)
+        cliente.set_registered_model_alias(MODEL_NAME, "champion", version)
+        logger.info("Versión %s registrada y marcada como champion", version)
 
         return {
             "status": "success",
             "run_id": registrada,
-            "model_version": version.version,
+            "model_version": version,
             "curated_partition": particion,
             "metrics": metricas,
         }
