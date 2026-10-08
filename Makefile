@@ -28,7 +28,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
-.PHONY: stack-up stack-down stack-ps stack-logs stack-dag
+.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train
 
 help: ## Muestra los comandos disponibles
 	@grep -hE '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -181,3 +181,7 @@ stack-logs: ## Integrador · sigue los logs de la plataforma
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow
 	docker compose --profile all exec -T airflow-scheduler airflow dags trigger etl_with_taskflow
+
+stack-train: ## Integrador · entrena con el último dataset curado y registra el champion
+	docker compose --profile all exec -T airflow-scheduler airflow dags unpause train_arrest_model
+	docker compose --profile all exec -T airflow-scheduler airflow dags trigger train_arrest_model

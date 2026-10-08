@@ -45,6 +45,20 @@ La primera corrida tarda unos 9 minutos y medio, de los cuales 8 son la descarga
 
 El pipeline también corre solo, una vez por mes, desde que el DAG queda despausado.
 
+## Entrenar el modelo
+
+```bash
+make stack-train
+```
+
+Dispara el DAG `train_arrest_model`, que es aparte del ETL a propósito: reentrenar no tiene que obligar a reprocesar los datos, y procesar datos nuevos no tiene que disparar un entrenamiento. Lo que los une es la capa curada del lake.
+
+Entrena sobre la partición curada escrita más recientemente, mide las seis métricas contra el test de esa misma partición, y registra todo en MLflow: los parámetros de la corrida, las métricas, y el modelo con su firma de entrada. La versión registrada queda con el alias `champion`, que es lo que las APIs van a pedir, así que promover una versión es una operación de registro y no un redespliegue.
+
+Las métricas de la última corrida se ven en <http://127.0.0.1:5001>, en el experimento `chicago-arrest`. Las del ETL van aparte, en `chicago-arrest-etl`: son métricas de datos, no de modelos, y no se comparan entre sí.
+
+Si no hay ningún dataset curado, la tarea falla diciendo que hay que correr el ETL antes. Y si la partición que encuentra es de una versión vieja del ETL, falla diciendo qué columna le falta, en vez de entrenar con un dataset que el modelo no puede consumir.
+
 ## Qué deja en el lake
 
 Tres capas en el bucket `data`, que se ven en la consola de MinIO:
@@ -67,6 +81,7 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 |---|---|
 | `make stack-up` | levanta la plataforma y espera a que responda |
 | `make stack-dag` | despausa y dispara el ETL |
+| `make stack-train` | entrena con el último curado y registra el champion |
 | `make stack-ps` | muestra el estado de los servicios |
 | `make stack-logs` | sigue los logs de todos |
 | `make stack-down` | detiene la plataforma y conserva los volúmenes |
