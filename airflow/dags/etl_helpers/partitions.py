@@ -55,3 +55,18 @@ def partition_date(ds: str | None, window_end: datetime.datetime) -> str:
     corrida escriban en particiones distintas.
     """
     return ds or window_end.date().isoformat()
+
+
+def newest_partition(objects: list[tuple[str, float]]) -> str | None:
+    """La partición escrita más recientemente, de una lista de (clave, marca de tiempo).
+
+    No es la de fecha mayor. La partición lleva la fecha lógica de la corrida, que puede ir
+    hacia atrás si se reprocesa un período viejo, así que ordenar por nombre elige el dataset
+    equivocado. Lo que define cuál es la última es cuándo se escribió.
+    """
+    candidatas = [
+        (marca, encontrada.group(0).removeprefix("date="))
+        for clave, marca in objects
+        if (encontrada := re.search(r"date=\d{4}-\d{2}-\d{2}", clave))
+    ]
+    return max(candidatas)[1] if candidatas else None

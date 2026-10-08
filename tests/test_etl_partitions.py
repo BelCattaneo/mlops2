@@ -2,7 +2,12 @@
 
 import datetime
 
-from etl_helpers.partitions import download_window, partition_date, partitions_in_window
+from etl_helpers.partitions import (
+    download_window,
+    newest_partition,
+    partition_date,
+    partitions_in_window,
+)
 
 CLAVES = [
     "raw/crimes/month=2025-09/crimes.csv",
@@ -114,3 +119,28 @@ def test_the_key_suffix_is_the_logical_date_when_there_is_one() -> None:
 def test_without_a_logical_date_the_suffix_is_the_end_of_the_window() -> None:
     # Sin fecha lógica no hay `ds`, y las claves derivadas lo usan de sufijo.
     assert partition_date(None, momento("2026-10-03T15:00:00")) == "2026-10-03"
+
+
+def test_the_newest_partition_is_the_last_written_not_the_highest_date() -> None:
+    # Las particiones se nombran con la fecha lógica de la corrida, que puede ir hacia atrás si
+    # alguien reprocesa un período viejo. "La última" es la que se escribió al final.
+    objetos = [
+        ("curated/train/date=2026-10-03/train.parquet", 100),
+        ("curated/train/date=2026-09-22/train.parquet", 200),
+        ("curated/train/date=2026-09-30/train.parquet", 150),
+    ]
+
+    assert newest_partition(objetos) == "2026-09-22"
+
+
+def test_there_is_no_newest_partition_without_objects() -> None:
+    assert newest_partition([]) is None
+
+
+def test_keys_without_a_partition_are_ignored() -> None:
+    objetos = [
+        ("curated/train/suelto.parquet", 999),
+        ("curated/train/date=2026-01-01/x.parquet", 1),
+    ]
+
+    assert newest_partition(objetos) == "2026-01-01"

@@ -125,6 +125,27 @@ def check_file_exists(bucket_name: str, object_key: str) -> bool:
             raise MinIOError(f"Error checking file existence: {e}") from e
 
 
+def list_objects_with_times(bucket_name: str, prefix: str = "") -> list[tuple[str, float]]:
+    """Las claves del prefijo con su marca de última modificación.
+
+    Hace falta para saber qué partición se escribió al final, que no es lo mismo que la de
+    fecha mayor: la partición lleva la fecha lógica de la corrida, que puede ir hacia atrás.
+    """
+    client = get_minio_client()
+    try:
+        paginas = client.get_paginator("list_objects_v2").paginate(
+            Bucket=bucket_name, Prefix=prefix
+        )
+        return [
+            (objeto["Key"], objeto["LastModified"].timestamp())
+            for pagina in paginas
+            for objeto in pagina.get("Contents", [])
+        ]
+    except Exception as e:
+        logger.error(f"Error listing objects with times: {e}")
+        raise MinIOError(f"Error listing objects with times: {e}") from e
+
+
 def list_objects(bucket_name: str, prefix: str = "") -> list[str]:
     """
     List objects in a MinIO bucket with optional prefix filter.

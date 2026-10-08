@@ -16,6 +16,7 @@ from .operations import (
     download_from_minio,
     download_to_dataframe,
     list_objects,
+    list_objects_with_times,
     upload_from_dataframe,
     upload_to_minio,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "download_from_minio",
     "check_file_exists",
     "list_objects",
+    "list_objects_with_times",
     "delete_object",
     "download_to_dataframe",
     "upload_from_dataframe",
