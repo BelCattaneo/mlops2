@@ -1,9 +1,11 @@
 """Mini-TP 6: el modelo y los datos viviendo en el data lake."""
 
+import contextlib
 import io
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
+import mlflow
 import pytest
 from botocore.exceptions import ClientError
 
@@ -25,7 +27,13 @@ from tp6_datalake.lake import (
 )
 from tp6_datalake.models import load_model, publish_model
 from tp6_datalake.run import run_lake
-from tp6_datalake.tracking import artifacts_of, log_run, metrics_of, tracking_available
+from tp6_datalake.tracking import (
+    TRACKING_URI,
+    artifacts_of,
+    log_run,
+    metrics_of,
+    tracking_available,
+)
 
 pytestmark = [
     pytest.mark.minio,
@@ -194,20 +202,43 @@ necesita_mlflow = pytest.mark.skipif(
 )
 
 
+@pytest.fixture
+def corrida_de_prueba() -> Iterator[Callable[[], str]]:
+    """Registra corridas en MLflow y las borra al terminar.
+
+    Cada corrida sube su artefacto al bucket de MLflow, así que sin esto cada pasada de la suite
+    deja una corrida y un modelo de 1 MB en el servidor de la máquina.
+    """
+    registradas: list[str] = []
+
+    def registrar() -> str:
+        """Registra una corrida en el experimento de prueba y la deja anotada para borrarla."""
+        corrida = log_run(experiment="tp6-test")
+        registradas.append(corrida)
+        return corrida
+
+    yield registrar
+
+    cliente = mlflow.MlflowClient(TRACKING_URI)
+    for corrida in registradas:
+        with contextlib.suppress(Exception):
+            cliente.delete_run(corrida)
+
+
 @pytest.mark.mlflow
 @necesita_mlflow
-def test_the_run_records_the_metrics_of_the_model() -> None:
-    corrida = log_run(experiment="tp6-test")
+def test_the_run_records_the_metrics_of_the_model(corrida_de_prueba) -> None:
+    corrida = corrida_de_prueba()
     metricas = metrics_of(corrida)
     assert metricas["mcc"] == pytest.approx(load_bundle()["metadata"]["metrics"]["mcc"], abs=1e-6)
 
 
 @pytest.mark.mlflow
 @necesita_mlflow
-def test_the_artifact_of_the_run_ends_up_in_the_lake() -> None:
+def test_the_artifact_of_the_run_ends_up_in_the_lake(corrida_de_prueba) -> None:
     # Lo que se prueba acá es la integración: MLflow guarda su metadata en Postgres, pero el
     # artefacto viaja a MinIO. Si no, el modelo quedaría dentro del contenedor de MLflow.
-    corrida = log_run(experiment="tp6-test")
+    corrida = corrida_de_prueba()
     # MLflow ordena el bucket como experimento/corrida/artifacts/...
     claves = list_keys(client(), bucket="mlflow")
     assert any(clave.endswith(f"{corrida}/artifacts/model.pkl") for clave in claves)
