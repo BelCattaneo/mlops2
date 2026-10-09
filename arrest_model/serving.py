@@ -1,9 +1,16 @@
 """El modelo servible: el estimador y su preprocesamiento en un solo artefacto.
 
 Separar el modelo de los parámetros con los que se entrenó es la forma más fácil de servir
-predicciones equivocadas sin que nada falle. Está medido: el estimador del TP-final, alimentado
-con datos codificados con otros parámetros, predice arresto en el 99% de las filas en vez del
-15%, sin un solo error.
+predicciones equivocadas sin que nada falle. Está medido: el estimador alimentado con datos
+codificados con otros parámetros predice arresto en el 99% de las filas en vez del 15%, con
+accuracy 0,16 y AUC 0,53, sin un solo error.
+
+Y el mecanismo explica por qué el colapso es total y no gradual. Tres de las siete features son
+codificación por frecuencia, que le asigna a cada categoría un número que depende de la ventana
+de datos con la que se ajustó. Los umbrales que aprende un árbol caen entre los valores de dos
+categorías vecinas, así que mover las frecuencias un 0,2% —lo que cambian en un mes— hace que
+categorías enteras cruzen el umbral de golpe. No hay parámetros "parecidos": son los del modelo
+o cualquier cosa.
 
 Por eso el artefacto contiene las dos mitades. Recibe los seis campos crudos del contrato —los
 mismos que recibe la API REST— y devuelve la probabilidad: el consumidor no codifica nada, así
