@@ -16,8 +16,8 @@ Se levanta con `make stack-up`; el detalle está en [cómo levantarla](plataform
 |---|---|---|
 | Ingesta y orquestación | Airflow | el DAG de ETL baja los reportes de Socrata y los procesa |
 | Data lake | MinIO | guarda los datasets en tres capas —`raw`, `enriched` y `curated` de `s3://data`— y los artefactos de modelos (`s3://mlflow`) |
-| Entrenamiento y ciclo de vida | trainer, MLflow, PostgreSQL | entrena el XGBoost, lo registra y le asigna el alias `champion` |
-| Servicio | REST, gRPC, GraphQL con Neo4j | predicciones y metadatos del modelo `champion`, con la codificación compartida de `arrest_model` |
+| Entrenamiento y ciclo de vida | Airflow, MLflow, PostgreSQL | el DAG `train_arrest_model` entrena sobre la capa curada y registra el modelo con el alias `champion` |
+| Servicio | REST, gRPC, GraphQL con Neo4j | predicciones y metadatos del modelo `champion`, que trae su propia codificación adentro y recibe los campos crudos |
 
 ## Lo que se suma en cada sesión
 

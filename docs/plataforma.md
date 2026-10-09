@@ -53,7 +53,11 @@ make stack-train
 
 Dispara el DAG `train_arrest_model`, que es aparte del ETL a propósito: reentrenar no tiene que obligar a reprocesar los datos, y procesar datos nuevos no tiene que disparar un entrenamiento. Lo que los une es la capa curada del lake.
 
-Entrena sobre la partición curada escrita más recientemente, mide las seis métricas contra el test de esa misma partición, y registra todo en MLflow: los parámetros de la corrida, las métricas, y el modelo con su firma de entrada. La versión registrada queda con el alias `champion`, que es lo que las APIs van a pedir, así que promover una versión es una operación de registro y no un redespliegue.
+Entrena sobre la partición curada escrita más recientemente —la última escrita, no la de fecha mayor— y mide las seis métricas contra el test de esa misma partición.
+
+Lo que registra en MLflow no es el estimador suelto sino el modelo servible: recibe los seis campos crudos del contrato, codifica adentro con los parámetros de esa partición, y devuelve la probabilidad. El consumidor no codifica nada, así que no puede codificar distinto de como se entrenó. Queda con su firma de entrada declarada y valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo con `mlflow models serve`.
+
+La versión registrada toma el alias `champion`, que es lo que las APIs van a pedir: promover una versión es una operación de registro y no un redespliegue.
 
 Las métricas de la última corrida se ven en <http://127.0.0.1:5001>, en el experimento `chicago-arrest`. Las del ETL van aparte, en `chicago-arrest-etl`: son métricas de datos, no de modelos, y no se comparan entre sí.
 
@@ -67,9 +71,11 @@ Tres capas en el bucket `data`, que se ven en la consola de MinIO:
 |---|---|---|---|
 | cruda | `raw/crimes/month=YYYY-MM/crimes.csv` y `raw/police_stations/police_stations.csv` | CSV, tal como llegó del portal | se conserva |
 | intermedia | `enriched/crimes/date=YYYY-MM-DD/crimes.parquet` | Parquet | expira a los 30 días |
-| curada | `curated/train/date=YYYY-MM-DD/train.parquet` y su `test` | Parquet | se conserva |
+| curada | `curated/train/date=YYYY-MM-DD/train.parquet`, su `test`, y `curated/params/date=YYYY-MM-DD/params.json` | Parquet y JSON | se conserva |
 
-La capa curada es el par de entrenamiento y prueba con las 7 features del modelo más la etiqueta. El detalle de qué hace cada capa está en [la arquitectura](arquitectura.md).
+La capa curada es el par de entrenamiento y prueba con las 7 features del modelo más la etiqueta, y los parámetros con los que se codificó: las frecuencias de cada categoría, la media y el desvío de cada numérica, y las comisarías proyectadas. Esos parámetros son la otra mitad del modelo —con otros, el mismo estimador predice cualquier cosa— así que el entrenamiento los mete adentro del artefacto. La capa está completa cuando están los tres: si falta alguno, la corrida siguiente la recalcula.
+
+El detalle de qué hace cada capa está en [la arquitectura](arquitectura.md).
 
 El bucket está versionado, así que un borrado no borra: deja una marca de borrado y el objeto se recupera por su `VersionId`.
 

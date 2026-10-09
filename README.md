@@ -34,7 +34,7 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 ├── Makefile         # atajos globales (install, test, lint), por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*) y de la plataforma (stack-*)
 ├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL y MinIO
 ├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
-├── airflow/         # dags/: el ETL de Chicago que alimenta la plataforma, en tres capas
+├── airflow/         # dags/: el ETL en tres capas y el entrenamiento que registra el champion
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
 ├── tp1_rest/        # Mini-TP 1: API REST (app.py, client.py, Dockerfile, README.md)
@@ -54,6 +54,8 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 | `schemas.py` | el contrato: `CrimeReport` (los 6 campos crudos) y las respuestas de las APIs |
 | `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
 | `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |
+| `params.py` | el formato de los parámetros de preprocesamiento, que viajan con el modelo |
+| `serving.py` | el modelo servible: recibe los 6 campos crudos, codifica adentro y predice |
 | `log.py` | el logger de cada servicio, configurado sin tocar el logging del resto del proceso |
 
 Ningún servicio reimplementa la codificación ni el formato de la respuesta: todos usan este paquete.
