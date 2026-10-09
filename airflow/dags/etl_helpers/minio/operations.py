@@ -320,3 +320,13 @@ def upload_from_dataframe(
     except Exception as e:
         logger.error(f"Error uploading DataFrame to MinIO: {e}")
         raise MinIOError(f"Error uploading DataFrame to MinIO: {e}") from e
+
+
+def download_bytes(bucket_name: str, object_key: str) -> bytes:
+    """Baja un objeto como bytes, para lo que no es un dataframe."""
+    client = get_minio_client()
+    try:
+        return client.get_object(Bucket=bucket_name, Key=object_key)["Body"].read()
+    except Exception as e:
+        logger.error(f"Error downloading bytes: {e}")
+        raise MinIOError(f"Error downloading '{bucket_name}/{object_key}': {e}") from e

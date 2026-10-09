@@ -11,32 +11,31 @@ promover una versión es una operación de registro y no un redespliegue.
 import datetime
 import logging
 import os
+import tempfile
+from pathlib import Path
 
 import mlflow
-import mlflow.xgboost
+import mlflow.pyfunc
+import pandas as pd
 from airflow.decorators import dag, task
 from etl_config import BUCKET_NAME, DEFAULT_ARGS, TRAINING_EXPERIMENT, config
 from etl_helpers.contract import CURATED_FEATURES, enforce_feature_contract
-from etl_helpers.minio import download_to_dataframe, list_objects_with_times
+from etl_helpers.minio import (
+    download_bytes,
+    download_to_dataframe,
+    list_objects_with_times,
+)
 from etl_helpers.partitions import newest_partition, partition_date
 from training_helpers import evaluate, fit_model
 
+import arrest_model
 from arrest_model.config import MODEL_NAME
+from arrest_model.schemas import EXAMPLE_REPORT
+from arrest_model.serving import ArrestModel
 
 logger = logging.getLogger(__name__)
 
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
-
-
-def latest_partition(keys: list[str]) -> str | None:
-    """La partición más reciente de una lista de claves con `date=`, o None si no hay."""
-    fechas = {
-        parte.removeprefix("date=")
-        for clave in keys
-        for parte in clave.split("/")
-        if "date=" in parte
-    }
-    return max(fechas) if fechas else None
 
 
 @dag(
@@ -68,6 +67,11 @@ def train_arrest_model():
         test = download_to_dataframe(
             BUCKET_NAME, f"{config.PREFIX_CURATED}test/date={particion}/test.parquet"
         )
+        # Los parámetros con los que el ETL codificó ese dataset: van DENTRO del artefacto, no
+        # al lado. Servir con otros es lo que hace predecir cualquier cosa sin que nada falle.
+        params_crudos = download_bytes(
+            BUCKET_NAME, f"{config.PREFIX_CURATED}params/date={particion}/params.json"
+        )
         # El contrato se verifica al cargar: una partición vieja, de antes de que el ETL
         # renombrara las columnas, falla diciendo qué le falta en vez de un KeyError pelado.
         train = enforce_feature_contract(train, CURATED_FEATURES, config.TARGET_COLUMN)
@@ -95,14 +99,25 @@ def train_arrest_model():
             mlflow.log_metrics(metricas)
             # El modelo se registra con los nombres de features puestos, así que servirlo con
             # columnas en otro orden falla en vez de devolver números equivocados.
-            # La versión sale de lo que devuelve el registro, no de buscar la mayor: con dos
-            # entrenamientos a la vez, buscar la mayor marcaría como champion la del otro.
-            registrado = mlflow.xgboost.log_model(
-                modelo,
-                name="model",
-                registered_model_name=MODEL_NAME,
-                input_example=test[features].head(3),
-            )
+            # Se registra el modelo servible, no el estimador: recibe los seis campos
+            # crudos del contrato y codifica adentro, así el consumidor no puede codificar
+            # distinto de como se entrenó. `code_paths` mete el paquete compartido en el
+            # artefacto, que es el que hace esa codificación.
+            with tempfile.TemporaryDirectory() as temporal:
+                estimador = os.path.join(temporal, "model.ubj")
+                parametros = os.path.join(temporal, "params.json")
+                modelo.save_model(estimador)
+                Path(parametros).write_bytes(params_crudos)
+                # La versión sale de lo que devuelve el registro, no de buscar la mayor: con
+                # dos entrenamientos a la vez, buscar la mayor marcaría la del otro.
+                registrado = mlflow.pyfunc.log_model(
+                    name="model",
+                    python_model=ArrestModel(),
+                    artifacts={"model": estimador, "params": parametros},
+                    code_paths=[str(Path(arrest_model.__file__).parent)],
+                    registered_model_name=MODEL_NAME,
+                    input_example=pd.DataFrame([EXAMPLE_REPORT]),
+                )
             registrada = corrida.info.run_id
             version = registrado.registered_model_version
 

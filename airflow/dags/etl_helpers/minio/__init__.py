@@ -13,6 +13,7 @@ from .client import (
 from .operations import (
     check_file_exists,
     delete_object,
+    download_bytes,
     download_from_minio,
     download_to_dataframe,
     list_objects,
@@ -30,6 +31,7 @@ __all__ = [
     "create_bucket_if_not_exists",
     # Operations
     "upload_to_minio",
+    "download_bytes",
     "download_from_minio",
     "check_file_exists",
     "list_objects",
