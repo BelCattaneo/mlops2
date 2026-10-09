@@ -20,6 +20,7 @@ import pandas as pd
 from airflow.decorators import dag, task
 from etl_config import BUCKET_NAME, DEFAULT_ARGS, TRAINING_EXPERIMENT, config
 from etl_helpers.contract import CURATED_FEATURES, enforce_feature_contract
+from etl_helpers.keys import curated_params, curated_prefix, curated_test, curated_train
 from etl_helpers.minio import (
     download_bytes,
     download_to_dataframe,
@@ -52,26 +53,20 @@ def train_arrest_model():
     def train_and_register(**context):
         """Entrena sobre la partición curada más reciente y registra la corrida en MLflow."""
         particion = newest_partition(
-            list_objects_with_times(BUCKET_NAME, prefix=f"{config.PREFIX_CURATED}train/")
+            list_objects_with_times(BUCKET_NAME, prefix=curated_prefix("train"))
         )
         if particion is None:
             raise ValueError(
-                f"no hay datasets curados en {config.PREFIX_CURATED}train/: "
+                f"no hay datasets curados en {curated_prefix('train')}: "
                 "hay que correr el ETL antes de entrenar"
             )
         logger.info("Entrenando con la partición curada %s", particion)
 
-        train = download_to_dataframe(
-            BUCKET_NAME, f"{config.PREFIX_CURATED}train/date={particion}/train.parquet"
-        )
-        test = download_to_dataframe(
-            BUCKET_NAME, f"{config.PREFIX_CURATED}test/date={particion}/test.parquet"
-        )
+        train = download_to_dataframe(BUCKET_NAME, curated_train(particion))
+        test = download_to_dataframe(BUCKET_NAME, curated_test(particion))
         # Los parámetros con los que el ETL codificó ese dataset: van DENTRO del artefacto, no
         # al lado. Servir con otros es lo que hace predecir cualquier cosa sin que nada falle.
-        params_crudos = download_bytes(
-            BUCKET_NAME, f"{config.PREFIX_CURATED}params/date={particion}/params.json"
-        )
+        params_crudos = download_bytes(BUCKET_NAME, curated_params(particion))
         # El contrato se verifica al cargar: una partición vieja, de antes de que el ETL
         # renombrara las columnas, falla diciendo qué le falta en vez de un KeyError pelado.
         train = enforce_feature_contract(train, CURATED_FEATURES, config.TARGET_COLUMN)

@@ -34,6 +34,13 @@ from etl_helpers.data_loader import (
 from etl_helpers.data_scaling import scale_data as scale_data_fn
 from etl_helpers.data_splitter import preprocess_for_split, split_train_test
 from etl_helpers.feature_selection import select_features as select_features_fn
+from etl_helpers.keys import (
+    CURATED_ARTIFACTS,
+    enriched_crimes,
+    raw_crimes,
+    raw_crimes_prefix,
+    raw_stations,
+)
 from etl_helpers.minio import (
     check_file_exists,
     create_bucket_if_not_exists,
@@ -58,9 +65,6 @@ from etl_helpers.partitions import download_window, partition_date, partitions_i
 from etl_helpers.summary import summary_counts
 
 logger = logging.getLogger(__name__)
-
-
-STATIONS_KEY = f"{config.PREFIX_RAW}police_stations/police_stations.csv"
 
 
 @dag(
@@ -88,7 +92,7 @@ def process_etl_taskflow():
             context.get("data_interval_end"),
             now=datetime.datetime.now(datetime.UTC),
         )
-        crimes_key = f"{config.PREFIX_RAW}crimes/month={inicio.strftime('%Y-%m')}/crimes.csv"
+        crimes_key = raw_crimes(inicio.strftime("%Y-%m"))
         # La ventana y el sufijo viajan en el XCom: así las capas de una misma corrida no
         # pueden escribir en particiones distintas, y no dependen de que haya fecha lógica.
         ventana = {
@@ -101,7 +105,7 @@ def process_etl_taskflow():
         # reintento saltearía todo y la capa intermedia fallaría en cada corrida. Y separarlas
         # evita bajar de nuevo el año entero cuando lo único que falta son 23 comisarías.
         faltan_reportes = not check_file_exists(BUCKET_NAME, crimes_key)
-        faltan_comisarias = not check_file_exists(BUCKET_NAME, STATIONS_KEY)
+        faltan_comisarias = not check_file_exists(BUCKET_NAME, raw_stations())
         if not faltan_reportes and not faltan_comisarias:
             return {"status": "success", "crimes_file": crimes_key, "rows": None, **ventana}
 
@@ -110,13 +114,13 @@ def process_etl_taskflow():
             if faltan_comisarias:
                 comisarias = os.path.join(temporal, "police_stations.csv")
                 download_police_stations(output_file=comisarias)
-                upload_to_minio(comisarias, BUCKET_NAME, STATIONS_KEY)
+                upload_to_minio(comisarias, BUCKET_NAME, raw_stations())
 
             if faltan_reportes:
                 # Sin particiones previas hay que traer la ventana entera; con particiones, solo
                 # el período de la corrida, porque el resto ya está en la capa cruda.
                 previas = partitions_in_window(
-                    list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
+                    list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
                     fin,
                     config.ROLLING_WINDOW_DAYS,
                 )
@@ -139,7 +143,7 @@ def process_etl_taskflow():
             return {"status": "no_data"}
 
         sufijo = raw["partition_date"]
-        destino = f"{config.PREFIX_ENRICHED}crimes/date={sufijo}/crimes.parquet"
+        destino = enriched_crimes(sufijo)
         if check_file_exists(BUCKET_NAME, destino):
             return {
                 "status": "success",
@@ -148,7 +152,7 @@ def process_etl_taskflow():
             }
 
         particiones = partitions_in_window(
-            list_objects(BUCKET_NAME, prefix=f"{config.PREFIX_RAW}crimes/"),
+            list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
             datetime.datetime.fromisoformat(raw["window_end"]),
             config.ROLLING_WINDOW_DAYS,
         )
@@ -163,7 +167,7 @@ def process_etl_taskflow():
             [download_to_dataframe(BUCKET_NAME, clave) for clave in particiones],
             ignore_index=True,
         )
-        comisarias = download_to_dataframe(BUCKET_NAME, STATIONS_KEY)
+        comisarias = download_to_dataframe(BUCKET_NAME, raw_stations())
 
         log_raw_data_metrics(crimenes, run_name=f"raw_data_{sufijo}")
         enriquecido = preprocess_for_split(enrich_crime_data(crimenes, comisarias))
@@ -184,10 +188,17 @@ def process_etl_taskflow():
             return {"status": "no_data"}
 
         sufijo = enriched["partition_date"]
-        train_key = f"{config.PREFIX_CURATED}train/date={sufijo}/train.parquet"
-        test_key = f"{config.PREFIX_CURATED}test/date={sufijo}/test.parquet"
-        if check_file_exists(BUCKET_NAME, train_key) and check_file_exists(BUCKET_NAME, test_key):
-            return {"status": "success", "train_file": train_key, "test_file": test_key}
+        train_key, test_key, params_key = (clave(sufijo) for clave in CURATED_ARTIFACTS)
+        # Los tres artefactos, no solo los datasets: una partición sin sus parámetros no se
+        # puede servir, así que darla por completa dejaría al entrenamiento sin con qué armar el
+        # modelo. Es el caso de las particiones escritas antes de que los parámetros existieran.
+        if all(check_file_exists(BUCKET_NAME, clave(sufijo)) for clave in CURATED_ARTIFACTS):
+            return {
+                "status": "success",
+                "train_file": train_key,
+                "test_file": test_key,
+                "params_file": params_key,
+            }
 
         limpio = download_to_dataframe(BUCKET_NAME, enriched["enriched_file"])
 
@@ -244,8 +255,7 @@ def process_etl_taskflow():
 
         # Los parámetros del preprocesamiento se guardan al lado del dataset: el modelo que
         # se entrene con él tiene que servirse con estos, no con otros ajustados aparte.
-        params_key = f"{config.PREFIX_CURATED}params/date={sufijo}/params.json"
-        comisarias = download_to_dataframe(BUCKET_NAME, STATIONS_KEY)
+        comisarias = download_to_dataframe(BUCKET_NAME, raw_stations())
         upload_bytes(
             dump_params(build_params(frecuencias, escala, comisarias)), BUCKET_NAME, params_key
         )
