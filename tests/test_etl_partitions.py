@@ -2,11 +2,14 @@
 
 import datetime
 
+import pandas as pd
+import pytest
 from etl_helpers.partitions import (
     download_window,
     newest_partition,
     partition_date,
     partitions_in_window,
+    split_by_month,
 )
 
 CLAVES = [
@@ -144,3 +147,61 @@ def test_keys_without_a_partition_are_ignored() -> None:
     ]
 
     assert newest_partition(objetos) == "2026-01-01"
+
+
+def test_the_rows_are_split_by_the_month_of_their_own_date() -> None:
+    reportes = pd.DataFrame(
+        {
+            "date": ["2026-09-30 23:00:00", "2026-10-01 00:30:00", "2026-10-15 12:00:00"],
+            "iucr": ["0820", "1310", "0486"],
+        }
+    )
+
+    grupos = split_by_month(reportes)
+
+    assert sorted(grupos) == ["2026-09", "2026-10"]
+    assert len(grupos["2026-09"]) == 1
+    assert len(grupos["2026-10"]) == 2
+
+
+def test_the_groups_cover_every_row_exactly_once() -> None:
+    # Es la propiedad que importa: la carga inicial baja un año y lo reparte, así que si los
+    # grupos perdieran o duplicaran filas, la capa cruda dejaría de ser lo que llegó.
+    reportes = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-11-01", periods=400, freq="D").astype(str),
+            "iucr": ["0820"] * 400,
+        }
+    )
+
+    grupos = split_by_month(reportes)
+
+    assert sum(len(grupo) for grupo in grupos.values()) == len(reportes)
+    assert len(grupos) == 14
+
+
+def test_a_row_without_date_fails_instead_of_disappearing() -> None:
+    reportes = pd.DataFrame({"date": ["2026-10-01", None], "iucr": ["0820", "1310"]})
+
+    with pytest.raises(ValueError, match="sin fecha"):
+        split_by_month(reportes)
+
+
+def test_a_zero_width_interval_falls_back_like_a_missing_one() -> None:
+    # Un trigger manual con fecha lógica deja el intervalo como un punto: inicio igual a fin.
+    # Tomado literal, el período de la corrida es vacío, la descarga trae cero filas y el DAG
+    # reporta éxito sin haber escrito nada.
+    instante = momento("2026-10-09T00:44:00")
+
+    inicio, fin = download_window(instante, instante, now=momento("2026-10-09T00:44:00"))
+
+    assert inicio == momento("2026-10-01T00:00:00")
+    assert fin == momento("2026-10-09T00:44:00")
+
+
+def test_an_inverted_interval_also_falls_back() -> None:
+    inicio, fin = download_window(
+        momento("2026-10-05"), momento("2026-10-01"), now=momento("2026-10-09T12:00:00")
+    )
+
+    assert inicio < fin

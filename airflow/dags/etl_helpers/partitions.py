@@ -11,6 +11,8 @@ Vive acá y no en el módulo del DAG porque así se puede probar sin Airflow ins
 import datetime
 import re
 
+import pandas as pd
+
 PARTICION = re.compile(r"month=(\d{4})-(\d{2})")
 
 
@@ -38,11 +40,16 @@ def download_window(
     """La ventana de la corrida: su intervalo de datos, o el mes corriente si no tiene.
 
     En Airflow 3 un trigger manual sin fecha lógica deja el intervalo en `None`, y el botón
-    "Trigger DAG" de la interfaz dispara así. Sin este reemplazo la tarea de descarga se cae
-    con `AttributeError` al armar la partición, o sea que el DAG solo se puede correr
-    programado, que es justo lo que un corrector no va a hacer.
+    "Trigger DAG" de la interfaz dispara así: sin reemplazo, la tarea de descarga se cae con
+    `AttributeError` al armar la partición, o sea que el DAG solo se podría correr programado,
+    que es justo lo que un corrector no va a hacer.
+
+    Y con fecha lógica lo deja como un punto, inicio igual a fin. Tomado literal eso da un
+    período vacío: la descarga trae cero filas y la corrida reporta éxito sin escribir nada.
+    Los dos casos caen al reemplazo.
     """
-    if interval_start is not None and interval_end is not None:
+    completo = interval_start is not None and interval_end is not None
+    if completo and interval_start < interval_end:
         return interval_start, interval_end
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0), now
 
@@ -70,3 +77,21 @@ def newest_partition(objects: list[tuple[str, float]]) -> str | None:
         if (encontrada := re.search(r"date=\d{4}-\d{2}-\d{2}", clave))
     ]
     return max(candidatas)[1] if candidatas else None
+
+
+def split_by_month(reports: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Reparte los reportes en grupos por el mes de su propia fecha.
+
+    La carga inicial baja un año de una vez, y escribirlo todo en la partición del mes corriente
+    haría que la partición mienta sobre qué contiene: la ventana se determina por qué
+    particiones se leen, así que una que abarca doce meses rompe el recorte.
+
+    Falla si alguna fila no tiene fecha, porque la capa cruda es lo que llegó: una fila que
+    desaparece acá no se recupera de ningún lado.
+    """
+    fechas = pd.to_datetime(reports["date"], errors="coerce")
+    sin_fecha = int(fechas.isna().sum())
+    if sin_fecha:
+        raise ValueError(f"{sin_fecha} reportes sin fecha: no se pueden particionar")
+    meses = fechas.dt.strftime("%Y-%m")
+    return {mes: reports[meses == mes].copy() for mes in sorted(meses.unique())}

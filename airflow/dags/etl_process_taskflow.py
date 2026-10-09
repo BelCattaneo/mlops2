@@ -61,7 +61,12 @@ from etl_helpers.monitoring import (
 )
 from etl_helpers.outlier_processing import process_outliers as process_outliers_fn
 from etl_helpers.params import build_params, dump_params
-from etl_helpers.partitions import download_window, partition_date, partitions_in_window
+from etl_helpers.partitions import (
+    download_window,
+    partition_date,
+    partitions_in_window,
+    split_by_month,
+)
 from etl_helpers.summary import summary_counts
 
 logger = logging.getLogger(__name__)
@@ -83,6 +88,15 @@ def process_etl_taskflow():
         create_bucket_if_not_exists(BUCKET_NAME)
         enable_versioning(BUCKET_NAME)
         set_bucket_lifecycle_policy(BUCKET_NAME, {config.PREFIX_ENRICHED: config.ENRICHED_TTL_DAYS})
+
+    def escribir_por_mes(reportes: pd.DataFrame) -> int:
+        """Escribe los reportes en la partición de su propio mes y devuelve cuántos fueron."""
+        escritas = 0
+        for mes, grupo in split_by_month(reportes).items():
+            upload_from_dataframe(grupo, BUCKET_NAME, raw_crimes(mes))
+            logger.info("Capa cruda: %d reportes en month=%s", len(grupo), mes)
+            escritas += len(grupo)
+        return escritas
 
     @task.python
     def land_raw(**context):
@@ -117,22 +131,35 @@ def process_etl_taskflow():
                 upload_to_minio(comisarias, BUCKET_NAME, raw_stations())
 
             if faltan_reportes:
-                # Sin particiones previas hay que traer la ventana entera; con particiones, solo
-                # el período de la corrida, porque el resto ya está en la capa cruda.
+                filas = 0
+                reportes = os.path.join(temporal, "crimes.csv")
+                # Que el período venga vacío es normal: el portal publica con unos días de
+                # retraso, así que el mes corriente puede no tener nada todavía. Eso no puede
+                # abortar la carga inicial, que es lo que de verdad llena la ventana.
+                del_periodo = download_crimes_incremental(inicio, fin, output_file=reportes)
+                if len(del_periodo):
+                    filas += escribir_por_mes(del_periodo)
+
+                # Sin particiones previas, esta es la primera corrida: hay que traer además los
+                # meses anteriores de la ventana. Cada uno va a SU partición y no a la del mes
+                # corriente, porque la ventana se determina por qué particiones se leen y una
+                # que abarcara doce meses rompería el recorte.
                 previas = partitions_in_window(
                     list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
                     fin,
                     config.ROLLING_WINDOW_DAYS,
                 )
-                desde = (
-                    inicio if previas else fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
-                )
-                reportes = os.path.join(temporal, "crimes.csv")
-                crimes_df = download_crimes_incremental(desde, fin, output_file=reportes)
-                if len(crimes_df) == 0:
+                if len(previas) <= 1:
+                    historico = os.path.join(temporal, "historico.csv")
+                    desde = fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
+                    anteriores = download_crimes_incremental(desde, inicio, output_file=historico)
+                    logger.info("Carga inicial: %d reportes anteriores al período", len(anteriores))
+                    if len(anteriores):
+                        filas += escribir_por_mes(anteriores)
+
+                # Nada aterrizó: ni el período ni la carga inicial trajeron reportes.
+                if filas == 0:
                     return {"status": "no_data", "rows": 0, **ventana}
-                upload_to_minio(reportes, BUCKET_NAME, crimes_key)
-                filas = len(crimes_df)
 
         return {"status": "success", "crimes_file": crimes_key, "rows": filas, **ventana}
 
