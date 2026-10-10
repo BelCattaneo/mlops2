@@ -53,9 +53,11 @@ def choose_threshold(
 ) -> float:
     """El umbral que maximiza el MCC sobre el conjunto que se le pase.
 
-    Con la clase pesada el modelo queda calibrado al prior real, así que 0,5 deja de ser el corte
-    que mejor decide: medido, el mejor está en 0,77. Y el 0,5 no era óptimo ni siquiera para el
-    modelo balanceado con SMOTE, cuyo mejor corte estaba en 0,58.
+    El corte que mejor decide depende de cómo se reponderó el entrenamiento, no del problema:
+    pesar la clase minoritaria infla las probabilidades que el modelo emite —medido, 0,33 de
+    media contra un prior real de 0,14— y entonces el corte sube. Está en 0,81 con la clase
+    pesada y estaba en 0,58 con el SMOTE del pipeline heredado, que inflaba menos. Por eso el
+    0,5 que trae `XGBClassifier.predict` no era óptimo para ninguno de los dos.
 
     Se elige sobre validación, nunca sobre el test: elegirlo donde después se mide convierte la
     métrica informada en una promesa que el modelo no puede cumplir en producción.

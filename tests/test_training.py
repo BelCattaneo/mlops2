@@ -109,8 +109,8 @@ def test_the_fitted_model_weighs_the_minority_class(
 def test_the_chosen_threshold_is_at_least_as_good_as_a_half(
     desbalanceado: tuple[pd.DataFrame, pd.Series],
 ) -> None:
-    # El umbral se elige midiendo, no se asume: con la clase pesada el modelo queda calibrado al
-    # prior real y 0,5 deja de ser el corte que maximiza el MCC.
+    # El umbral se elige midiendo, no se asume: pesar la clase infla las probabilidades que el
+    # modelo emite, así que el corte que maximiza el MCC se corre y 0,5 deja de ser el mejor.
     X, y = desbalanceado
     modelo = fit_model(X, y)
 
