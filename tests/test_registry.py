@@ -13,6 +13,7 @@ from arrest_model.params import dump_params
 from arrest_model.registry import (
     ModelSource,
     bundle_from_artifacts,
+    load_model_bundle,
     registered_version,
     resolve_loader,
 )
@@ -176,3 +177,15 @@ def test_the_champion_of_the_running_stack_loads_and_predicts(
     assert 0.0 <= prediccion.probability <= 1.0
     # La versión que informa cada predicción es la del registro, no la del .pkl horneado.
     assert prediccion.model_version == metadata.version
+
+
+def test_the_entry_point_the_services_call_defaults_to_the_pkl(
+    monkeypatch: pytest.MonkeyPatch, bundle: dict[str, Any]
+) -> None:
+    # Es la función que los tres servicios llaman al arrancar. Sin `MODEL_URI` en el entorno
+    # tiene que dar el mismo modelo que hoy, que es lo que corre cuando el mini-TP va suelto.
+    monkeypatch.delenv("MODEL_URI", raising=False)
+
+    cargado = load_model_bundle()
+
+    assert cargado["metadata"] == bundle["metadata"]

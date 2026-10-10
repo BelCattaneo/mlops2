@@ -156,3 +156,8 @@ def resolve_loader(
     if not uri:
         return load_bundle
     return partial(load_from_registry, uri, fetch=fetch)
+
+
+def load_model_bundle() -> dict[str, Any]:
+    """Carga el modelo de donde diga el entorno. Es lo que llaman los tres servicios al arrancar."""
+    return resolve_loader()()

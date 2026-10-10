@@ -14,7 +14,8 @@ import grpc
 from pydantic import ValidationError
 
 from arrest_model.log import service_logger
-from arrest_model.model import load_bundle, predict
+from arrest_model.model import predict
+from arrest_model.registry import load_model_bundle
 from arrest_model.schemas import CrimeReport, PredictionOut
 from tp3_grpc import scoring_pb2, scoring_pb2_grpc
 
@@ -205,7 +206,8 @@ def serve(
     Con `port=0` el sistema elige un puerto libre, que es lo que usan los tests y el notebook.
     El modelo se carga una sola vez, acá.
     """
-    loaded = load_bundle() if bundle is None else bundle
+    # Sin bundle inyectado, de donde diga el entorno: el .pkl del repo o el champion.
+    loaded = load_model_bundle() if bundle is None else bundle
     server = grpc.server(
         futures.ThreadPoolExecutor(max_workers=max_workers),
         interceptors=[RequestLogger(loaded["metadata"]["version"])],

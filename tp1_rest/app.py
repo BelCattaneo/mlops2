@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from arrest_model.log import service_logger
 from arrest_model.model import load_bundle, predict
+from arrest_model.registry import load_model_bundle
 from arrest_model.schemas import (
     BatchPredictionOut,
     BatchRequest,
@@ -103,4 +104,6 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     return app
 
 
-app = create_app()
+# Corrido suelto sirve el .pkl del repo; dentro de la plataforma, con `MODEL_URI`, el
+# champion del registro de MLflow. Lo decide `load_model_bundle`, no este módulo.
+app = create_app(load_model_bundle)

@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter
 
 from arrest_model.model import load_bundle
+from arrest_model.registry import load_model_bundle
 from tp2_graphql.lineage import connect
 from tp2_graphql.schema import schema
 
@@ -41,4 +42,5 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     return app
 
 
-app = create_app()
+# Igual que en REST: el .pkl del repo, o el champion del registro si hay `MODEL_URI`.
+app = create_app(load_model_bundle)
