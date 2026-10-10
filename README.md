@@ -2,7 +2,7 @@
 
 Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos y puntuado sobre un flujo de eventos.
 
-Los seis mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Cada uno tiene su propia presentación:
+Los seis mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Dentro de la plataforma del TP integrador los tres servicios sirven, en vez del `.pkl`, la versión que el entrenamiento dejó marcada como `champion` en el Model Registry. Cada mini-TP tiene su propia presentación:
 
 | Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
@@ -32,7 +32,7 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 
 ```
 ├── Makefile         # atajos globales (install, test, lint), por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*) y de la plataforma (stack-*)
-├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL y MinIO
+├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL, MinIO y las tres APIs
 ├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
 ├── airflow/         # dags/: el ETL en tres capas y el entrenamiento que registra el champion
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
@@ -54,6 +54,7 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 | `schemas.py` | el contrato: `CrimeReport` (los 6 campos crudos) y las respuestas de las APIs |
 | `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
 | `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |
+| `registry.py` | de dónde sale el modelo: el `.pkl` del repo o el `champion` del registro de MLflow |
 | `params.py` | el formato de los parámetros de preprocesamiento, que viajan con el modelo |
 | `serving.py` | el modelo servible: recibe los 6 campos crudos, codifica adentro y predice |
 | `log.py` | el logger de cada servicio, configurado sin tocar el logging del resto del proceso |

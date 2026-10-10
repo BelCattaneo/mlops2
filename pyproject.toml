@@ -78,6 +78,13 @@ rest = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
 ]
+# Lo que necesita un servicio para traer el champion del Model Registry en vez del .pkl del
+# repo: el cliente liviano de MLflow (sin servidor ni UI) y boto3 para bajar el artefacto
+# de MinIO. Medido: alcanza `mlflow-skinny` para resolver el alias y bajar los artefactos.
+serving = [
+    "boto3>=1.40.0",
+    "mlflow-skinny>=3.16.1",
+]
 lake = [
     "boto3>=1.40.0",
     "mlflow-skinny>=3.16.1",

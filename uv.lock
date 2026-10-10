@@ -1809,6 +1809,10 @@ rest = [
     { name = "fastapi" },
     { name = "uvicorn", extra = ["standard"] },
 ]
+serving = [
+    { name = "boto3" },
+    { name = "mlflow-skinny" },
+]
 streaming = [
     { name = "kafka-python" },
 ]
@@ -1857,6 +1861,10 @@ lake = [
 rest = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
+]
+serving = [
+    { name = "boto3", specifier = ">=1.40.0" },
+    { name = "mlflow-skinny", specifier = ">=3.16.1" },
 ]
 streaming = [{ name = "kafka-python", specifier = ">=3.0.11" }]
 

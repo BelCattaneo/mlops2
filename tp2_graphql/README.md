@@ -133,6 +133,10 @@ uv run jupyter nbconvert --to notebook --execute --inplace tp2_graphql/mini_tp2_
 | `client.py` | cliente de prueba; devuelve 0/1 según los casos esperados |
 | `compare.py` | la comparación con REST, en llamadas y bytes |
 | `lineage.py` | el grafo de linaje: sembrado idempotente y la consulta en Cypher |
-| `Dockerfile` | la imagen de la API: dependencias base más el grupo `graphql`, sin Neo4j |
+| `Dockerfile` | la imagen de la API: dependencias base más los grupos `graphql` y `serving`, sin Neo4j |
 
 El driver de Neo4j es perezoso y no conecta hasta la primera consulta, que es lo que permite que el servicio levante con la base caída. Para sembrar se usa otra función, que sí espera a que Neo4j acepte conexiones, porque el contenedor tarda en arrancar.
+
+## De dónde sale el modelo
+
+Por defecto, del `model/model.pkl` versionado en el repo: es el que documenta este TP y el que sirve la imagen cuando se la corre sola. Si el entorno trae `MODEL_URI`, en cambio, el modelo se baja del Model Registry de MLflow —es lo que hace el TP integrador, con `MODEL_URI=models:/chicago-arrest-xgboost@champion`— y entonces la versión que informa cada respuesta es la del registro. Lo decide `arrest_model/registry.py`, no este servicio.

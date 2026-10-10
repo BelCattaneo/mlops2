@@ -63,6 +63,30 @@ Las métricas de la última corrida se ven en <http://127.0.0.1:5001>, en el exp
 
 Si no hay ningún dataset curado, la tarea falla diciendo que hay que correr el ETL antes. Y si la partición que encuentra es de una versión vieja del ETL, falla diciendo qué columna le falta, en vez de entrenar con un dataset que el modelo no puede consumir.
 
+## Servir el modelo
+
+```bash
+make stack-serve
+```
+
+Levanta las tres APIs de los mini-TPs dentro de la plataforma, sirviendo lo que registró el entrenamiento en vez del `model/model.pkl` que tienen horneado. Van en su propio perfil del compose a propósito: sin una versión con el alias `champion` no hay nada que servir, así que se levantan después de `make stack-train` y no junto con la plataforma.
+
+| servicio | dónde | para qué |
+|---|---|---|
+| REST | <http://127.0.0.1:8000/docs> | `POST /v1/predict`, `/v1/predict/batch`, `/v1/metadata` y `/health` |
+| GraphQL | <http://127.0.0.1:8010/graphql> | los metadatos del modelo y el linaje, con GraphiQL para probarlo |
+| gRPC | `127.0.0.1:50051` | `Predict` y `PredictStream` |
+
+Lo que reciben por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir ninguna imagen.
+
+El alias se resuelve una sola vez, al arrancar cada servicio, que es lo mismo que hacían con el `.pkl`. Así que después de promover una versión nueva hay que reiniciarlos para que la tomen:
+
+```bash
+docker compose --profile all --profile serving restart rest graphql grpc
+```
+
+Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`.
+
 ## Qué deja en el lake
 
 Tres capas en el bucket `data`, que se ven en la consola de MinIO:
@@ -88,6 +112,7 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 | `make stack-up` | levanta la plataforma y espera a que responda |
 | `make stack-dag` | despausa y dispara el ETL |
 | `make stack-train` | entrena con el último curado y registra el champion |
+| `make stack-serve` | levanta las tres APIs sirviendo el champion |
 | `make stack-ps` | muestra el estado de los servicios |
 | `make stack-logs` | sigue los logs de todos |
 | `make stack-down` | detiene la plataforma y conserva los volúmenes |
@@ -95,6 +120,10 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 `make stack-down` no borra datos: el lake y las bases viven en volúmenes de Docker y sobreviven. Para empezar de cero, `docker compose --profile all down -v`.
 
 ## Si algo no arranca
+
+Las APIs no levantan o `/health` da 503: es que todavía no hay nada con el alias `champion`. `make stack-train` lo registra. El log de cada una dice qué no pudo cargar.
+
+El puerto 8000 ya está en uso al correr `make stack-serve`: es el mini-TP corriendo suelto con `make rest-up`, que publica el mismo puerto. `make rest-down` lo libera.
 
 El DAG no aparece en Airflow, o aparece con error: `docker compose --profile all exec -T airflow-scheduler airflow dags list-import-errors` dice qué no pudo importar.
 

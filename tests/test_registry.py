@@ -189,3 +189,27 @@ def test_the_entry_point_the_services_call_defaults_to_the_pkl(
     cargado = load_model_bundle()
 
     assert cargado["metadata"] == bundle["metadata"]
+
+
+def test_the_training_date_travels_as_text_like_in_the_pkl(
+    tmp_path: Path, bundle: dict[str, Any]
+) -> None:
+    # El esquema de GraphQL hace `datetime.fromisoformat(metadata["trained_at"])`
+    # (`tp2_graphql/schema.py:98`), así que el campo tiene que ser texto y no un datetime: con un
+    # datetime el servicio levanta igual y falla recién en la query.
+    bundle["model"].save_model(tmp_path / "model.ubj")
+    (tmp_path / "params.json").write_bytes(dump_params(bundle["params"]))
+
+    desde_el_registro = bundle_from_artifacts(
+        tmp_path,
+        name="chicago-arrest-xgboost",
+        version=7,
+        metrics={"mcc": 0.58},
+        trained_at=datetime(2026, 10, 10, tzinfo=UTC),
+    )
+
+    trained_at = desde_el_registro["metadata"]["trained_at"]
+
+    assert isinstance(trained_at, str)
+    assert isinstance(bundle["metadata"]["trained_at"], str)  # la misma forma que el .pkl
+    assert datetime.fromisoformat(trained_at) == datetime(2026, 10, 10, tzinfo=UTC)

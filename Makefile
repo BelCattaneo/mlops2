@@ -10,13 +10,13 @@ MINIO_PORT_UI ?= 9001
 
 REST_IMAGE := arrest-rest
 REST_CONTAINER := arrest-rest
-REST_PORT := 8000
+REST_PORT ?= 8000
 GRAPHQL_IMAGE := arrest-graphql
 GRAPHQL_CONTAINER := arrest-graphql
-GRAPHQL_PORT := 8010
+GRAPHQL_PORT ?= 8010
 GRPC_IMAGE := arrest-grpc
 GRPC_CONTAINER := arrest-grpc
-GRPC_PORT := 50051
+GRPC_PORT ?= 50051
 NEO4J_CONTAINER := neo4j-tp
 REDPANDA_CONTAINER := redpanda-tp
 # La red que comparten Neo4j y la API GraphQL: adentro de ella se encuentran por nombre.
@@ -28,7 +28,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
-.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train
+.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve
 
 help: ## Muestra los comandos disponibles
 	@grep -hE '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
@@ -170,13 +170,25 @@ stack-up: ## Integrador · levanta la plataforma y espera a que responda
 	@echo "MinIO     http://127.0.0.1:$(MINIO_PORT_UI)  (minio / minio123)"
 
 stack-down: ## Integrador · detiene la plataforma y conserva los volúmenes
-	docker compose --profile all down
+	docker compose --profile all --profile serving down
 
 stack-ps: ## Integrador · muestra el estado de los servicios
-	docker compose --profile all ps
+	docker compose --profile all --profile serving ps
 
 stack-logs: ## Integrador · sigue los logs de la plataforma
-	docker compose --profile all logs -f
+	docker compose --profile all --profile serving logs -f
+
+# Construir y levantar van en dos pasos: `up --build` también reconstruye las imágenes de las
+# que estos servicios dependen, y eso son varios minutos de más.
+stack-serve: ## Integrador · levanta las tres APIs sirviendo el champion (después de stack-train)
+	docker compose --profile all --profile serving build rest graphql grpc
+	docker compose --profile all --profile serving up -d --no-build rest graphql grpc
+	@curl -sf -o /dev/null --retry 20 --retry-all-errors --retry-delay 2 --max-time 5 \
+		http://127.0.0.1:$(REST_PORT)/health \
+		&& echo "REST      http://127.0.0.1:$(REST_PORT)/docs" \
+		|| echo "REST todavía no sirve: /health da 503 mientras no haya champion (make stack-train)"
+	@echo "GraphQL   http://127.0.0.1:$(GRAPHQL_PORT)/graphql"
+	@echo "gRPC      localhost:$(GRPC_PORT)"
 
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow

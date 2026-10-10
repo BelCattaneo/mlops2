@@ -72,7 +72,9 @@ def bundle_from_artifacts(
             "inputs": list(EXAMPLE_REPORT),
             "features": list(MODEL_FEATURES),
             "metrics": metrics,
-            "trained_at": trained_at,
+            # Como texto, igual que en el .pkl: `tp2_graphql/schema.py` lo parsea con
+            # `datetime.fromisoformat`, así que un datetime ahí rompe la query de GraphQL.
+            "trained_at": trained_at.isoformat(),
         },
     }
 

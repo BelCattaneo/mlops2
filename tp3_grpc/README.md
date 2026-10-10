@@ -83,6 +83,10 @@ uv run jupyter nbconvert --to notebook --execute --inplace tp3_grpc/mini_tp3_act
 | `server.py` | `report_from_proto`, el servicer con los dos métodos, el interceptor de log y `serve()` |
 | `client.py` | cliente de prueba end-to-end; devuelve 0/1 según los status esperados |
 | `benchmark.py` | la comparación de latencia contra REST |
-| `Dockerfile` | `python:3.12-slim` + uv, solo el grupo `grpc`, puerto 50051 |
+| `Dockerfile` | `python:3.12-slim` + uv, los grupos `grpc` y `serving`, puerto 50051 |
 
 `serve()` recibe el bundle como parámetro y acepta `port=0` para que el sistema elija un puerto libre: eso es lo que permite levantarlo en los tests y en el notebook sin chocar con nada.
+
+## De dónde sale el modelo
+
+Por defecto, del `model/model.pkl` versionado en el repo: es el que documenta este TP y el que sirve la imagen cuando se la corre sola. Si el entorno trae `MODEL_URI`, en cambio, el modelo se baja del Model Registry de MLflow —es lo que hace el TP integrador, con `MODEL_URI=models:/chicago-arrest-xgboost@champion`— y entonces la versión que informa cada respuesta es la del registro. Lo decide `arrest_model/registry.py`, no este servicio.

@@ -349,6 +349,95 @@ services:
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
 
+  # Las tres APIs de los mini-TPs, sirviendo el champion del Model Registry en vez del .pkl que
+  # tienen horneado. Van en su propio profile a propósito: sin una versión con el alias
+  # `champion` no hay nada que servir, así que se levantan después de que entrenó el DAG y no
+  # junto con la plataforma. La misma imagen corrida sin `MODEL_URI` sigue sirviendo el .pkl.
+  rest:
+    restart: always
+    build:
+      context: .
+      dockerfile: tp1_rest/Dockerfile
+    image: arrest-rest
+    container_name: arrest_rest
+    profiles:
+      - serving
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "${REST_PORT:-8000}:8000"
+    networks:
+      - frontend
+      - backend
+    environment: &serving-env
+      # La uri es un alias, no un número de versión: promover otra versión del modelo no
+      # requiere tocar el compose ni reconstruir la imagen, solo mover el alias en MLflow.
+      - MODEL_URI=models:/${MODEL_NAME:-chicago-arrest-xgboost}@champion
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
+      - MLFLOW_S3_ADDRESSING_STYLE=path
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minio}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-minio123}
+    # La imagen es python:3.12-slim y no trae curl ni wget. /health da 503 mientras no hay
+    # modelo, así que el servicio queda unhealthy hasta que haya un champion.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  graphql:
+    restart: always
+    build:
+      context: .
+      dockerfile: tp2_graphql/Dockerfile
+    image: arrest-graphql
+    container_name: arrest_graphql
+    profiles:
+      - serving
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "${GRAPHQL_PORT:-8010}:8010"
+    networks:
+      - frontend
+      - backend
+    # Sin Neo4j: el linaje es opcional y el driver es perezoso, así que la app levanta igual.
+    environment: *serving-env
+    # Un GET a /graphql solo devuelve GraphiQL si el pedido acepta HTML; sin eso Strawberry
+    # contesta 400. Y que el proceso esté sirviendo alcanza como chequeo acá: este servicio no
+    # arranca sin modelo, así que si responde es porque lo cargó.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen(r.Request('http://localhost:8010/graphql', headers={'Accept': 'text/html'}))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  grpc:
+    restart: always
+    build:
+      context: .
+      dockerfile: tp3_grpc/Dockerfile
+    image: arrest-grpc
+    container_name: arrest_grpc
+    profiles:
+      - serving
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "${GRPC_PORT:-50051}:50051"
+    networks:
+      - frontend
+      - backend
+    environment: *serving-env
+    # Sin healthcheck: el servicio expone Predict y PredictStream, no un Health, y probarlo
+    # desde el contenedor significaría hacer una predicción de mentira en cada chequeo.
+
 
 networks:
   frontend:
