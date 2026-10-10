@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from etl_helpers.partitions import (
     download_window,
+    needs_initial_load,
     newest_partition,
     partition_date,
     partitions_in_window,
@@ -205,3 +206,30 @@ def test_an_inverted_interval_also_falls_back() -> None:
     )
 
     assert inicio < fin
+
+
+def test_an_empty_lake_needs_the_initial_load() -> None:
+    assert needs_initial_load([], momento("2026-10-10"), 365) is True
+
+
+def test_one_partition_still_needs_the_initial_load() -> None:
+    # Una sola partición es el mes corriente recién bajado: el histórico de la ventana falta.
+    sola = ["raw/crimes/month=2026-10/crimes.csv"]
+
+    assert needs_initial_load(sola, momento("2026-10-10"), 365) is True
+
+
+def test_a_window_with_history_does_not_need_it() -> None:
+    claves = [f"raw/crimes/month=2026-{mes:02d}/crimes.csv" for mes in (8, 9, 10)]
+
+    assert needs_initial_load(claves, momento("2026-10-10"), 365) is False
+
+
+def test_partitions_outside_the_window_do_not_count_as_history() -> None:
+    # Particiones viejas que la ventana ya no alcanza no son el histórico que hace falta: si se
+    # contaran, una instalación nueva con datos antiguos se saltearía la carga inicial.
+    viejas = [f"raw/crimes/month=2020-{mes:02d}/crimes.csv" for mes in (1, 2, 3)]
+
+    claves = [*viejas, "raw/crimes/month=2026-10/crimes.csv"]
+
+    assert needs_initial_load(claves, momento("2026-10-10"), 365) is True

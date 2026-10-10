@@ -59,6 +59,7 @@ from etl_helpers.outlier_processing import process_outliers as process_outliers_
 from etl_helpers.params import build_params, dump_params
 from etl_helpers.partitions import (
     download_window,
+    needs_initial_load,
     partition_date,
     partitions_in_window,
     split_by_month,
@@ -75,6 +76,11 @@ logger = logging.getLogger(__name__)
     schedule="@monthly",  # Run monthly for incremental updates
     start_date=datetime.datetime(2024, 1, 1),
     catchup=False,
+    # Dos corridas a la vez se pisan en el lake: `make stack-dag` despausa y dispara, así que en
+    # una instalación nueva el scheduler crea su corrida del período y la manual arranca junto.
+    # Medido: la manual encontró el mes que la programada acababa de escribir, tomó el atajo y
+    # publicó un dataset curado de 429 filas mientras la otra todavía bajaba el histórico.
+    max_active_runs=1,
     tags=["ETL", "Chicago", "Crime", "TaskFlow"],
 )
 def process_etl_taskflow():
@@ -116,7 +122,16 @@ def process_etl_taskflow():
         # evita bajar de nuevo el año entero cuando lo único que falta son 23 comisarías.
         faltan_reportes = not check_file_exists(BUCKET_NAME, crimes_key)
         faltan_comisarias = not check_file_exists(BUCKET_NAME, raw_stations())
-        if not faltan_reportes and not faltan_comisarias:
+        # La carga inicial se decide mirando la ventana, no el archivo del mes. Preguntar solo
+        # por el mes corriente dejaba a una instalación nueva entrenando con diez días de datos:
+        # cualquier corrida que escribiera ese archivo y se cortara antes del histórico hacía que
+        # todas las siguientes tomaran el atajo e informaran `success`.
+        falta_el_historico = needs_initial_load(
+            list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
+            fin,
+            config.ROLLING_WINDOW_DAYS,
+        )
+        if not faltan_reportes and not faltan_comisarias and not falta_el_historico:
             return {"status": "success", "crimes_file": crimes_key, "rows": None, **ventana}
 
         filas = None
@@ -126,8 +141,10 @@ def process_etl_taskflow():
                 download_police_stations(output_file=comisarias)
                 upload_to_minio(comisarias, BUCKET_NAME, raw_stations())
 
-            if faltan_reportes:
+            if faltan_reportes or falta_el_historico:
                 filas = 0
+
+            if faltan_reportes:
                 reportes = os.path.join(temporal, "crimes.csv")
                 # Que el período venga vacío es normal: el portal publica con unos días de
                 # retraso, así que el mes corriente puede no tener nada todavía. Eso no puede
@@ -136,26 +153,20 @@ def process_etl_taskflow():
                 if len(del_periodo):
                     filas += escribir_por_mes(del_periodo)
 
-                # Sin particiones previas, esta es la primera corrida: hay que traer además los
-                # meses anteriores de la ventana. Cada uno va a SU partición y no a la del mes
-                # corriente, porque la ventana se determina por qué particiones se leen y una
-                # que abarcara doce meses rompería el recorte.
-                previas = partitions_in_window(
-                    list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
-                    fin,
-                    config.ROLLING_WINDOW_DAYS,
-                )
-                if len(previas) <= 1:
-                    historico = os.path.join(temporal, "historico.csv")
-                    desde = fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
-                    anteriores = download_crimes_incremental(desde, inicio, output_file=historico)
-                    logger.info("Carga inicial: %d reportes anteriores al período", len(anteriores))
-                    if len(anteriores):
-                        filas += escribir_por_mes(anteriores)
+            if falta_el_historico:
+                # Hay que traer los meses anteriores de la ventana. Cada uno va a SU partición y
+                # no a la del mes corriente, porque la ventana se determina por qué particiones
+                # se leen y una que abarcara doce meses rompería el recorte.
+                historico = os.path.join(temporal, "historico.csv")
+                desde = fin - datetime.timedelta(days=config.ROLLING_WINDOW_DAYS)
+                anteriores = download_crimes_incremental(desde, inicio, output_file=historico)
+                logger.info("Carga inicial: %d reportes anteriores al período", len(anteriores))
+                if len(anteriores):
+                    filas += escribir_por_mes(anteriores)
 
-                # Nada aterrizó: ni el período ni la carga inicial trajeron reportes.
-                if filas == 0:
-                    return {"status": "no_data", "rows": 0, **ventana}
+            # Nada aterrizó: ni el período ni la carga inicial trajeron reportes.
+            if filas == 0:
+                return {"status": "no_data", "rows": 0, **ventana}
 
         return {"status": "success", "crimes_file": crimes_key, "rows": filas, **ventana}
 
