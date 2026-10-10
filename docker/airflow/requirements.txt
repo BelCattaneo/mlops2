@@ -13,8 +13,8 @@ cryptography<46
 # versión distinta cambia unas filas sintéticas del dataset de entrenamiento. Alinearlo es lo que
 # hace que una corrida en el contenedor y una en la máquina den el mismo resultado.
 #
-# Esto es posible porque el Dockerfile desinstala los providers de Google y Snowflake, que
-# imponían `pandas<2.2`.
+# Esto es posible porque la imagen parte de la variante `slim`, que no trae los providers de
+# Google y Snowflake: eran ellos los que imponían `pandas<2.2`.
 pandas==3.0.5
 numpy==2.5.3
 scipy==1.18.1
@@ -24,6 +24,11 @@ joblib==1.6.0
 geopandas==1.2.0
 shapely>=2.0.0
 sodapy>=1.8.0
+
+# El CLI de Airflow avisa en cada invocación que no puede importar graphviz y recomienda
+# instalarlo. Lo imprime por salida estándar, así que además rompe el parseo de `-o json`. Lo
+# usa solo para dibujar el grafo de un DAG; el paquete pesa poco y deja la salida limpia.
+graphviz>=0.21
 
 # La variante sin CUDA: el wheel normal declara nvidia-nccl en Linux y mete 347 MB de runtime
 # de GPU en un contenedor que nunca va a ver una. Provee el mismo módulo `xgboost`, que es lo que
