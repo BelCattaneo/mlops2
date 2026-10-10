@@ -12,7 +12,11 @@ dependencies = [
     "pyproj>=3.8.0",
     "scikit-learn>=1.9.1",
     "tzdata>=2026.3",
-    "xgboost>=3.4.1",
+    # En Linux va la rueda sin GPU: la normal arrastra `nvidia-nccl`, que son 291 MB por
+    # imagen que no se usan nunca —el modelo se entrena y se sirve en CPU—. No hay rueda
+    # de `xgboost-cpu` para macOS, y tampoco hace falta: ahí `xgboost` no trae CUDA.
+    "xgboost>=3.4.1; sys_platform != 'linux'",
+    "xgboost-cpu>=3.4.1; sys_platform == 'linux'",
 ]
 
 [build-system]

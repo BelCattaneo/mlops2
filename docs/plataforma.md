@@ -6,7 +6,7 @@ Los cuatro servicios del TP integrador corren en Docker con un solo comando. Est
 
 ## Requisitos
 
-Docker con al menos 4 GB de memoria asignados: la plataforma usa 4,24 GB medidos con los cuatro servicios arriba y el pipeline en reposo.
+Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 2,75 GiB la plataforma sola y 3,49 GiB con las tres APIs del perfil `serving` arriba también.
 
 Y un `.env`, que no se versiona porque ahí van los secretos:
 
