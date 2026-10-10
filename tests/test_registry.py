@@ -213,3 +213,42 @@ def test_the_training_date_travels_as_text_like_in_the_pkl(
     assert isinstance(trained_at, str)
     assert isinstance(bundle["metadata"]["trained_at"], str)  # la misma forma que el .pkl
     assert datetime.fromisoformat(trained_at) == datetime(2026, 10, 10, tzinfo=UTC)
+
+
+def test_the_threshold_travels_with_the_model_when_the_run_recorded_one(
+    tmp_path: Path, bundle: dict[str, Any]
+) -> None:
+    # El umbral lo elige el entrenamiento sobre un conjunto de validación, así que es parte del
+    # modelo registrado y tiene que llegar al servicio junto con los parámetros.
+    bundle["model"].save_model(tmp_path / "model.ubj")
+    (tmp_path / "params.json").write_bytes(dump_params(bundle["params"]))
+
+    con_umbral = bundle_from_artifacts(
+        tmp_path,
+        name="chicago-arrest-xgboost",
+        version=9,
+        metrics={"mcc": 0.58},
+        trained_at=datetime(2026, 10, 10, tzinfo=UTC),
+        threshold=0.58,
+    )
+
+    assert con_umbral["threshold"] == 0.58
+
+
+def test_without_a_recorded_threshold_the_bundle_does_not_carry_one(
+    tmp_path: Path, bundle: dict[str, Any]
+) -> None:
+    # Una versión registrada antes de que el entrenamiento eligiera umbral tiene que seguir
+    # decidiendo en 0,5, que es lo que hace `predict` cuando el bundle no trae ninguno.
+    bundle["model"].save_model(tmp_path / "model.ubj")
+    (tmp_path / "params.json").write_bytes(dump_params(bundle["params"]))
+
+    sin_umbral = bundle_from_artifacts(
+        tmp_path,
+        name="chicago-arrest-xgboost",
+        version=4,
+        metrics={"mcc": 0.56},
+        trained_at=datetime(2026, 10, 10, tzinfo=UTC),
+    )
+
+    assert "threshold" not in sin_umbral

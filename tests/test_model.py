@@ -8,7 +8,7 @@ import pytest
 from arrest_model.config import MODEL_NAME
 from arrest_model.features import encode_payload
 from arrest_model.model import load_bundle, predict
-from arrest_model.schemas import CrimeReport
+from arrest_model.schemas import EXAMPLE_REPORT, CrimeReport
 
 
 @pytest.fixture
@@ -45,3 +45,26 @@ def test_predictions_carry_probability_and_model_version(
     assert len(predictions) == len(reports)
     assert all(0.0 <= p.probability <= 1.0 for p in predictions)
     assert {(p.model_name, p.model_version) for p in predictions} == {(MODEL_NAME, 1)}
+
+
+def test_the_decision_threshold_defaults_to_half(bundle: dict[str, Any]) -> None:
+    # El modelo entregado no trae umbral y tiene que seguir decidiendo en 0,5: es la regla que
+    # documentan los cuatro protocolos y la que fija la probabilidad de referencia.
+    assert "threshold" not in bundle
+
+    prediccion = predict(bundle, [CrimeReport(**EXAMPLE_REPORT)])[0]
+
+    assert prediccion.arrest == int(prediccion.probability > 0.5)
+
+
+def test_a_bundle_can_carry_its_own_threshold(bundle: dict[str, Any]) -> None:
+    # El umbral es un parámetro del modelo como cualquier otro: el que entrena lo elige y viaja
+    # con él. Medido sobre la ventana entera, el mejor corte del modelo actual es 0,58 y no 0,5,
+    # así que el 0,5 fijo le dejaba MCC sin usar.
+    con_umbral = {**bundle, "threshold": 0.01}
+
+    prediccion = predict(con_umbral, [CrimeReport(**EXAMPLE_REPORT)])[0]
+
+    # La probabilidad del reporte de ejemplo es 0,068: por encima de 0,01 y por debajo de 0,5.
+    assert prediccion.probability > 0.01
+    assert prediccion.arrest == 1

@@ -53,6 +53,7 @@ def bundle_from_artifacts(
     version: int,
     metrics: dict[str, float],
     trained_at: datetime,
+    threshold: float | None = None,
 ) -> dict[str, Any]:
     """Arma el bundle `{model, params, metadata}` con los artefactos que bajó el registro.
 
@@ -62,7 +63,11 @@ def bundle_from_artifacts(
     """
     estimador = XGBClassifier()
     estimador.load_model(str(_find(directory, MODEL_FILE)))
+    # La clave del umbral solo existe si el entrenamiento eligió uno: `predict` lee el bundle con
+    # `get`, así que su ausencia es lo que deja el 0.5 por defecto.
+    umbral = {"threshold": float(threshold)} if threshold is not None else {}
     return {
+        **umbral,
         "model": estimador,
         "params": load_params(_find(directory, PARAMS_FILE).read_bytes()),
         "metadata": {
@@ -88,6 +93,9 @@ class ModelSource:
     version: int
     metrics: dict[str, float]
     trained_at: datetime
+    # El umbral que eligió el entrenamiento, si eligió uno. Las versiones registradas antes de
+    # que lo hiciera no traen ninguno y se sirven con el 0.5 de siempre.
+    threshold: float | None = None
 
 
 def registered_version(client: Any, uri: str) -> Any:
@@ -118,6 +126,10 @@ def _fetch_from_mlflow(uri: str) -> ModelSource:
     run = client.get_run(version.run_id)
     # `mkdtemp` y no `TemporaryDirectory`: los artefactos tienen que seguir en disco después de
     # volver. Es un directorio por arranque del servicio, no por predicción.
+    # El umbral de decisión viaja como parámetro de la corrida. Las versiones registradas antes
+    # de que el entrenamiento eligiera uno no lo traen, y se sirven con el 0.5 por defecto.
+    registrado = run.data.params.get("threshold")
+    registrado = float(registrado) if registrado is not None else None
     local = mlflow.artifacts.download_artifacts(
         artifact_uri=uri, dst_path=tempfile.mkdtemp(prefix="champion-")
     )
@@ -127,6 +139,7 @@ def _fetch_from_mlflow(uri: str) -> ModelSource:
         version=int(version.version),
         metrics=dict(run.data.metrics),
         trained_at=datetime.fromtimestamp(run.info.start_time / 1000, UTC),
+        threshold=registrado,
     )
 
 
@@ -141,6 +154,7 @@ def load_from_registry(
         version=source.version,
         metrics=source.metrics,
         trained_at=source.trained_at,
+        threshold=source.threshold,
     )
 
 
