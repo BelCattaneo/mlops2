@@ -1,6 +1,6 @@
 """El resumen de la corrida, armado con los conteos que trae cada capa."""
 
-from etl_helpers.summary import summary_counts
+from etl_helpers.summary import CONTEOS, summary_counts
 
 CRUDO = {"status": "success", "rows": 227976}
 LIMPIO = {"status": "success", "raw_rows": 227976, "rows": 226951}
@@ -44,3 +44,28 @@ def test_there_is_nothing_to_summarize_when_a_layer_was_skipped() -> None:
 def test_there_is_nothing_to_summarize_without_data() -> None:
     assert summary_counts(CRUDO, LIMPIO, {"status": "no_data"}) is None
     assert summary_counts(CRUDO, {"status": "no_data"}, {"status": "no_data"}) is None
+
+
+def test_the_counts_are_exactly_what_the_mlflow_logger_accepts() -> None:
+    """Las claves que arma el resumen tienen que ser los parámetros que el logger recibe.
+
+    El DAG llama `log_pipeline_summary(**conteos)`, así que una clave de más o de menos es un
+    TypeError en la tarea. Medido: al sacar la etapa de balanceo quedó `balanced_count` como
+    parámetro obligatorio del logger y ninguna prueba lo vio, porque este módulo se probaba
+    solo. Y en las corridas tibias no se notaba: cuando una capa toma el atajo de idempotencia
+    el resumen devuelve `None` y la tarea sale antes de llamar al logger. Falló en la primera
+    corrida que hizo trabajo de verdad, que fue la de una instalación nueva.
+    """
+    import inspect
+
+    from etl_helpers.monitoring.loggers import log_pipeline_summary
+
+    parametros = inspect.signature(log_pipeline_summary).parameters
+    obligatorios = {
+        nombre
+        for nombre, p in parametros.items()
+        if p.default is inspect.Parameter.empty and nombre != "run_name"
+    }
+
+    assert obligatorios == set(CONTEOS)
+    assert set(summary_counts(CRUDO, LIMPIO, FINAL)) == set(CONTEOS)

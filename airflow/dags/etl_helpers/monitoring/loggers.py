@@ -265,7 +265,6 @@ def log_pipeline_summary(
     enriched_count: int,
     train_count: int,
     test_count: int,
-    balanced_count: int,
     final_train_count: int,
     final_test_count: int,
     feature_count: int,
@@ -279,7 +278,6 @@ def log_pipeline_summary(
         enriched_count: Number of enriched records (after cleaning)
         train_count: Number of training records after split
         test_count: Number of test records after split
-        balanced_count: Number of records after balancing
         final_train_count: Number of final training records after feature selection
         final_test_count: Number of final test records after feature selection
         feature_count: Number of final features
@@ -303,14 +301,10 @@ def log_pipeline_summary(
             "enriched_records": enriched_count,
             "train_records": train_count,
             "test_records": test_count,
-            "balanced_records": balanced_count,
             "final_train_records": final_train_count,
             "final_test_records": final_test_count,
             "final_features": feature_count,
             "enrichment_retention_pct": (enriched_count / raw_count * 100) if raw_count > 0 else 0,
-            "balancing_change_pct": ((balanced_count - train_count) / train_count * 100)
-            if train_count > 0
-            else 0,
             "total_final_records": final_train_count + final_test_count,
             "overall_retention_pct": ((final_train_count + final_test_count) / raw_count * 100)
             if raw_count > 0
