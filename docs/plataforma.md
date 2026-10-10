@@ -6,7 +6,7 @@ Los cuatro servicios del TP integrador corren en Docker con un solo comando. Est
 
 ## Requisitos
 
-Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 2,65 GiB la plataforma sola y 3,29 GiB con las tres APIs del perfil `serving` arriba también.
+Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 2,65 GiB la plataforma sola, 3,29 GiB con las tres APIs del perfil `serving`, y 3,83 GiB sumando Neo4j con el perfil `lineage`.
 
 Y un `.env`, que no se versiona porque ahí van los secretos:
 
@@ -89,6 +89,25 @@ docker compose --profile all --profile serving restart rest graphql grpc
 
 Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`.
 
+## El linaje del modelo
+
+```bash
+make stack-lineage
+```
+
+Levanta Neo4j y siembra el grafo de linaje —de qué datasets y qué transformaciones salió el modelo—, que es lo que responde el campo `lineage` de la query de GraphQL. Va en su propio perfil del compose porque es opcional: son 500 MB de memoria para una consulta que no hace falta para predecir.
+
+La siembra corre desde dentro del contenedor de GraphQL, que es el que ya tiene el driver y la dirección de Neo4j:
+
+```bash
+docker compose --profile all --profile serving --profile lineage exec -T graphql \
+    /app/.venv/bin/python -m tp2_graphql.lineage
+```
+
+Con el perfil apagado el servicio de GraphQL levanta igual —el driver es perezoso y no conecta hasta la primera consulta—, y lo único que falla es ese campo: la query devuelve los datos del modelo, `lineage: null` y un error que dice que el linaje no está disponible.
+
+La interfaz de Neo4j queda en <http://127.0.0.1:7475>, con el usuario y la clave de `.env` (por defecto `neo4j` / `testpass`). No son los 7474 y 7687 del `neo4j-tp` que levanta `make neo4j-up` para el mini-TP suelto, por lo mismo que las tres APIs.
+
 ## Qué deja en el lake
 
 Tres capas en el bucket `data`, que se ven en la consola de MinIO:
@@ -115,6 +134,7 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 | `make stack-dag` | despausa y dispara el ETL |
 | `make stack-train` | entrena con el último curado y registra el champion |
 | `make stack-serve` | levanta las tres APIs sirviendo el champion |
+| `make stack-lineage` | levanta Neo4j y siembra el linaje del modelo |
 | `make stack-ps` | muestra el estado de los servicios |
 | `make stack-logs` | sigue los logs de todos |
 | `make stack-down` | detiene la plataforma y conserva los volúmenes |

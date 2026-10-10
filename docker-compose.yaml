@@ -378,12 +378,12 @@ services:
     environment: &serving-env
       # La uri es un alias, no un número de versión: promover otra versión del modelo no
       # requiere tocar el compose ni reconstruir la imagen, solo mover el alias en MLflow.
-      - MODEL_URI=models:/${MODEL_NAME:-chicago-arrest-xgboost}@champion
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
-      - MLFLOW_S3_ADDRESSING_STYLE=path
-      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minio}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-minio123}
+      MODEL_URI: "models:/${MODEL_NAME:-chicago-arrest-xgboost}@champion"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://s3:9000
+      MLFLOW_S3_ADDRESSING_STYLE: path
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minio}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-minio123}
     # La imagen es python:3.12-slim y no trae curl ni wget. /health da 503 mientras no hay
     # modelo, así que el servicio queda unhealthy hasta que haya un champion.
     healthcheck:
@@ -410,8 +410,14 @@ services:
     networks:
       - frontend
       - backend
-    # Sin Neo4j: el linaje es opcional y el driver es perezoso, así que la app levanta igual.
-    environment: *serving-env
+    # El driver de Neo4j es perezoso y no conecta hasta la primera consulta, así que el
+    # servicio levanta igual con el perfil `lineage` apagado: lo único que falla entonces es el
+    # campo `lineage` de la query, que es el comportamiento que documenta el mini-TP 2.
+    environment:
+      <<: *serving-env
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-testpass}
     # Un GET a /graphql solo devuelve GraphiQL si el pedido acepta HTML; sin eso Strawberry
     # contesta 400. Y que el proceso esté sirviendo alcanza como chequeo acá: este servicio no
     # arranca sin modelo, así que si responde es porque lo cargó.
@@ -443,6 +449,36 @@ services:
     # Sin healthcheck: el servicio expone Predict y PredictStream, no un Health, y probarlo
     # desde el contenedor significaría hacer una predicción de mentira en cada chequeo.
 
+  # El grafo de linaje del mini-TP 2, en su propio perfil porque es opcional: son 500 MB de
+  # memoria para una consulta que no hace falta para predecir. Publica en otros puertos que el
+  # `neo4j-tp` que levanta el Makefile (7474 y 7687), por lo mismo que las tres APIs.
+  neo4j:
+    restart: always
+    image: neo4j:5.26-community
+    container_name: mlops2-neo4j
+    profiles:
+      - lineage
+    ports:
+      - "${STACK_NEO4J_HTTP_PORT:-7475}:7474"
+      - "${STACK_NEO4J_BOLT_PORT:-7688}:7687"
+    networks:
+      - frontend
+      - backend
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-testpass}
+      # Con los valores por defecto reserva más de 1 GB; acá el grafo son unos pocos nodos.
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_USER:-neo4j} -p $${NEO4J_PASSWORD:-testpass} 'RETURN 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
 
 networks:
   frontend:
@@ -453,3 +489,4 @@ networks:
 volumes:
   db_data:
   minio_data:
+  neo4j_data:
