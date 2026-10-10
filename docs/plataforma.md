@@ -41,7 +41,9 @@ make stack-dag
 
 Despausa el DAG `etl_with_taskflow` y lo dispara. El avance se mira en la interfaz de Airflow, en la vista de grafo.
 
-La primera corrida tarda unos 9 minutos y medio, de los cuales 8 son la descarga: no hay nada en el lake, así que baja la ventana completa de 365 días, unos 228.000 reportes. Las corridas siguientes tardan un minuto, porque reusan la capa cruda.
+Medido en una instalación nueva: la primera corrida tarda 8,9 minutos, casi todos de descarga, porque no hay nada en el lake y baja la ventana completa de 365 días —13 particiones mensuales, 81 MB, unos 226.000 reportes—. Las siguientes tardan 7 segundos, porque reusan la capa cruda y solo recalculan las capas derivadas.
+
+Despausar el DAG hace que el scheduler cree además su propia corrida del período corriente, así que en una instalación nueva puede haber dos: la programada y la que dispara el comando. El DAG admite una sola corrida a la vez, así que la segunda espera en cola y cuando le toca encuentra la ventana ya completa. Eso es a propósito: dos corridas simultáneas se pisarían en el lake.
 
 El pipeline también corre solo, una vez por mes, desde que el DAG queda despausado.
 
@@ -78,6 +80,8 @@ Levanta las tres APIs de los mini-TPs dentro de la plataforma, sirviendo lo que 
 | gRPC | `127.0.0.1:50052` | `Predict` y `PredictStream` |
 
 No son los 8000, 8010 y 50051 de los mini-TPs a propósito: los contenedores de la plataforma tienen tags, nombres y puertos publicados propios (`mlops2-rest`, `mlops2-graphql`, `mlops2-grpc`), así que la plataforma y los mini-TPs sueltos pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose cada servicio escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
+
+A diferencia de los DAGs, que se montan desde el repo y toman los cambios al instante, las imágenes de las APIs hornean el paquete `arrest_model` adentro. Por eso `make stack-serve` construye antes de levantar: saltearse ese paso deja los servicios sirviendo el código de la imagen anterior, con el modelo nuevo.
 
 Lo que reciben por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir ninguna imagen.
 
@@ -144,6 +148,8 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 ## Si algo no arranca
 
 Las APIs no levantan o `/health` da 503: es que todavía no hay nada con el alias `champion`. `make stack-train` lo registra. El log de cada una dice qué no pudo cargar.
+
+El modelo salió entrenado con muy pocas filas: la ventana cruda quedó incompleta. `make stack-ps` no lo dice, pero contar las particiones sí: tienen que ser unas trece, una por mes. En la consola de MinIO, bajo `raw/crimes/`. Si hay una sola, la próxima corrida del ETL baja el histórico que falta: la decisión de la carga inicial mira la ventana entera y no el archivo del mes corriente.
 
 El DAG no aparece en Airflow, o aparece con error: `docker compose --profile all exec -T airflow-scheduler airflow dags list-import-errors` dice qué no pudo importar.
 
