@@ -27,7 +27,8 @@ from etl_helpers.minio import (
     list_objects_with_times,
 )
 from etl_helpers.partitions import newest_partition, partition_date
-from training_helpers import evaluate, fit_model
+from sklearn.model_selection import train_test_split
+from training_helpers import choose_threshold, evaluate, fit_model
 
 import arrest_model
 from arrest_model.config import MODEL_NAME
@@ -37,6 +38,10 @@ from arrest_model.serving import ArrestModel
 logger = logging.getLogger(__name__)
 
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+
+# Lo que se reserva del train para elegir el umbral. Chico porque solo hay que estimar un
+# escalar, y sacárselo al ajuste cuesta datos de entrenamiento.
+VALIDATION_SIZE = 0.15
 
 
 @dag(
@@ -75,8 +80,21 @@ def train_arrest_model():
         y_train = train[config.TARGET_COLUMN].astype(int)
         y_test = test[config.TARGET_COLUMN].astype(int)
 
-        modelo = fit_model(train[features], y_train)
-        metricas = evaluate(modelo, test[features], y_test)
+        # Una parte del train se reserva para elegir el umbral de decisión. Tiene que ser un
+        # conjunto que el modelo no vio y que no es el test: elegir el umbral donde después se
+        # mide convierte la métrica informada en una promesa que producción no puede cumplir.
+        ajuste, validacion = train_test_split(
+            train,
+            test_size=VALIDATION_SIZE,
+            random_state=config.SPLIT_RANDOM_STATE,
+            stratify=y_train,
+        )
+        modelo = fit_model(ajuste[features], ajuste[config.TARGET_COLUMN].astype(int))
+        umbral = choose_threshold(
+            modelo, validacion[features], validacion[config.TARGET_COLUMN].astype(int)
+        )
+        metricas = evaluate(modelo, test[features], y_test, threshold=umbral)
+        logger.info("Umbral elegido sobre validación: %.2f", umbral)
         logger.info("Métricas sobre el test curado: %s", metricas)
 
         mlflow.set_tracking_uri(TRACKING_URI)
@@ -89,6 +107,10 @@ def train_arrest_model():
                     "train_rows": len(train),
                     "test_rows": len(test),
                     "features": len(features),
+                    # El umbral viaja como parámetro de la corrida: de ahí lo lee el cargador
+                    # que arma el bundle, así que el servicio decide con el mismo corte con el
+                    # que se midió esta versión.
+                    "threshold": umbral,
                 }
             )
             mlflow.log_metrics(metricas)

@@ -8,6 +8,7 @@ ponderado en precision, recall y f1. Con promedio ponderado el recall coincide c
 que es lo que delata la convención en los números del modelo que ya está servido.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 import pandas as pd
@@ -21,24 +22,59 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
+from arrest_model.model import DEFAULT_THRESHOLD
+
 METRIC_NAMES = ("accuracy", "precision", "recall", "f1", "auc", "mcc")
 
 
 def fit_model(X: pd.DataFrame, y: pd.Series) -> XGBClassifier:
-    """Entrena el clasificador con los defaults, igual que el modelo del TP-final.
+    """Entrena el clasificador pesando la clase minoritaria.
+
+    `scale_pos_weight` es lo que XGBoost ofrece para el desbalance, y reemplaza al SMOTE más
+    submuestreo que hacía el pipeline heredado. Medido sobre la ventana entera, con las siete
+    features del contrato fijas y evaluando las dos sobre el mismo test: pesar la clase da AUC
+    0,8868 contra 0,8835, y MCC 0,5818 contra 0,5745 cuando cada una decide en su propio umbral.
+    Además entrena con las filas reales —SMOTE interpolaba frecuencias, inventando valores que no
+    corresponden a ninguna categoría— y es determinista, mientras el desempate entre vecinos de
+    SMOTE cambiaba filas según la versión de la librería.
 
     Recibe el dataframe y no un array para que el modelo guarde los nombres de las features:
     con eso, servirlo con columnas en otro orden falla en vez de dar números equivocados.
     """
-    modelo = XGBClassifier()
+    positivos = int((y == 1).sum())
+    peso = float((y == 0).sum() / positivos) if positivos else 1.0
+    modelo = XGBClassifier(scale_pos_weight=peso)
     modelo.fit(X, y)
     return modelo
 
 
-def evaluate(modelo: Any, X: pd.DataFrame, y: pd.Series) -> dict[str, float]:
-    """Las seis métricas del bundle, medidas sobre el conjunto que se le pase."""
-    predicciones = modelo.predict(X)
+def choose_threshold(
+    modelo: Any, X: pd.DataFrame, y: pd.Series, grid: Sequence[float] | None = None
+) -> float:
+    """El umbral que maximiza el MCC sobre el conjunto que se le pase.
+
+    Con la clase pesada el modelo queda calibrado al prior real, así que 0,5 deja de ser el corte
+    que mejor decide: medido, el mejor está en 0,77. Y el 0,5 no era óptimo ni siquiera para el
+    modelo balanceado con SMOTE, cuyo mejor corte estaba en 0,58.
+
+    Se elige sobre validación, nunca sobre el test: elegirlo donde después se mide convierte la
+    métrica informada en una promesa que el modelo no puede cumplir en producción.
+    """
     probabilidades = modelo.predict_proba(X)[:, 1]
+    candidatos = list(grid) if grid is not None else [x / 100 for x in range(5, 96)]
+    return max(candidatos, key=lambda umbral: matthews_corrcoef(y, probabilidades > umbral))
+
+
+def evaluate(
+    modelo: Any, X: pd.DataFrame, y: pd.Series, threshold: float = DEFAULT_THRESHOLD
+) -> dict[str, float]:
+    """Las seis métricas del bundle, medidas con el umbral con el que el modelo va a decidir.
+
+    El umbral por defecto es el de `XGBClassifier.predict`, para que medir sin pasarlo siga
+    dando lo mismo que antes.
+    """
+    probabilidades = modelo.predict_proba(X)[:, 1]
+    predicciones = (probabilidades > threshold).astype(int)
     return {
         "accuracy": float(accuracy_score(y, predicciones)),
         "precision": float(precision_score(y, predicciones, average="weighted", zero_division=0)),

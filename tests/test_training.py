@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from training_helpers import METRIC_NAMES, evaluate, fit_model
+from training_helpers import METRIC_NAMES, choose_threshold, evaluate, fit_model
 
 from arrest_model.features import MODEL_FEATURES
 
@@ -79,3 +79,56 @@ def test_a_model_trained_on_noise_does_not_generalize() -> None:
 
     assert abs(metricas["mcc"]) < 0.2
     assert 0.3 < metricas["auc"] < 0.7
+
+
+@pytest.fixture
+def desbalanceado() -> tuple[pd.DataFrame, pd.Series]:
+    """Un dataset separable con 15% de positivos, como la ventana real del lake."""
+    generador = np.random.default_rng(11)
+    filas = 2000
+    X = pd.DataFrame({feature: generador.normal(size=filas) for feature in MODEL_FEATURES})
+    # El positivo es la cola de una sola feature: separable, pero minoritario.
+    y = pd.Series((X[MODEL_FEATURES[0]] > 1.04).astype(int), name="arrest")
+    return X, y
+
+
+def test_the_fitted_model_weighs_the_minority_class(
+    desbalanceado: tuple[pd.DataFrame, pd.Series],
+) -> None:
+    # Es lo que XGBoost ofrece para el desbalance, en lugar de sintetizar filas: medido sobre la
+    # ventana entera, pesar la clase da mejor AUC (0,8868 contra 0,8835) y mejor MCC en su propio
+    # umbral (0,5818 contra 0,5745) que SMOTE más submuestreo.
+    X, y = desbalanceado
+
+    modelo = fit_model(X, y)
+
+    esperado = (y == 0).sum() / (y == 1).sum()
+    assert modelo.get_params()["scale_pos_weight"] == pytest.approx(esperado)
+
+
+def test_the_chosen_threshold_is_at_least_as_good_as_a_half(
+    desbalanceado: tuple[pd.DataFrame, pd.Series],
+) -> None:
+    # El umbral se elige midiendo, no se asume: con la clase pesada el modelo queda calibrado al
+    # prior real y 0,5 deja de ser el corte que maximiza el MCC.
+    X, y = desbalanceado
+    modelo = fit_model(X, y)
+
+    umbral = choose_threshold(modelo, X, y)
+
+    assert 0.0 < umbral < 1.0
+    propio = evaluate(modelo, X, y, threshold=umbral)
+    en_la_mitad = evaluate(modelo, X, y, threshold=0.5)
+    assert propio["mcc"] >= en_la_mitad["mcc"]
+
+
+def test_evaluating_with_a_threshold_of_zero_calls_everything_positive(
+    desbalanceado: tuple[pd.DataFrame, pd.Series],
+) -> None:
+    # Fija que el umbral que se le pasa es el que decide, y no el 0.5 de `predict`.
+    X, y = desbalanceado
+    modelo = fit_model(X, y)
+
+    metricas = evaluate(modelo, X, y, threshold=0.0)
+
+    assert metricas["accuracy"] == pytest.approx(float(y.mean()))

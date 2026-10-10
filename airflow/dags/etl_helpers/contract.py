@@ -51,6 +51,23 @@ def rename_to_model(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=CURATED_RENAMES)
 
 
+def take_contract(df: pd.DataFrame, features: Sequence[str], label: str) -> pd.DataFrame:
+    """Se queda con las features del contrato y la etiqueta, en orden, y falla si falta alguna.
+
+    Es la selección de features del pipeline. El contrato de `arrest_model` decide cuáles son, y
+    no un umbral de información mutua recalculado en cada corrida: medido sobre la ventana
+    entera, esa selección elegía exactamente estas features y daba las mismas métricas hasta el
+    cuarto decimal, así que no decidía nada. Y cuando decidía era peor: con otro balanceo del
+    dataset se quedaba con dos features, porque la información mutua se mide contra la etiqueta
+    del conjunto balanceado. Las features que el modelo necesita no son una propiedad de la
+    ventana ni de la receta de balanceo.
+    """
+    faltan = [columna for columna in (*features, label) if columna not in df.columns]
+    if faltan:
+        raise ValueError(f"al dataset curado le faltan features del contrato: {', '.join(faltan)}")
+    return df[[*features, label]]
+
+
 def enforce_feature_contract(df: pd.DataFrame, features: Sequence[str], label: str) -> pd.DataFrame:
     """Verifica que el dataset tenga exactamente las features declaradas, y las ordena.
 

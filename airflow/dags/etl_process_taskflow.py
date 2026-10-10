@@ -21,10 +21,9 @@ from etl_config import BUCKET_NAME, DEFAULT_ARGS, config
 from etl_helpers.contract import (
     CURATED_FEATURES,
     assert_no_missing,
-    enforce_feature_contract,
     rename_to_model,
+    take_contract,
 )
-from etl_helpers.data_balancing import balance_data as balance_data_fn
 from etl_helpers.data_encoding import encode_data as encode_data_fn
 from etl_helpers.data_enrichment import enrich_crime_data
 from etl_helpers.data_loader import (
@@ -33,7 +32,6 @@ from etl_helpers.data_loader import (
 )
 from etl_helpers.data_scaling import scale_data as scale_data_fn
 from etl_helpers.data_splitter import preprocess_for_split, split_train_test
-from etl_helpers.feature_selection import select_features as select_features_fn
 from etl_helpers.keys import (
     CURATED_ARTIFACTS,
     enriched_crimes,
@@ -53,8 +51,6 @@ from etl_helpers.minio import (
     upload_to_minio,
 )
 from etl_helpers.monitoring import (
-    log_balance_metrics,
-    log_feature_selection_metrics,
     log_pipeline_summary,
     log_raw_data_metrics,
     log_split_metrics,
@@ -245,38 +241,22 @@ def process_etl_taskflow():
         train, test, frecuencias = encode_data_fn(train, test)
         train, test, escala = scale_data_fn(train, test)
 
-        balanceado = balance_data_fn(train, target_column=config.TARGET_COLUMN)
-        log_balance_metrics(
-            train, balanceado, target_column=config.TARGET_COLUMN, run_name=f"balance_{sufijo}"
-        )
+        # No hay etapa de balanceo: el desbalance lo maneja el entrenamiento con
+        # `scale_pos_weight`, que es lo que XGBoost ofrece para eso. El dataset curado queda con
+        # las filas reales y su proporción real de arrestos, que es también la que ve el modelo
+        # en producción. Medido sobre la ventana entera: pesar la clase da mejor AUC y mejor MCC
+        # que SMOTE más submuestreo, y además es determinista.
 
-        elegidas_train, elegidas_test, mi_scores = select_features_fn(
-            balanceado,
-            test,
-            target_column=config.TARGET_COLUMN,
-            mi_threshold=config.MI_THRESHOLD,
-        )
-        log_feature_selection_metrics(
-            balanceado,
-            elegidas_train,
-            mi_scores_df=mi_scores,
-            target_column=config.TARGET_COLUMN,
-            run_name=f"features_{sufijo}",
-        )
-
-        # Las columnas pasan a los nombres del modelo y ahí se verifica el contrato: si la
-        # selección cambió de features, la tarea falla en vez de dejar en el lake un dataset que
-        # el modelo no puede consumir. El contrato sale de `arrest_model`, no de una lista propia.
+        # Las columnas pasan a los nombres del modelo y el contrato de `arrest_model` se queda
+        # con las features que el modelo necesita: no hay etapa de selección porque el contrato
+        # ES la selección. Si falta alguna, la tarea falla diciendo cuál en vez de dejar en el
+        # lake un dataset que el modelo no puede consumir.
         elegidas_train = assert_no_missing(
-            enforce_feature_contract(
-                rename_to_model(elegidas_train), CURATED_FEATURES, config.TARGET_COLUMN
-            ),
+            take_contract(rename_to_model(train), CURATED_FEATURES, config.TARGET_COLUMN),
             "curated/train",
         )
         elegidas_test = assert_no_missing(
-            enforce_feature_contract(
-                rename_to_model(elegidas_test), CURATED_FEATURES, config.TARGET_COLUMN
-            ),
+            take_contract(rename_to_model(test), CURATED_FEATURES, config.TARGET_COLUMN),
             "curated/test",
         )
 
@@ -296,7 +276,6 @@ def process_etl_taskflow():
             "test_file": test_key,
             "params_file": params_key,
             "split_rows": filas_corte,
-            "balanced_rows": len(balanceado),
             "rows": (len(elegidas_train), len(elegidas_test)),
             "features": len([c for c in elegidas_train.columns if c != config.TARGET_COLUMN]),
         }

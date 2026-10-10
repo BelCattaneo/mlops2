@@ -7,8 +7,7 @@ LIMPIO = {"status": "success", "raw_rows": 227976, "rows": 226951}
 FINAL = {
     "status": "success",
     "split_rows": (181560, 45391),
-    "balanced_rows": 170453,
-    "rows": (170453, 44795),
+    "rows": (181560, 44795),
     "features": 7,
 }
 
@@ -21,8 +20,7 @@ def test_builds_the_counts_of_every_stage() -> None:
         "enriched_count": 226951,
         "train_count": 181560,
         "test_count": 45391,
-        "balanced_count": 170453,
-        "final_train_count": 170453,
+        "final_train_count": 181560,
         "final_test_count": 44795,
         "feature_count": 7,
     }

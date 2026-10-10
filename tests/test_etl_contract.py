@@ -11,6 +11,7 @@ from etl_helpers.contract import (
     assert_no_missing,
     enforce_feature_contract,
     rename_to_model,
+    take_contract,
 )
 from etl_helpers.data_enrichment import enrich_crime_data
 from etl_helpers.params import project_stations
@@ -166,3 +167,20 @@ def test_the_etl_measures_the_distance_where_the_model_measures_it() -> None:
 
     assert len(enriquecido) == len(crimenes)  # si no, comparar por posición no valdría
     assert np.allclose(enriquecido["distance_crime_to_police_station"], del_codificador, rtol=1e-6)
+
+
+def test_taking_the_contract_keeps_its_features_in_order_and_drops_the_rest() -> None:
+    # El contrato es la selección de features del pipeline: decide cuáles van al dataset curado
+    # en vez de un umbral que se recalcula en cada corrida.
+    ancho = frame(["sobrante", *CURATED_RENAMES.values(), ETIQUETA, "otra_sobrante"])
+
+    curado = take_contract(ancho, CURATED_FEATURES, ETIQUETA)
+
+    assert list(curado.columns) == [*CURATED_FEATURES, ETIQUETA]
+
+
+def test_taking_the_contract_says_which_feature_is_missing() -> None:
+    sin_una = frame([c for c in CURATED_RENAMES.values() if c != "Day_sin"] + [ETIQUETA])
+
+    with pytest.raises(ValueError, match="Day_sin"):
+        take_contract(sin_una, CURATED_FEATURES, ETIQUETA)
