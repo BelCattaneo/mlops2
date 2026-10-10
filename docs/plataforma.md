@@ -1,6 +1,6 @@
 # Levantar la plataforma
 
-Los cuatro servicios del TP integrador corren en Docker con un solo comando. Esta página es cómo arrancarlos, cómo correr el pipeline y dónde mirar lo que produjo.
+La plataforma del TP integrador corre en Docker: Airflow, MLflow, PostgreSQL y MinIO con un solo comando, y las tres APIs y el grafo de linaje detrás de sus propios perfiles. Esta página es cómo arrancarla, cómo correr el pipeline y dónde mirar lo que produjo.
 
 ← [Arquitectura del integrador](arquitectura.md) · [README del repo](../README.md)
 

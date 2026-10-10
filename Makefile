@@ -12,6 +12,7 @@ STACK_REST_PORT ?= 8002
 STACK_GRAPHQL_PORT ?= 8012
 STACK_GRPC_PORT ?= 50052
 STACK_NEO4J_HTTP_PORT ?= 7475
+STACK_NEO4J_BOLT_PORT ?= 7688
 -include .env
 
 REST_IMAGE := arrest-rest
@@ -203,7 +204,8 @@ stack-lineage: ## Integrador · levanta Neo4j y siembra el linaje del modelo (co
 	@echo "Esperando a que Neo4j acepte conexiones..."
 	@docker compose --profile all --profile serving --profile lineage exec -T graphql \
 		/app/.venv/bin/python -m tp2_graphql.lineage
-	@echo "Neo4j    http://127.0.0.1:$(STACK_NEO4J_HTTP_PORT)  (usuario y clave de .env; por defecto neo4j / testpass)"
+	@echo "Neo4j    http://127.0.0.1:$(STACK_NEO4J_HTTP_PORT)  ·  bolt en 127.0.0.1:$(STACK_NEO4J_BOLT_PORT)"
+	@echo "         usuario y clave de .env; por defecto neo4j / testpass"
 
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow

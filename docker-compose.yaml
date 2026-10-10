@@ -472,8 +472,11 @@ services:
       NEO4J_server_memory_pagecache_size: 256m
     volumes:
       - neo4j_data:/data
+    # Las credenciales van interpoladas por compose, con un solo `$`: el contenedor recibe
+    # `NEO4J_AUTH` y no estas dos variables, así que con `$$` el chequeo se autenticaría siempre
+    # con los valores por defecto y quedaría unhealthy para siempre con una clave distinta.
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_USER:-neo4j} -p $${NEO4J_PASSWORD:-testpass} 'RETURN 1' || exit 1"]
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-testpass} 'RETURN 1' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5

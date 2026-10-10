@@ -30,7 +30,7 @@ sodapy>=1.8.0
 # usa solo para dibujar el grafo de un DAG; el paquete pesa poco y deja la salida limpia.
 graphviz>=0.21
 
-# La variante sin CUDA: el wheel normal declara nvidia-nccl en Linux y mete 347 MB de runtime
+# La variante sin CUDA: el wheel normal declara nvidia-nccl en Linux y mete 291 MB de runtime
 # de GPU en un contenedor que nunca va a ver una. Provee el mismo módulo `xgboost`, que es lo que
 # necesita joblib para desempaquetar el XGBClassifier del bundle.
 xgboost-cpu>=3.4.1
