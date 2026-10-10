@@ -50,7 +50,7 @@ def test_predictions_carry_probability_and_model_version(
 def test_the_decision_threshold_defaults_to_half(bundle: dict[str, Any]) -> None:
     # El modelo entregado no trae umbral y tiene que seguir decidiendo en 0,5: es la regla que
     # documentan los cuatro protocolos y la que fija la probabilidad de referencia.
-    assert "threshold" not in bundle
+    assert "threshold" not in bundle["metadata"]
 
     prediccion = predict(bundle, [CrimeReport(**EXAMPLE_REPORT)])[0]
 
@@ -61,7 +61,7 @@ def test_a_bundle_can_carry_its_own_threshold(bundle: dict[str, Any]) -> None:
     # El umbral es un parámetro del modelo como cualquier otro: el que entrena lo elige y viaja
     # con él. Medido sobre la ventana entera, el mejor corte del modelo actual es 0,58 y no 0,5,
     # así que el 0,5 fijo le dejaba MCC sin usar.
-    con_umbral = {**bundle, "threshold": 0.01}
+    con_umbral = {**bundle, "metadata": {**bundle["metadata"], "threshold": 0.01}}
 
     prediccion = predict(con_umbral, [CrimeReport(**EXAMPLE_REPORT)])[0]
 

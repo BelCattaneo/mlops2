@@ -35,7 +35,7 @@ uv run python tp1_rest/client.py                     # cliente de prueba
 | `GET /health` | 200 `{"status": "ok", "model_name": "chicago-arrest-xgboost", "model_version": 1}`; 503 si no se pudo cargar `model/model.pkl` |
 | `POST /v1/predict` | recibe los 6 campos crudos y devuelve `{"arrest", "probability", "model_name", "model_version"}`; 422 si el payload no cumple el contrato; 503 si no hay modelo |
 | `POST /v1/predict/batch` | recibe `{"reports": [...]}` con 1 a 1000 reportes y devuelve `{"predictions": [...]}` en el mismo orden; 422 si el lote está vacío, pasa de 1000 o algún reporte no cumple; 503 si no hay modelo |
-| `GET /v1/metadata` | describe el modelo cargado: `name`, `version`, `framework`, `inputs` (los 6 campos crudos), `features` (las 7 del modelo), `metrics` y `trained_at`; 503 si no hay modelo |
+| `GET /v1/metadata` | describe el modelo cargado: `name`, `version`, `framework`, `inputs` (los 6 campos crudos), `features` (las 7 del modelo), `metrics`, `trained_at` y `threshold`; 503 si no hay modelo |
 
 Los endpoints de negocio van bajo el prefijo `/v1`; `/health` queda afuera porque es de infraestructura.
 
@@ -81,9 +81,12 @@ Y `GET /v1/metadata` describe qué modelo está sirviendo:
   "metrics": {"accuracy": 0.9119107677755005, "precision": 0.9047016906479248,
               "recall": 0.9119107677755005, "f1": 0.9039410418577858,
               "auc": 0.8861377061145108, "mcc": 0.5811392832702954},
-  "trained_at": "2026-09-11T19:13:30Z"
+  "trained_at": "2026-09-11T19:13:30Z",
+  "threshold": 0.5
 }
 ```
+
+`threshold` es el corte con el que se decide `arrest`: la respuesta de `/v1/predict` trae la probabilidad y la bandera, y con el umbral el cliente puede reproducir esa decisión o aplicar su propia política. El modelo versionado en el repo no trae uno propio y decide en 0,5; un modelo entrenado por el pipeline del integrador trae el que eligió sobre su conjunto de validación.
 
 ## Qué valida el contrato
 

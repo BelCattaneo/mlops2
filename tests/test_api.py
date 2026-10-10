@@ -121,6 +121,7 @@ def test_metadata_describes_the_served_model(bundle: dict[str, Any]) -> None:
         "features",
         "metrics",
         "trained_at",
+        "threshold",
     }
     assert (body["name"], body["version"]) == (MODEL_NAME, 1)
     # Lo que declara la API tiene que ser lo que de verdad consume el modelo.
@@ -155,3 +156,22 @@ def test_every_request_is_logged_with_method_path_status_and_latency(
     assert "GET /health -> 200" in line
     assert "modelo v1" in line
     assert re.search(r"\d+\.\d+ ms", line)
+
+
+def test_metadata_publishes_the_decision_threshold(bundle: dict[str, Any]) -> None:
+    # El cliente recibe `arrest` y `probability`: sin el umbral no puede reproducir la decisión
+    # ni aplicar su propia política sobre la probabilidad. El modelo entregado no trae uno, así
+    # que publica el 0,5 con el que decide.
+    with TestClient(create_app(lambda: bundle)) as client:
+        cuerpo = client.get("/v1/metadata").json()
+
+    assert cuerpo["threshold"] == 0.5
+
+
+def test_metadata_publishes_the_threshold_the_model_carries(bundle: dict[str, Any]) -> None:
+    con_umbral = {**bundle, "metadata": {**bundle["metadata"], "threshold": 0.81}}
+
+    with TestClient(create_app(lambda: con_umbral)) as client:
+        cuerpo = client.get("/v1/metadata").json()
+
+    assert cuerpo["threshold"] == 0.81

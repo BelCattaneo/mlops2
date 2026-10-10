@@ -273,3 +273,20 @@ def test_inputs_and_features_describe_the_real_model(bundle: dict[str, Any]) -> 
     assert result.errors is None
     assert result.data["model"]["inputs"] == list(EXAMPLE_REPORT)
     assert result.data["model"]["features"] == MODEL_FEATURES
+
+
+def test_the_query_can_ask_for_the_decision_threshold(bundle: dict[str, Any]) -> None:
+    # Igual que en REST: sin el umbral el cliente no puede reproducir la decisión. El modelo
+    # entregado no trae uno y responde el 0,5 con el que decide.
+    resultado = consultar(f'{{ model(name: "{MODEL_NAME}") {{ threshold }} }}', bundle)
+
+    assert resultado.errors is None
+    assert resultado.data["model"] == {"threshold": 0.5}
+
+
+def test_the_query_returns_the_threshold_the_model_carries(bundle: dict[str, Any]) -> None:
+    con_umbral = {**bundle, "metadata": {**bundle["metadata"], "threshold": 0.81}}
+
+    resultado = consultar(f'{{ model(name: "{MODEL_NAME}") {{ threshold }} }}', con_umbral)
+
+    assert resultado.data["model"] == {"threshold": 0.81}

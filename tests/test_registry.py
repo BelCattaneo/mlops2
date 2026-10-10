@@ -232,7 +232,7 @@ def test_the_threshold_travels_with_the_model_when_the_run_recorded_one(
         threshold=0.58,
     )
 
-    assert con_umbral["threshold"] == 0.58
+    assert con_umbral["metadata"]["threshold"] == 0.58
 
 
 def test_without_a_recorded_threshold_the_bundle_does_not_carry_one(
@@ -251,4 +251,4 @@ def test_without_a_recorded_threshold_the_bundle_does_not_carry_one(
         trained_at=datetime(2026, 10, 10, tzinfo=UTC),
     )
 
-    assert "threshold" not in sin_umbral
+    assert "threshold" not in sin_umbral["metadata"]

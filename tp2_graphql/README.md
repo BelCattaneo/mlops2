@@ -59,6 +59,7 @@ type Model {
   features: [String!]!
   trainedAt: DateTime!
   metrics: Metrics!
+  threshold: Float!
   lineage: [Artifact!]
 }
 

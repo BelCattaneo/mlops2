@@ -63,11 +63,10 @@ def bundle_from_artifacts(
     """
     estimador = XGBClassifier()
     estimador.load_model(str(_find(directory, MODEL_FILE)))
-    # La clave del umbral solo existe si el entrenamiento eligió uno: `predict` lee el bundle con
-    # `get`, así que su ausencia es lo que deja el 0.5 por defecto.
+    # La clave del umbral solo existe si el entrenamiento eligió uno: `predict` la lee con `get`,
+    # así que su ausencia es lo que deja el 0.5 por defecto.
     umbral = {"threshold": float(threshold)} if threshold is not None else {}
     return {
-        **umbral,
         "model": estimador,
         "params": load_params(_find(directory, PARAMS_FILE).read_bytes()),
         "metadata": {
@@ -80,6 +79,7 @@ def bundle_from_artifacts(
             # Como texto, igual que en el .pkl: `tp2_graphql/schema.py` lo parsea con
             # `datetime.fromisoformat`, así que un datetime ahí rompe la query de GraphQL.
             "trained_at": trained_at.isoformat(),
+            **umbral,
         },
     }
 

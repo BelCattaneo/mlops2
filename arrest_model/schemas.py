@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from arrest_model.config import DEFAULT_THRESHOLD
+
 CHICAGO = ZoneInfo("America/Chicago")
 
 # Los 31 valores de "Primary Type" que aparecen en el train del TP-final.
@@ -123,3 +125,6 @@ class ModelMetadata(BaseModel):
     features: list[str]
     metrics: dict[str, float]
     trained_at: datetime
+    # El corte con el que el modelo decide. Viaja con él porque depende de cómo se reponderó el
+    # entrenamiento; el `.pkl` entregado no trae ninguno y decide con el de siempre.
+    threshold: float = DEFAULT_THRESHOLD

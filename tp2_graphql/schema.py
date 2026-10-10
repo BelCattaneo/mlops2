@@ -14,6 +14,7 @@ from typing import Any
 
 import strawberry
 
+from arrest_model.config import DEFAULT_THRESHOLD
 from arrest_model.log import service_logger
 from tp2_graphql.lineage import lineage_of
 
@@ -58,6 +59,9 @@ class Model:
     features: list[str]
     trained_at: datetime
     metrics: Metrics
+    # El corte con el que decide: sin él el cliente no puede reproducir la decisión ni aplicar
+    # su propia política sobre la probabilidad.
+    threshold: float
 
     @strawberry.field
     async def lineage(self, info: strawberry.Info) -> list[Artifact] | None:
@@ -97,6 +101,7 @@ def model_from_metadata(metadata: dict[str, Any]) -> Model:
         features=list(metadata["features"]),
         trained_at=datetime.fromisoformat(metadata["trained_at"]),
         metrics=Metrics(**{nombre: metadata["metrics"][nombre] for nombre in METRIC_NAMES}),
+        threshold=float(metadata.get("threshold", DEFAULT_THRESHOLD)),
     )
 
 
