@@ -353,20 +353,25 @@ services:
   # tienen horneado. Van en su propio profile a propósito: sin una versión con el alias
   # `champion` no hay nada que servir, así que se levantan después de que entrenó el DAG y no
   # junto con la plataforma. La misma imagen corrida sin `MODEL_URI` sigue sirviendo el .pkl.
+  #
+  # Tags, nombres de contenedor y puertos publicados son propios, distintos de los que usa el
+  # Makefile para correr los mini-TPs sueltos (`arrest-rest` en 8000, etc.): así los dos pueden
+  # estar arriba a la vez y ningún build le pisa la imagen al otro. El puerto de adentro sí es
+  # el mismo, que es el que nombra el diagrama de arquitectura.
   rest:
     restart: always
     build:
       context: .
       dockerfile: tp1_rest/Dockerfile
-    image: arrest-rest
-    container_name: arrest_rest
+    image: mlops2-rest
+    container_name: mlops2-rest
     profiles:
       - serving
     depends_on:
       mlflow:
         condition: service_healthy
     ports:
-      - "${REST_PORT:-8000}:8000"
+      - "${STACK_REST_PORT:-8002}:8000"
     networks:
       - frontend
       - backend
@@ -393,15 +398,15 @@ services:
     build:
       context: .
       dockerfile: tp2_graphql/Dockerfile
-    image: arrest-graphql
-    container_name: arrest_graphql
+    image: mlops2-graphql
+    container_name: mlops2-graphql
     profiles:
       - serving
     depends_on:
       mlflow:
         condition: service_healthy
     ports:
-      - "${GRAPHQL_PORT:-8010}:8010"
+      - "${STACK_GRAPHQL_PORT:-8012}:8010"
     networks:
       - frontend
       - backend
@@ -422,15 +427,15 @@ services:
     build:
       context: .
       dockerfile: tp3_grpc/Dockerfile
-    image: arrest-grpc
-    container_name: arrest_grpc
+    image: mlops2-grpc
+    container_name: mlops2-grpc
     profiles:
       - serving
     depends_on:
       mlflow:
         condition: service_healthy
     ports:
-      - "${GRPC_PORT:-50051}:50051"
+      - "${STACK_GRPC_PORT:-50052}:50051"
     networks:
       - frontend
       - backend

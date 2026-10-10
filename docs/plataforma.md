@@ -73,9 +73,11 @@ Levanta las tres APIs de los mini-TPs dentro de la plataforma, sirviendo lo que 
 
 | servicio | dónde | para qué |
 |---|---|---|
-| REST | <http://127.0.0.1:8000/docs> | `POST /v1/predict`, `/v1/predict/batch`, `/v1/metadata` y `/health` |
-| GraphQL | <http://127.0.0.1:8010/graphql> | los metadatos del modelo y el linaje, con GraphiQL para probarlo |
-| gRPC | `127.0.0.1:50051` | `Predict` y `PredictStream` |
+| REST | <http://127.0.0.1:8002/docs> | `POST /v1/predict`, `/v1/predict/batch`, `/v1/metadata` y `/health` |
+| GraphQL | <http://127.0.0.1:8012/graphql> | los metadatos del modelo y el linaje, con GraphiQL para probarlo |
+| gRPC | `127.0.0.1:50052` | `Predict` y `PredictStream` |
+
+No son los 8000, 8010 y 50051 de los mini-TPs a propósito: los contenedores de la plataforma tienen tags, nombres y puertos publicados propios (`mlops2-rest`, `mlops2-graphql`, `mlops2-grpc`), así que la plataforma y los mini-TPs sueltos pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose cada servicio escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
 
 Lo que reciben por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir ninguna imagen.
 
@@ -122,8 +124,6 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 ## Si algo no arranca
 
 Las APIs no levantan o `/health` da 503: es que todavía no hay nada con el alias `champion`. `make stack-train` lo registra. El log de cada una dice qué no pudo cargar.
-
-El puerto 8000 ya está en uso al correr `make stack-serve`: es el mini-TP corriendo suelto con `make rest-up`, que publica el mismo puerto. `make rest-down` lo libera.
 
 El DAG no aparece en Airflow, o aparece con error: `docker compose --profile all exec -T airflow-scheduler airflow dags list-import-errors` dice qué no pudo importar.
 

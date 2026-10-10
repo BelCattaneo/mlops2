@@ -6,6 +6,11 @@
 AIRFLOW_PORT ?= 8081
 MLFLOW_PORT ?= 5001
 MINIO_PORT_UI ?= 9001
+# Las tres APIs dentro de la plataforma publican en otros puertos que los contenedores
+# sueltos de los mini-TPs (8000, 8010, 50051), para que los dos puedan estar arriba a la vez.
+STACK_REST_PORT ?= 8002
+STACK_GRAPHQL_PORT ?= 8012
+STACK_GRPC_PORT ?= 50052
 -include .env
 
 REST_IMAGE := arrest-rest
@@ -184,11 +189,11 @@ stack-serve: ## Integrador · levanta las tres APIs sirviendo el champion (despu
 	docker compose --profile all --profile serving build rest graphql grpc
 	docker compose --profile all --profile serving up -d --no-build rest graphql grpc
 	@curl -sf -o /dev/null --retry 20 --retry-all-errors --retry-delay 2 --max-time 5 \
-		http://127.0.0.1:$(REST_PORT)/health \
-		&& echo "REST      http://127.0.0.1:$(REST_PORT)/docs" \
+		http://127.0.0.1:$(STACK_REST_PORT)/health \
+		&& echo "REST      http://127.0.0.1:$(STACK_REST_PORT)/docs" \
 		|| echo "REST todavía no sirve: /health da 503 mientras no haya champion (make stack-train)"
-	@echo "GraphQL   http://127.0.0.1:$(GRAPHQL_PORT)/graphql"
-	@echo "gRPC      localhost:$(GRPC_PORT)"
+	@echo "GraphQL   http://127.0.0.1:$(STACK_GRAPHQL_PORT)/graphql"
+	@echo "gRPC      localhost:$(STACK_GRPC_PORT)"
 
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow
