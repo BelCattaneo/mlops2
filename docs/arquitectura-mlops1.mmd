@@ -1,0 +1,62 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "14px", "lineColor": "#8792A2", "clusterBkg": "#F7F9FB", "clusterBorder": "#C9D0DA", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 16, "rankSpacing": 30}}}%%
+flowchart TB
+  classDef infra fill:#E8F0FB,stroke:#3A6EA5,color:#16324F,stroke-width:1.5px
+  classDef etapa fill:#FBE9E7,stroke:#C0392B,color:#5A1E16,stroke-width:1.2px
+  classDef dato fill:#FFF6E0,stroke:#C98A00,color:#5A3E00,stroke-width:1.2px
+  classDef externo fill:#FFFFFF,stroke:#8A8A8A,color:#333333,stroke-width:1.5px
+  classDef inferido fill:#FFFFFF,stroke:#8A8A8A,color:#333333,stroke-width:1.2px,stroke-dasharray:5 4
+
+  subgraph orq["Orquestación · Airflow con CeleryExecutor"]
+    direction LR
+    SCH["airflow-scheduler"]:::infra
+    WRK["airflow-worker"]:::infra
+    WEB["airflow-webserver :8080"]:::infra
+    TRG["airflow-triggerer"]:::infra
+    VK[("ValKey · broker de Celery")]:::infra
+  end
+
+  SOC["Socrata · datos abiertos de Chicago"]:::externo
+
+  subgraph pipe["DAG etl_process_taskflow · 11 tareas · cada una escribe el dataset entero en s3://data"]
+    direction TB
+    T1["setup_s3"]:::etapa
+    T2["download_data<br/>→ 0-raw-data/"]:::etapa
+    T3["merge_data<br/>→ 1-merged-data/"]:::etapa
+    T4["enrich_data<br/>→ 2-enriched-data/"]:::etapa
+    T5["split_data<br/>→ 3-split-data/"]:::etapa
+    T6["process_outliers<br/>→ 4-outliers/"]:::etapa
+    T7["encode_data<br/>→ 5-encoded/"]:::etapa
+    T8["scale_data<br/>→ 6-scaled/"]:::etapa
+    T9["balance_data · SMOTE + submuestreo<br/>→ 7-balanced/"]:::etapa
+    T10["extract_features<br/>información mutua<br/>→ ml-ready-data/"]:::etapa
+    T11["log_summary<br/>baja 7 datasets de S3 para contar filas"]:::etapa
+    T1 --> T2 --> T3 --> T4 --> T5 --> T6 --> T7 --> T8 --> T9 --> T10 --> T11
+    T3 -.->|"relee el último mergeado<br/>y le concatena el mes nuevo"| T3
+  end
+
+  LAKE[("MinIO :9000 · s3://data<br/>9 prefijos numerados, CSV en cada paso<br/>13 objetos y 348,95 MB por corrida")]:::dato
+
+  subgraph ciclo["Ciclo de vida"]
+    direction LR
+    TRN["trainer · servicio aparte<br/>entrena XGBoost"]:::infra
+    MLF["MLflow :5001 · tracking<br/>artefactos con gráficos matplotlib"]:::infra
+    PG[("PostgreSQL · metadata<br/>de Airflow y MLflow")]:::infra
+    ART[("s3://mlflow · artefactos")]:::infra
+  end
+
+  subgraph serv["Servicio"]
+    direction LR
+    API["fastapi · una sola API de predicción"]:::infra
+    DRF["drift · monitoreo de deriva"]:::inferido
+  end
+
+  SOC -->|"descarga incremental"| T2
+  orq -.->|"ejecuta las tareas"| pipe
+  pipe <-->|"escribe y relee entre paso y paso"| LAKE
+  LAKE -->|"ml-ready-data/"| TRN
+  TRN --> MLF
+  MLF --- PG
+  MLF --- ART
+  MLF -.->|"inferido: el modelo entrenado"| API
+  DRF -.-> MLF
+  serv --> CLI["clientes"]:::externo

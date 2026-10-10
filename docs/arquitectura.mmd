@@ -1,67 +1,101 @@
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "15px", "lineColor": "#8792A2", "clusterBkg": "#F7F9FB", "clusterBorder": "#C9D0DA", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 22, "rankSpacing": 48}}}%%
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, Helvetica, sans-serif", "fontSize": "14px", "lineColor": "#8792A2", "clusterBkg": "#F7F9FB", "clusterBorder": "#C9D0DA", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 20, "rankSpacing": 44}}}%%
 flowchart TB
-  classDef base fill:#E8F0FB,stroke:#3A6EA5,color:#16324F,stroke-width:1.5px
-  classDef minitp fill:#E6F4EA,stroke:#2E7D4F,color:#173D27,stroke-width:1.5px
-  classDef propuesta fill:#FFF6E0,stroke:#C98A00,color:#5A3E00,stroke-width:1.5px,stroke-dasharray:6 4
+  classDef infra fill:#E8F0FB,stroke:#3A6EA5,color:#16324F,stroke-width:1.5px
+  classDef etapa fill:#E6F4EA,stroke:#2E7D4F,color:#173D27,stroke-width:1.2px
+  classDef dato fill:#FFF6E0,stroke:#C98A00,color:#5A3E00,stroke-width:1.2px
+  classDef paquete fill:#F3E8FD,stroke:#7B3FA0,color:#3B1A52,stroke-width:1.5px
+  classDef perfil fill:#FFFFFF,stroke:#2E7D4F,color:#173D27,stroke-width:1.2px,stroke-dasharray:5 4
   classDef externo fill:#FFFFFF,stroke:#8A8A8A,color:#333333,stroke-width:1.5px
 
-  %% Dentro de cada capa va "direction TB": mermaid la invierte en los grupos anidados y así los
-  %% servicios quedan uno al lado del otro.
+  SOC["Socrata · datos abiertos de Chicago<br/>ijzp-q8t2 crímenes · z8bn-74gv comisarías"]:::externo
 
-  subgraph fuentes["Fuentes"]
+  subgraph orq["Orquestación · Airflow 3.0.2 con LocalExecutor"]
     direction TB
-    SOC["Socrata<br/>datos abiertos de Chicago"]:::externo
-    DIST["Distritos policiales<br/>datos locales · S5"]:::propuesta
+    APS["airflow-apiserver :8081"]:::infra
+    SCH["airflow-scheduler<br/>corre las tareas en su proceso"]:::infra
+    DGP["airflow-dag-processor"]:::infra
+    TRG["airflow-triggerer"]:::infra
   end
 
-  subgraph ingesta["Ingesta y orquestación"]
+  subgraph dags["Dos DAGs, acoplados solo por la capa curada"]
     direction TB
-    AF["Airflow :8080<br/>DAG de ETL"]:::base
-    VK[("ValKey<br/>cola de Celery")]:::base
-    BRK[["broker de eventos<br/>reportes nuevos · S4"]]:::propuesta
+    subgraph etl["etl_with_taskflow · mensual · 5 tareas · max_active_runs=1"]
+      direction TB
+      E1["setup_s3<br/>bucket, versionado y retención por capa"]:::etapa
+      E2["land_raw<br/>ventana de 365 días · carga inicial si falta el histórico"]:::etapa
+      E3["build_enriched<br/>junta las particiones, enriquece y limpia"]:::etapa
+      E4["build_curated<br/>outliers, frecuencias, escalado y contrato"]:::etapa
+      E5["log_summary<br/>conteos por XCom, sin releer el bucket"]:::etapa
+      E1 --> E2 --> E3 --> E4 --> E5
+    end
+    TRA["train_arrest_model · manual<br/>train_and_register: peso de clase,<br/>umbral sobre validación, alias champion"]:::etapa
   end
 
-  subgraph lake["Data lake · MinIO :9000"]
+  subgraph lake["Data lake · MinIO :9000 · consola :9001"]
     direction TB
-    DATA[("s3://data<br/>datasets")]:::base
-    ZON[("zonas raw · processed · curated<br/>S6")]:::propuesta
-    ART[("s3://mlflow<br/>artefactos de modelos")]:::base
+    subgraph data["s3://data · bucket versionado"]
+      direction TB
+      RAW[("raw/crimes/month=YYYY-MM/crimes.csv<br/>raw/police_stations/<br/>CSV tal como llegó · se conserva")]:::dato
+      ENR[("enriched/crimes/date=YYYY-MM-DD/<br/>Parquet · expira a los 30 días")]:::dato
+      CUR[("curated/train · test · params/date=YYYY-MM-DD/<br/>Parquet + params.json · se conserva")]:::dato
+    end
+    ART[("s3://mlflow<br/>artefactos de modelos")]:::dato
   end
 
-  subgraph ciclo["Entrenamiento y ciclo de vida"]
+  subgraph ciclo["Ciclo de vida"]
     direction TB
-    TR["trainer<br/>entrena XGBoost"]:::base
-    FED["servidor federado<br/>agrega parámetros · S6"]:::propuesta
-    MLF["MLflow :5001<br/>registry · alias champion"]:::base
-    PG[("PostgreSQL :5432<br/>metadata")]:::base
-    MON["monitoreo y auditoría<br/>drift · S7"]:::propuesta
+    MLF["MLflow 3.16.1 :5001<br/>tracking + Model Registry · alias champion"]:::infra
+    PG[("PostgreSQL :5433<br/>metadata de Airflow y mlflow_db")]:::infra
   end
 
-  subgraph serv["Servicio · arrest_model"]
+  subgraph pkg["Paquete compartido arrest_model"]
     direction TB
-    GW["gateway<br/>autenticación y TLS · S7"]:::propuesta
-    REST["REST :8000<br/>predicción"]:::minitp
-    GRPC["gRPC :50051<br/>predicción"]:::minitp
-    CON["consumidor<br/>puntúa cada evento · S4"]:::propuesta
-    GQL["GraphQL :8010<br/>metadatos"]:::minitp
-    NEO[("Neo4j :7687<br/>linaje")]:::minitp
+    SCM["schemas.py · contrato de los 6 campos crudos"]:::paquete
+    FEA["features.py · las 7 features, una función por feature"]:::paquete
+    MOD["model.py · predice y decide con el umbral del modelo"]:::paquete
+    PAR["params.py · frecuencias, escaladores y comisarías en JSON"]:::paquete
+    REG["registry.py · el .pkl del repo o el champion del registro"]:::paquete
+    SRV["serving.py · pyfunc que recibe los campos crudos"]:::paquete
   end
 
-  subgraph clientes["Clientes"]
+  subgraph serv["Servicio · perfil serving"]
     direction TB
-    USR["apps y analistas"]:::externo
+    REST["REST :8002<br/>/v1/predict · /batch · /metadata · /health"]:::infra
+    GQL["GraphQL :8012<br/>metadatos del modelo y linaje"]:::infra
+    GRPC["gRPC :50052<br/>Predict y PredictStream"]:::infra
+    NEO[("Neo4j :7475 · bolt :7688<br/>grafo de linaje · perfil lineage")]:::infra
   end
 
-  subgraph ref["Referencias"]
+  subgraph fuera["Fuera del compose · mini-TPs 4 y 5"]
     direction TB
-    L1["existe · MLOps I"]:::base
-    L2["existe · mini-TPs"]:::minitp
-    L3["se suma · S4 a S7"]:::propuesta
+    CON["consumidor de streaming<br/>ventana deslizante, p95 y drift"]:::perfil
+    RPD[("Redpanda :9092")]:::perfil
+    FED["aprendizaje federado<br/>FedAvg por distrito policial"]:::perfil
   end
 
-  fuentes -->|"reportes de crímenes"| ingesta
-  ingesta -->|"datos procesados"| lake
-  lake -->|"datos de entrenamiento"| ciclo
-  ciclo -->|"modelo champion"| serv
-  serv -->|"predicciones y metadatos"| clientes
-  clientes ~~~ ref
+  SOC -->|"descarga incremental"| etl
+  orq -.->|"ejecuta las tareas"| dags
+  E2 --> RAW
+  E3 --> ENR
+  E4 --> CUR
+  CUR -->|"la partición escrita más reciente"| TRA
+  TRA -->|"modelo pyfunc + params + umbral"| MLF
+  MLF --- PG
+  MLF --- ART
+  E5 -.->|"47 métricas de datos"| MLF
+  MLF -->|"models:/chicago-arrest-xgboost@champion"| serv
+  pkg -.->|"la misma codificación en los cuatro protocolos"| serv
+  pkg -.-> TRA
+  GQL --- NEO
+  RPD --> CON
+  serv --> CLI["apps, analistas y los clientes de cada mini-TP"]:::externo
+
+  subgraph ref2["Referencias"]
+    direction TB
+    R1["servicio del compose"]:::infra
+    R2["tarea de un DAG"]:::etapa
+    R3["dato en el lake"]:::dato
+    R4["paquete compartido"]:::paquete
+    R5["corre por fuera del compose"]:::perfil
+  end
+  CLI ~~~ ref2

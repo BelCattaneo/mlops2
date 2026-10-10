@@ -29,13 +29,17 @@ REDPANDA_CONTAINER := redpanda-tp
 # La red que comparten Neo4j y la API GraphQL: adentro de ella se encuentran por nombre.
 DOCKER_NETWORK := arrest-net
 
-.PHONY: help install test lint docker-network
+.PHONY: help install test lint docker-network diagramas
 .PHONY: rest-run rest-build rest-up rest-down rest-logs rest-health rest-client
 .PHONY: graphql-run graphql-build graphql-up graphql-down graphql-logs graphql-client
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
 .PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve stack-lineage
+
+diagramas: ## Regenera los PNG de arquitectura desde los .mmd (necesita node)
+	npx -y @mermaid-js/mermaid-cli -i docs/arquitectura.mmd -o docs/arquitectura.png -b white -s 2
+	npx -y @mermaid-js/mermaid-cli -i docs/arquitectura-mlops1.mmd -o docs/arquitectura-mlops1.png -b white -s 2
 
 help: ## Muestra los comandos disponibles
 	@grep -hE '^[a-z][a-z0-9-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-16s %s\n", $$1, $$2}'
