@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from pyproj import Transformer
 
+from arrest_model.features import XY_METERS
 from arrest_model.params import dump_params, load_params
 
 # El modelo usa tres de las diez columnas que el ETL codifica por frecuencia.
@@ -28,8 +29,9 @@ SCALE_KEYS = {
     "distance_crime_to_police_station": "log_distance",
 }
 
-# El CRS en el que el codificador mide la distancia a la comisaría.
-STATIONS_CRS = "EPSG:26971"
+# El CRS en el que el codificador mide la distancia a la comisaría, tomado de donde lo define el
+# paquete compartido para que no haya dos literales que puedan separarse.
+STATIONS_CRS = XY_METERS
 
 
 def project_stations(stations: pd.DataFrame) -> np.ndarray:

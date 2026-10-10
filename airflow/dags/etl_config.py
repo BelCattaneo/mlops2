@@ -9,6 +9,8 @@ import datetime
 import os
 from dataclasses import dataclass
 
+from arrest_model.features import XY_FEET, XY_METERS
+
 # El bucket y los argumentos por defecto los comparten los dos DAGs: definidos dos veces, se
 # separan en silencio el día que alguien cambia uno.
 BUCKET_NAME = os.getenv("DATA_REPO_BUCKET_NAME", "data")
@@ -64,10 +66,13 @@ class ETLConfig:
     SOCRATA_DOMAIN: str = "data.cityofchicago.org"
     API_TIMEOUT: int = 60
 
-    # Geospatial CRS
-    CRS_ILLINOIS_STATE_PLANE: str = "EPSG:3435"
+    # Geospatial CRS. Los dos proyectados salen del paquete compartido en vez de repetirse acá:
+    # son los mismos en los que el codificador que sirve el modelo lee las coordenadas y mide la
+    # distancia a la comisaría, y medir la distancia en otro CRS es entrenar con una escala y
+    # predecir con otra.
+    CRS_ILLINOIS_STATE_PLANE: str = XY_FEET
     CRS_WGS84: str = "EPSG:4326"
-    CRS_UTM_ZONE: int = 32616
+    CRS_DISTANCE: str = XY_METERS
 
     # Columns to keep after enrichment
     # Note: latitude/longitude excluded - redundant with x/y coordinates

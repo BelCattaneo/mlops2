@@ -1,5 +1,8 @@
 """El contrato de features del dataset de entrenamiento."""
 
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import pytest
 from etl_helpers.contract import (
@@ -9,8 +12,14 @@ from etl_helpers.contract import (
     enforce_feature_contract,
     rename_to_model,
 )
+from etl_helpers.data_enrichment import enrich_crime_data
+from etl_helpers.params import project_stations
 
-from arrest_model.features import MODEL_FEATURES
+from arrest_model.features import (
+    MODEL_FEATURES,
+    distance_to_station_standardized,
+    with_projections,
+)
 
 FEATURES = ("a_freq", "b_freq", "c_sin")
 ETIQUETA = "arrest"
@@ -119,3 +128,41 @@ def test_the_renamed_frame_passes_the_contract() -> None:
     verificado = enforce_feature_contract(rename_to_model(del_etl), CURATED_FEATURES, ETIQUETA)
 
     assert list(verificado.columns) == [*MODEL_FEATURES, ETIQUETA]
+
+
+def test_the_etl_measures_the_distance_where_the_model_measures_it() -> None:
+    """La distancia a la comisaría tiene que salir del ETL en el mismo CRS en el que la mide el
+    codificador que sirve.
+
+    El modelo recibe esa distancia estandarizada con la media y el desvío que ajustó el ETL. Si
+    el ETL la mide en otra unidad, el modelo entrena con una escala y predice con otra, y el
+    desajuste no lo avisa nadie: la correlación entre las dos es 1,00000000 porque difieren en un
+    factor constante, y después del log1p ese factor se vuelve un corrimiento. Medido con el ETL
+    midiendo en pies y el codificador en metros: 1,65 desvíos de corrimiento.
+    """
+    datos = Path(__file__).parent / "data"
+    crimenes = pd.read_csv(datos / "sample_crimes.csv")
+    comisarias = pd.read_csv(datos / "sample_stations.csv").dropna(subset=["latitude", "longitude"])
+    # El enriquecimiento mide desde x/y y el codificador desde lat/lon, así que para comparar las
+    # dos mitades hay que partir del mismo punto. En los datos del portal las dos coordenadas
+    # corresponden —medido sobre 4.993 filas, 1e-9 desvíos de diferencia—, pero estos fixtures
+    # son sintéticos y su x/y está a 2.500 pies de su lat/lon.
+    for marco in (crimenes, comisarias):
+        proyectado = with_projections(marco)
+        marco["x_coordinate"] = proyectado["x_feet"]
+        marco["y_coordinate"] = proyectado["y_feet"]
+
+    enriquecido = enrich_crime_data(crimenes.copy(), comisarias.copy())
+    # El codificador de verdad, con escalado identidad: así devuelve el log1p de la distancia
+    # cruda en el CRS en el que el modelo la mide, sin que el test lo recalcule por su cuenta.
+    identidad = {
+        "freq": {},
+        "scale": {"log_distance": (0.0, 1.0)},
+        "stations": project_stations(comisarias),
+    }
+    del_codificador = np.expm1(
+        distance_to_station_standardized(with_projections(crimenes), identidad)
+    )
+
+    assert len(enriquecido) == len(crimenes)  # si no, comparar por posición no valdría
+    assert np.allclose(enriquecido["distance_crime_to_police_station"], del_codificador, rtol=1e-6)

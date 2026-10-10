@@ -84,9 +84,11 @@ def calculate_nearest_station(
                 crs=config.CRS_WGS84,
             )
 
-            # Convert to projected CRS for Chicago
-            crimes_gdf = crimes_gdf.to_crs(epsg=config.CRS_UTM_ZONE)
-            stations_gdf = stations_gdf.to_crs(epsg=config.CRS_UTM_ZONE)
+        # Los dos caminos terminan en el mismo CRS, que es el que usa el codificador del paquete
+        # compartido para medir esta distancia. Por el de arriba los puntos vienen en pies, así
+        # que sin esto la distancia saldría en pies y el modelo la recibiría en metros.
+        crimes_gdf = crimes_gdf.to_crs(config.CRS_DISTANCE)
+        stations_gdf = stations_gdf.to_crs(config.CRS_DISTANCE)
 
         # Perform spatial join to find nearest station
         crimes_with_stations = gpd.sjoin_nearest(
