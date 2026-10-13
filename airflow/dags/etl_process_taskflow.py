@@ -164,8 +164,15 @@ def process_etl_taskflow():
                 if len(anteriores):
                     filas += escribir_por_mes(anteriores)
 
-            # Nada aterrizó: ni el período ni la carga inicial trajeron reportes.
-            if filas == 0:
+            # Que no aterrice nada nuevo es normal: el portal publica con atraso, así que el
+            # mes corriente puede estar vacío. Eso no es "no hay datos" mientras la ventana
+            # tenga particiones, y cortar ahí dejaría sin construir las capas derivadas aunque
+            # la ventana se haya corrido un mes.
+            if filas == 0 and not partitions_in_window(
+                list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
+                fin,
+                config.ROLLING_WINDOW_DAYS,
+            ):
                 return {"status": "no_data", "rows": 0, **ventana}
 
         return {"status": "success", "crimes_file": crimes_key, "rows": filas, **ventana}
@@ -217,7 +224,7 @@ def process_etl_taskflow():
 
     @task.python
     def build_curated(enriched):
-        """Corta, saca outliers, codifica, escala, balancea y selecciona features."""
+        """Corta, saca outliers, codifica y escala, y deja las features del contrato."""
         if enriched.get("status") == "no_data":
             return {"status": "no_data"}
 

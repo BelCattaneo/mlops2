@@ -27,8 +27,7 @@ from etl_helpers.minio import (
     list_objects_with_times,
 )
 from etl_helpers.partitions import newest_partition, partition_date
-from sklearn.model_selection import train_test_split
-from training_helpers import choose_threshold, evaluate, fit_model
+from training_helpers import evaluate, fit_with_threshold
 
 import arrest_model
 from arrest_model.config import MODEL_NAME
@@ -40,7 +39,7 @@ logger = logging.getLogger(__name__)
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 
 # Lo que se reserva del train para elegir el umbral. Chico porque solo hay que estimar un
-# escalar, y sacárselo al ajuste cuesta datos de entrenamiento.
+# escalar; el modelo que se registra se reajusta después con el train entero.
 VALIDATION_SIZE = 0.15
 
 
@@ -77,24 +76,24 @@ def train_arrest_model():
         train = enforce_feature_contract(train, CURATED_FEATURES, config.TARGET_COLUMN)
         test = enforce_feature_contract(test, CURATED_FEATURES, config.TARGET_COLUMN)
         features = list(CURATED_FEATURES)
-        y_train = train[config.TARGET_COLUMN].astype(int)
         y_test = test[config.TARGET_COLUMN].astype(int)
 
-        # Una parte del train se reserva para elegir el umbral de decisión. Tiene que ser un
-        # conjunto que el modelo no vio y que no es el test: elegir el umbral donde después se
-        # mide convierte la métrica informada en una promesa que producción no puede cumplir.
-        ajuste, validacion = train_test_split(
+        # El umbral se elige sobre una parte del train que el modelo explorador no vio, y el
+        # modelo que se registra se reajusta después con el train entero.
+        ajustado = fit_with_threshold(
             train,
-            test_size=VALIDATION_SIZE,
+            features,
+            config.TARGET_COLUMN,
+            validation_size=VALIDATION_SIZE,
             random_state=config.SPLIT_RANDOM_STATE,
-            stratify=y_train,
         )
-        modelo = fit_model(ajuste[features], ajuste[config.TARGET_COLUMN].astype(int))
-        umbral = choose_threshold(
-            modelo, validacion[features], validacion[config.TARGET_COLUMN].astype(int)
-        )
+        modelo, umbral = ajustado.model, ajustado.threshold
         metricas = evaluate(modelo, test[features], y_test, threshold=umbral)
-        logger.info("Umbral elegido sobre validación: %.2f", umbral)
+        logger.info(
+            "Umbral %.2f, elegido sobre %d filas de validación",
+            umbral,
+            ajustado.filas_de_validacion,
+        )
         logger.info("Métricas sobre el test curado: %s", metricas)
 
         mlflow.set_tracking_uri(TRACKING_URI)
@@ -104,7 +103,10 @@ def train_arrest_model():
             mlflow.log_params(
                 {
                     "curated_partition": particion,
-                    "train_rows": len(train),
+                    # Las filas con las que se ajustó el modelo que se registra, que son
+                    # todas: la validación se usó para elegir el umbral y después se reajustó.
+                    "train_rows": ajustado.filas_de_ajuste,
+                    "validation_rows": ajustado.filas_de_validacion,
                     "test_rows": len(test),
                     "features": len(features),
                     # El umbral viaja como parámetro de la corrida: de ahí lo lee el cargador
