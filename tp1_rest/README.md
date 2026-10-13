@@ -154,4 +154,4 @@ El modelo se carga una sola vez en el `lifespan` y queda en `app.state`; los end
 
 ## De dónde sale el modelo
 
-Por defecto, del `model/model.pkl` versionado en el repo: es el que documenta este TP y el que sirve la imagen cuando se la corre sola. Si el entorno trae `MODEL_URI`, en cambio, el modelo se baja del Model Registry de MLflow —es lo que hace el TP integrador, con `MODEL_URI=models:/chicago-arrest-xgboost@champion`— y entonces la versión que informa cada respuesta es la del registro. Lo decide `arrest_model/registry.py`, no este servicio.
+Por defecto, del `model/model.pkl` versionado en el repo: es el que documenta este TP y el que sirve la imagen cuando se la corre sola, y no se vuelve a consultar porque no cambia mientras el proceso vive. Si el entorno trae `MODEL_URI`, en cambio, el modelo se baja del Model Registry de MLflow —es lo que hace el TP integrador, con `MODEL_URI=models:/chicago-arrest-xgboost@champion`— y entonces la versión que informa cada respuesta es la del registro, que el servicio vuelve a consultar cada `MODEL_TTL_SECONDS` para tomar una promoción sin reiniciar. Lo decide `arrest_model/registry.py`, no este servicio.

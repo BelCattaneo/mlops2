@@ -11,9 +11,11 @@ from arrest_model.config import MODEL_NAME
 from arrest_model.model import load_bundle, predict
 from arrest_model.params import dump_params
 from arrest_model.registry import (
+    ModelProvider,
     ModelSource,
     bundle_from_artifacts,
     load_model_bundle,
+    model_provider,
     registered_version,
     resolve_loader,
 )
@@ -252,3 +254,107 @@ def test_without_a_recorded_threshold_the_bundle_does_not_carry_one(
     )
 
     assert "threshold" not in sin_umbral["metadata"]
+
+
+class RelojFalso:
+    """Un reloj que avanza cuando se le dice."""
+
+    def __init__(self) -> None:
+        self.ahora = 0.0
+
+    def __call__(self) -> float:
+        return self.ahora
+
+
+def test_the_provider_loads_once_and_reuses_it() -> None:
+    # El bundle no se vuelve a bajar en cada predicción: a 5 ms de mediana, bajar 800 KB por
+    # request sería multiplicar la latencia por cien.
+    cargas = []
+
+    def cargar() -> dict[str, Any]:
+        cargas.append(1)
+        return {"metadata": {"version": 1}}
+
+    proveedor = ModelProvider(loader=cargar, clock=RelojFalso())
+
+    assert proveedor.current() is proveedor.current()
+    assert len(cargas) == 1
+
+
+def test_the_provider_reloads_when_the_registry_has_another_version() -> None:
+    # Promover una versión no tiene que exigir reiniciar el servicio.
+    reloj = RelojFalso()
+    version = [1]
+    proveedor = ModelProvider(
+        loader=lambda: {"metadata": {"version": version[0]}},
+        version_of=lambda: version[0],
+        ttl=300,
+        clock=reloj,
+    )
+    assert proveedor.current()["metadata"]["version"] == 1
+
+    version[0] = 2
+    reloj.ahora += 301
+
+    assert proveedor.current()["metadata"]["version"] == 2
+
+
+def test_the_provider_does_not_ask_the_registry_before_the_ttl() -> None:
+    reloj = RelojFalso()
+    consultas = []
+    proveedor = ModelProvider(
+        loader=lambda: {"metadata": {"version": 1}},
+        version_of=lambda: consultas.append(1) or 1,
+        ttl=300,
+        clock=reloj,
+    )
+    proveedor.current()
+
+    reloj.ahora += 299
+    proveedor.current()
+
+    assert consultas == []
+
+
+def test_a_registry_that_blinks_keeps_the_model_it_had() -> None:
+    # Perder el modelo servido porque el registro no contestó sería cambiar una degradación por
+    # una caída: lo que ya está cargado sigue sirviendo.
+    reloj = RelojFalso()
+
+    def se_cae() -> int:
+        raise ConnectionError("el registro no responde")
+
+    proveedor = ModelProvider(
+        loader=lambda: {"metadata": {"version": 7}}, version_of=se_cae, ttl=10, clock=reloj
+    )
+    assert proveedor.current()["metadata"]["version"] == 7
+    reloj.ahora += 11
+
+    assert proveedor.current()["metadata"]["version"] == 7
+
+
+def test_without_a_model_the_provider_says_so_and_sigue_intentando() -> None:
+    # Arrancar sin champion no puede ser definitivo: el servicio queda en 503 y lo vuelve a
+    # intentar, así que entrenar después lo levanta sin reiniciar nada.
+    reloj = RelojFalso()
+    disponible = [False]
+
+    def cargar() -> dict[str, Any]:
+        if not disponible[0]:
+            raise RuntimeError("todavía no hay champion")
+        return {"metadata": {"version": 1}}
+
+    proveedor = ModelProvider(loader=cargar, ttl=10, clock=reloj)
+    assert proveedor.current() is None
+
+    disponible[0] = True
+    reloj.ahora += 11
+
+    assert proveedor.current()["metadata"]["version"] == 1
+
+
+def test_the_refresh_interval_comes_from_the_environment() -> None:
+    # Un operador tiene que poder decidir cuánto tarda en notarse una promoción sin tocar código.
+    proveedor = model_provider({"MODEL_TTL_SECONDS": "7"})
+
+    assert proveedor._ttl == 7.0

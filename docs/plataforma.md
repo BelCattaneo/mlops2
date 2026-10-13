@@ -89,11 +89,16 @@ A diferencia de los DAGs, que se montan desde el repo y toman los cambios al ins
 
 Lo que recibe por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir la imagen.
 
-El alias se resuelve una sola vez, al arrancar, que es lo mismo que hacía con el `.pkl`. Así que después de promover una versión nueva hay que reiniciar el servicio para que la tome:
+El servicio le pregunta al registro cada `MODEL_TTL_SECONDS` —60 en el compose— si hay otra versión, así que **promover no exige reiniciar nada**: se mueve el alias y en el próximo chequeo el servicio empieza a servir la versión nueva. La consulta no baja artefactos, solo resuelve el alias, y la descarga ocurre únicamente cuando el número de versión cambió.
 
 ```bash
-docker compose --profile all --profile serving restart rest
+# mover el alias desde cualquier cliente de MLflow
+mlflow.MlflowClient().set_registered_model_alias("chicago-arrest-xgboost", "champion", "9")
 ```
+
+Verificado contra la plataforma corriendo: con el servicio sirviendo la v11 se movió el alias a la v9; al instante seguía respondiendo v11 —todavía dentro del intervalo— y después del chequeo pasó a v9, sin que nadie tocara el contenedor.
+
+Si el registro no contesta, el servicio sigue sirviendo el modelo que ya tenía cargado: una degradación del registro no puede convertirse en una caída del servicio. Y si arranca sin champion queda en 503 y lo vuelve a intentar, así que entrenar después lo levanta solo.
 
 Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`, y `/v1/metadata` agrega el umbral con el que decide.
 

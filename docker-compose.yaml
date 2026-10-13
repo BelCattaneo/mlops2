@@ -382,6 +382,10 @@ services:
       # La uri es un alias, no un número de versión: promover otra versión del modelo no
       # requiere tocar el compose ni reconstruir la imagen, solo mover el alias en MLflow.
       MODEL_URI: "models:/${MODEL_NAME:-chicago-arrest-xgboost}@champion"
+      # Cada cuánto el servicio le pregunta al registro si hay otra versión. Con esto,
+      # promover es mover el alias y esperar un minuto, sin reiniciar nada. La consulta no
+      # baja artefactos: solo resuelve el alias.
+      MODEL_TTL_SECONDS: "60"
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_S3_ENDPOINT_URL: http://s3:9000
       MLFLOW_S3_ADDRESSING_STYLE: path

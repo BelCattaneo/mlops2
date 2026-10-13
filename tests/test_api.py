@@ -175,3 +175,38 @@ def test_metadata_publishes_the_threshold_the_model_carries(bundle: dict[str, An
         cuerpo = client.get("/v1/metadata").json()
 
     assert cuerpo["threshold"] == 0.81
+
+
+def test_the_api_picks_up_a_new_version_without_restarting(bundle: dict[str, Any]) -> None:
+    # Promover una versión es mover el alias en el registro: el servicio tiene que tomarla sola.
+    version = {"actual": 1}
+
+    def cargador() -> dict[str, Any]:
+        return {**bundle, "metadata": {**bundle["metadata"], "version": version["actual"]}}
+
+    with TestClient(create_app(cargador)) as client:
+        assert client.get("/health").json()["model_version"] == 1
+
+        version["actual"] = 2
+
+        assert client.get("/health").json()["model_version"] == 2
+        assert client.get("/v1/metadata").json()["version"] == 2
+
+
+def test_a_loader_that_stops_working_keeps_serving_what_it_had(bundle: dict[str, Any]) -> None:
+    # Si el registro deja de contestar, el servicio sigue con el modelo que ya tenía en vez de
+    # empezar a responder 503: una degradación no puede convertirse en una caída.
+    roto = {"si": False}
+
+    def cargador() -> dict[str, Any]:
+        if roto["si"]:
+            raise ConnectionError("el registro no responde")
+        return bundle
+
+    with TestClient(create_app(cargador)) as client:
+        assert client.get("/health").status_code == 200
+
+        roto["si"] = True
+
+        assert client.get("/health").status_code == 200
+        assert client.post("/v1/predict", json=dict(EXAMPLE_REPORT)).status_code == 200

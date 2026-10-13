@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from arrest_model.log import service_logger
 from arrest_model.model import load_bundle, predict
-from arrest_model.registry import load_model_bundle
+from arrest_model.registry import model_provider
 from arrest_model.schemas import (
     BatchPredictionOut,
     BatchRequest,
@@ -29,13 +29,27 @@ INTERNAL_ERROR_DETAIL = "Error interno del servicio; revisá el log para el deta
 def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     """Crea la app; `loader` devuelve el bundle del modelo (los tests inyectan otro)."""
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        """Carga el modelo al arrancar; si falla, la app igual sirve y lo informa en /health."""
+    def vigente() -> dict[str, Any] | None:
+        """El modelo que hay que servir ahora, consultando al cargador.
+
+        Se le pregunta en cada request y no una sola vez al arrancar, porque así promover una
+        versión en el registro no exige reiniciar el servicio. Quien decide cuánto cuesta esa
+        pregunta es el cargador: el de la plataforma cachea y solo consulta al registro cada
+        tanto. Y si falla, se sigue sirviendo lo que ya estaba cargado.
+        """
         try:
-            app.state.bundle = loader()  # una sola vez, al arrancar
+            actual = loader()
         except Exception:
             logger.exception("No se pudo cargar el modelo")  # traza completa para diagnosticar
+            actual = None
+        if actual is not None:
+            app.state.bundle = actual
+        return app.state.bundle
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Intenta cargar al arrancar; si falla, la app igual sirve y lo dice en /health."""
+        vigente()
         yield
 
     app = FastAPI(title="Mini-TP 1 · Arrestos en Chicago", lifespan=lifespan)
@@ -70,18 +84,20 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     @app.get("/health")
     def health() -> JSONResponse:
         """Estado del servicio: 200 con el modelo cargado, 503 si no se pudo cargar."""
-        if app.state.bundle is None:
+        bundle = vigente()
+        if bundle is None:
             return JSONResponse({"status": "unavailable", "detail": UNAVAILABLE_DETAIL}, 503)
-        metadata = app.state.bundle["metadata"]
+        metadata = bundle["metadata"]
         return JSONResponse(
             {"status": "ok", "model_name": metadata["name"], "model_version": metadata["version"]}
         )
 
     def loaded_bundle() -> dict[str, Any]:
-        """Devuelve el bundle cargado o corta con 503 si el modelo no está disponible."""
-        if app.state.bundle is None:
+        """Devuelve el modelo vigente o corta con 503 si no hay ninguno."""
+        bundle = vigente()
+        if bundle is None:
             raise HTTPException(503, detail=UNAVAILABLE_DETAIL)
-        return app.state.bundle
+        return bundle
 
     v1 = APIRouter(prefix="/v1")  # versionado como el nivel 3 de API_MLOPS2.ipynb
 
@@ -104,6 +120,7 @@ def create_app(loader: Callable[[], dict[str, Any]] = load_bundle) -> FastAPI:
     return app
 
 
-# Corrido suelto sirve el .pkl del repo; dentro de la plataforma, con `MODEL_URI`, el
-# champion del registro de MLflow. Lo decide `load_model_bundle`, no este módulo.
-app = create_app(load_model_bundle)
+# Corrido suelto sirve el .pkl del repo; dentro de la plataforma, con `MODEL_URI`, el champion
+# del registro de MLflow. Lo decide el proveedor, no este módulo, y es también el que hace que
+# promover una versión no exija reiniciar el servicio.
+app = create_app(model_provider().current)

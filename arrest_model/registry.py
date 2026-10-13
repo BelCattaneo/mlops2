@@ -8,8 +8,10 @@ Este módulo es el único que conoce las dos procedencias. No importa `mlflow` a
 imagen que sirve el `.pkl` no tiene por qué traer el cliente de MLflow instalado.
 """
 
+import logging
 import os
 import tempfile
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,7 +27,15 @@ from arrest_model.model import load_bundle
 from arrest_model.params import load_params
 from arrest_model.schemas import EXAMPLE_REPORT
 
+logger = logging.getLogger(__name__)
+
 MODEL_URI_ENV = "MODEL_URI"
+
+# Cada cuánto se le pregunta al registro si hay otra versión, configurable por entorno. La
+# consulta cuesta milisegundos y no baja artefactos, así que el valor decide cuánto tarda en
+# notarse una promoción, no cuánto cuesta servir.
+MODEL_TTL_ENV = "MODEL_TTL_SECONDS"
+DEFAULT_TTL_SECONDS = 300.0
 REGISTRY_SCHEME = "models:/"
 
 # Los nombres con los que el DAG de entrenamiento guarda las dos mitades del modelo.
@@ -172,6 +182,99 @@ def resolve_loader(
     if not uri:
         return load_bundle
     return partial(load_from_registry, uri, fetch=fetch)
+
+
+class ModelProvider:
+    """Mantiene el modelo cargado y lo reemplaza cuando el registro tiene otra versión.
+
+    Sin esto, el alias se resuelve una sola vez al arrancar y promover una versión obliga a
+    reiniciar el servicio. Con esto, promover es mover el alias y esperar al próximo chequeo.
+
+    El chequeo es barato a propósito: pregunta el número de versión, que es una llamada al
+    registro, y solo baja los artefactos cuando cambió. Bajarlos en cada request multiplicaría
+    por cien la latencia de un servicio cuya mediana es de milisegundos.
+
+    Y si el registro no contesta, se sigue sirviendo lo que ya estaba cargado: perder el modelo
+    porque el registro parpadeó sería cambiar una degradación por una caída.
+    """
+
+    def __init__(
+        self,
+        loader: Callable[[], dict[str, Any]],
+        version_of: Callable[[], Any] | None = None,
+        ttl: float = DEFAULT_TTL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._loader = loader
+        self._version_of = version_of
+        self._ttl = ttl
+        self._clock = clock
+        self._bundle: dict[str, Any] | None = None
+        self._version: Any = None
+        self._checked: float | None = None
+
+    def current(self) -> dict[str, Any] | None:
+        """El modelo que hay que servir ahora, o None si todavía no se pudo cargar ninguno."""
+        if self._bundle is None:
+            return self._cargar()
+        if self._version_of is None or self._vigente():
+            return self._bundle
+        self._checked = self._clock()
+        try:
+            publicada = self._version_of()
+        except Exception:
+            logger.warning("No se pudo consultar la versión; sigo con la que está cargada")
+            return self._bundle
+        if publicada == self._version:
+            return self._bundle
+        logger.info("El registro publica la versión %s; recargando", publicada)
+        return self._cargar() or self._bundle
+
+    def _vigente(self) -> bool:
+        """Si el último chequeo todavía está dentro del ttl."""
+        return self._checked is not None and self._clock() - self._checked < self._ttl
+
+    def _cargar(self) -> dict[str, Any] | None:
+        """Intenta cargar y deja anotado cuándo, para no reintentar en cada request."""
+        if self._bundle is None and self._vigente():
+            return None
+        self._checked = self._clock()
+        try:
+            bundle = self._loader()
+        except Exception:
+            logger.exception("No se pudo cargar el modelo")
+            return None
+        self._bundle = bundle
+        self._version = bundle.get("metadata", {}).get("version")
+        return bundle
+
+
+def published_version(uri: str) -> Any:
+    """El número de versión que el registro publica hoy para esa uri.
+
+    Es la consulta barata del proveedor: resuelve el alias sin bajar ningún artefacto.
+    """
+    import mlflow  # acá dentro: la imagen que sirve el .pkl no trae el cliente de MLflow
+
+    return registered_version(mlflow.MlflowClient(), uri).version
+
+
+def model_provider(env: Mapping[str, str] = os.environ, ttl: float | None = None) -> ModelProvider:
+    """El proveedor que los servicios consultan en cada request.
+
+    Sin `MODEL_URI` el modelo es el `.pkl` versionado en el repo, que no cambia mientras el
+    proceso vive: el proveedor lo carga una vez y no vuelve a preguntar nada.
+    """
+    if ttl is None:
+        ttl = float(env.get(MODEL_TTL_ENV) or DEFAULT_TTL_SECONDS)
+    uri = env.get(MODEL_URI_ENV, "").strip()
+    if not uri:
+        return ModelProvider(loader=load_bundle, ttl=ttl)
+    return ModelProvider(
+        loader=partial(load_from_registry, uri),
+        version_of=partial(published_version, uri),
+        ttl=ttl,
+    )
 
 
 def load_model_bundle() -> dict[str, Any]:
