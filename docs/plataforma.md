@@ -61,6 +61,10 @@ Lo que registra en MLflow no es el estimador suelto sino el modelo servible: rec
 
 La versión registrada toma el alias `champion`, que es lo que las APIs van a pedir: promover una versión es una operación de registro y no un redespliegue.
 
+Cada corrida mide además cuánto se movieron los datos respecto de los que vio el champion que está servido, comparando los parámetros de preprocesamiento de las dos particiones. `drift_max_sigma` es el corrimiento de la media de la feature que más se movió, en desvíos del champion: las features estandarizadas valen 0 y 1 en entrenamiento por construcción, así que ese número dice a cuántos desvíos de lo que el modelo vio están llegando los datos nuevos.
+
+Para calibrarlo: dos particiones consecutivas dan 0,000000, y la partición de antes de que el ETL midiera la distancia en el mismo CRS que el modelo contra la de después da **1,7773**, señalando la única feature que se movió. Un valor alto no es un error de la corrida: es la señal de que el modelo servido está viendo otra cosa que la que entrenó.
+
 Las métricas de la última corrida se ven en <http://127.0.0.1:5001>, en el experimento `chicago-arrest`. Las del ETL van aparte, en `chicago-arrest-etl`: son métricas de datos, no de modelos, y no se comparan entre sí.
 
 Si no hay ningún dataset curado, la tarea falla diciendo que hay que correr el ETL antes. Y si la partición que encuentra es de una versión vieja del ETL, falla diciendo qué columna le falta, en vez de entrenar con un dataset que el modelo no puede consumir.

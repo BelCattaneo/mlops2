@@ -18,6 +18,7 @@ import mlflow
 import mlflow.pyfunc
 import pandas as pd
 from airflow.decorators import dag, task
+from drift import drift_metrics
 from etl_config import BUCKET_NAME, DEFAULT_ARGS, TRAINING_EXPERIMENT, config
 from etl_helpers.contract import CURATED_FEATURES, enforce_feature_contract
 from etl_helpers.keys import curated_params, curated_prefix, curated_test, curated_train
@@ -31,6 +32,8 @@ from training_helpers import evaluate, fit_with_threshold
 
 import arrest_model
 from arrest_model.config import MODEL_NAME
+from arrest_model.params import load_params
+from arrest_model.registry import load_from_registry
 from arrest_model.schemas import EXAMPLE_REPORT
 from arrest_model.serving import ArrestModel
 
@@ -41,6 +44,23 @@ TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 # Lo que se reserva del train para elegir el umbral. Chico porque solo hay que estimar un
 # escalar; el modelo que se registra se reajusta después con el train entero.
 VALIDATION_SIZE = 0.15
+
+
+def champion_params(name: str) -> dict | None:
+    """Los parámetros de preprocesamiento del modelo que está servido, o None si no hay.
+
+    Se bajan del registro y no del lake porque lo que importa es contra qué se está sirviendo
+    hoy, que puede ser una partición distinta de la última que escribió el ETL.
+
+    Depende de que la uri del tracking ya esté puesta: la resuelve `load_from_registry` desde el
+    entorno, que es lo que hace `mlflow.set_tracking_uri` unas líneas antes de llamarla.
+    """
+    try:
+        bundle = load_from_registry(f"models:/{name}@champion")
+    except Exception:
+        logger.info("Todavía no hay champion: no hay deriva que medir")
+        return None
+    return bundle["params"]
 
 
 @dag(
@@ -98,6 +118,14 @@ def train_arrest_model():
 
         mlflow.set_tracking_uri(TRACKING_URI)
         mlflow.set_experiment(TRAINING_EXPERIMENT)
+
+        # Cuánto se movieron los datos respecto de los que vio el champion que está servido.
+        # Se compara contra sus parámetros, que son el resumen de la distribución que el modelo
+        # consume, así que no hace falta volver a bajar un dato. Sin champion no hay con qué
+        # comparar y el diccionario queda vacío.
+        deriva = drift_metrics(champion_params(MODEL_NAME), load_params(params_crudos))
+        if deriva:
+            logger.info("Deriva contra el champion: %s", deriva)
         sufijo = partition_date(context.get("ds"), datetime.datetime.now(datetime.UTC))
         with mlflow.start_run(run_name=f"train_{sufijo}") as corrida:
             mlflow.log_params(
@@ -115,7 +143,7 @@ def train_arrest_model():
                     "threshold": umbral,
                 }
             )
-            mlflow.log_metrics(metricas)
+            mlflow.log_metrics({**metricas, **deriva})
             # El modelo se registra con los nombres de features puestos, así que servirlo con
             # columnas en otro orden falla en vez de devolver números equivocados.
             # Se registra el modelo servible, no el estimador: recibe los seis campos
