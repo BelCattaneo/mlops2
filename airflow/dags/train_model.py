@@ -28,6 +28,7 @@ from etl_helpers.minio import (
     list_objects_with_times,
 )
 from etl_helpers.partitions import newest_partition, partition_date
+from mlflow.exceptions import MlflowException
 from training_helpers import evaluate, fit_with_threshold
 
 import arrest_model
@@ -57,8 +58,17 @@ def champion_params(name: str) -> dict | None:
     """
     try:
         bundle = load_from_registry(f"models:/{name}@champion")
+    except MlflowException as error:
+        # Que todavía no haya champion es lo normal en la primera corrida. Cualquier otra falla
+        # del registro tiene que verse: la deriva es monitoreo, y un monitoreo que se apaga en
+        # silencio es peor que no tenerlo.
+        if "RESOURCE_DOES_NOT_EXIST" in str(error.error_code):
+            logger.info("Todavía no hay champion: no hay deriva que medir")
+        else:
+            logger.warning("No se pudo leer el champion, se entrena sin medir deriva: %s", error)
+        return None
     except Exception:
-        logger.info("Todavía no hay champion: no hay deriva que medir")
+        logger.exception("No se pudo leer el champion, se entrena sin medir deriva")
         return None
     return bundle["params"]
 

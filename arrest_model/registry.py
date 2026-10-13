@@ -196,6 +196,11 @@ class ModelProvider:
 
     Y si el registro no contesta, se sigue sirviendo lo que ya estaba cargado: perder el modelo
     porque el registro parpadeó sería cambiar una degradación por una caída.
+
+    No lleva candado: dos requests simultáneas que lleguen justo cuando venció el intervalo
+    pueden consultar y recargar las dos. El costo es una descarga de más en el momento de una
+    promoción, y la alternativa —serializar cada request detrás de un lock— agrega una forma de
+    fallar peor que la que evita. A 0,007 predicciones por segundo esa coincidencia no ocurre.
     """
 
     def __init__(
