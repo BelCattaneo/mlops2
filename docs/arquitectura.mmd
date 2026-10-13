@@ -59,10 +59,7 @@ flowchart TB
 
   subgraph serv["Servicio · perfil serving"]
     direction TB
-    REST["REST :8002<br/>/v1/predict · /batch · /metadata · /health"]:::infra
-    GQL["GraphQL :8012<br/>metadatos del modelo y linaje"]:::infra
-    GRPC["gRPC :50052<br/>Predict y PredictStream"]:::infra
-    NEO[("Neo4j :7475 · bolt :7688<br/>grafo de linaje · perfil lineage")]:::infra
+    REST["REST :8002<br/>/v1/predict · /batch · /metadata · /health<br/>el único protocolo: ver las decisiones"]:::infra
   end
 
   SOC -->|"descarga incremental"| etl
@@ -76,9 +73,8 @@ flowchart TB
   MLF --- ART
   E5 -.->|"47 métricas de datos"| MLF
   MLF -->|"models:/chicago-arrest-xgboost@champion"| serv
-  pkg -.->|"la misma codificación en los cuatro protocolos"| serv
+  pkg -.->|"la misma codificación al entrenar y al servir"| serv
   pkg -.-> TRA
-  GQL --- NEO
   serv --> CLI["apps y analistas"]:::externo
 
   subgraph ref2["Referencias"]

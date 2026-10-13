@@ -6,13 +6,9 @@
 AIRFLOW_PORT ?= 8081
 MLFLOW_PORT ?= 5001
 MINIO_PORT_UI ?= 9001
-# Las tres APIs dentro de la plataforma publican en otros puertos que los contenedores
-# sueltos de los mini-TPs (8000, 8010, 50051), para que los dos puedan estar arriba a la vez.
+# El servicio de la plataforma publica en otro puerto que el contenedor suelto del mini-TP
+# (8000), para que los dos puedan estar arriba a la vez.
 STACK_REST_PORT ?= 8002
-STACK_GRAPHQL_PORT ?= 8012
-STACK_GRPC_PORT ?= 50052
-STACK_NEO4J_HTTP_PORT ?= 7475
-STACK_NEO4J_BOLT_PORT ?= 7688
 -include .env
 
 REST_IMAGE := arrest-rest
@@ -35,7 +31,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
-.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve stack-lineage
+.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve
 
 diagramas: ## Regenera los PNG de arquitectura desde los .mmd (necesita node)
 	npx -y @mermaid-js/mermaid-cli -i docs/arquitectura.mmd -o docs/arquitectura.png -b white -s 2
@@ -181,35 +177,23 @@ stack-up: ## Integrador · levanta la plataforma y espera a que responda
 	@echo "MinIO     http://127.0.0.1:$(MINIO_PORT_UI)  (minio / minio123)"
 
 stack-down: ## Integrador · detiene la plataforma y conserva los volúmenes
-	docker compose --profile all --profile serving --profile lineage down
+	docker compose --profile all --profile serving down
 
 stack-ps: ## Integrador · muestra el estado de los servicios
-	docker compose --profile all --profile serving --profile lineage ps
+	docker compose --profile all --profile serving ps
 
 stack-logs: ## Integrador · sigue los logs de la plataforma
-	docker compose --profile all --profile serving --profile lineage logs -f
+	docker compose --profile all --profile serving logs -f
 
 # Construir y levantar van en dos pasos: `up --build` también reconstruye las imágenes de las
 # que estos servicios dependen, y eso son varios minutos de más.
-stack-serve: ## Integrador · levanta las tres APIs sirviendo el champion (después de stack-train)
-	docker compose --profile all --profile serving build rest graphql grpc
-	docker compose --profile all --profile serving up -d --no-build rest graphql grpc
+stack-serve: ## Integrador · levanta la API sirviendo el champion (después de stack-train)
+	docker compose --profile all --profile serving build rest
+	docker compose --profile all --profile serving up -d --no-build rest
 	@curl -sf -o /dev/null --retry 20 --retry-all-errors --retry-delay 2 --max-time 5 \
 		http://127.0.0.1:$(STACK_REST_PORT)/health \
 		&& echo "REST      http://127.0.0.1:$(STACK_REST_PORT)/docs" \
 		|| echo "REST todavía no sirve: /health da 503 mientras no haya champion (make stack-train)"
-	@echo "GraphQL   http://127.0.0.1:$(STACK_GRAPHQL_PORT)/graphql"
-	@echo "gRPC      localhost:$(STACK_GRPC_PORT)"
-
-# El linaje es opcional: Neo4j son 500 MB de memoria para una consulta que no hace falta para
-# predecir, así que va en su propio perfil y se levanta cuando se lo quiere mostrar.
-stack-lineage: ## Integrador · levanta Neo4j y siembra el linaje del modelo (con las APIs arriba)
-	docker compose --profile all --profile serving --profile lineage up -d --no-build neo4j
-	@echo "Esperando a que Neo4j acepte conexiones..."
-	@docker compose --profile all --profile serving --profile lineage exec -T graphql \
-		/app/.venv/bin/python -m tp2_graphql.lineage
-	@echo "Neo4j    http://127.0.0.1:$(STACK_NEO4J_HTTP_PORT)  ·  bolt en 127.0.0.1:$(STACK_NEO4J_BOLT_PORT)"
-	@echo "         usuario y clave de .env; por defecto neo4j / testpass"
 
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow

@@ -349,15 +349,18 @@ services:
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
 
-  # Las tres APIs de los mini-TPs, sirviendo el champion del Model Registry en vez del .pkl que
-  # tienen horneado. Van en su propio profile a propósito: sin una versión con el alias
-  # `champion` no hay nada que servir, así que se levantan después de que entrenó el DAG y no
-  # junto con la plataforma. La misma imagen corrida sin `MODEL_URI` sigue sirviendo el .pkl.
+  # El único servicio de inferencia de la plataforma, sirviendo el champion del Model Registry
+  # en vez del .pkl que la imagen tiene horneado. Va en su propio profile a propósito: sin una
+  # versión con el alias `champion` no hay nada que servir, así que se levanta después de que
+  # entrenó el DAG. La misma imagen corrida sin `MODEL_URI` sigue sirviendo el .pkl.
   #
-  # Tags, nombres de contenedor y puertos publicados son propios, distintos de los que usa el
-  # Makefile para correr los mini-TPs sueltos (`arrest-rest` en 8000, etc.): así los dos pueden
-  # estar arriba a la vez y ningún build le pisa la imagen al otro. El puerto de adentro sí es
-  # el mismo, que es el que nombra el diagrama de arquitectura.
+  # Por qué uno y no tres, con los números: `docs/arquitectura.md`. En resumen, a 633 reportes
+  # por día la ventaja de gRPC son 1,35 segundos por día, y en lote REST le gana.
+  #
+  # Tags, nombre de contenedor y puerto publicado son propios, distintos de los que usa el
+  # Makefile para correr el mini-TP suelto (`arrest-rest` en 8000): así los dos pueden estar
+  # arriba a la vez y ningún build le pisa la imagen al otro. El puerto de adentro sí es el
+  # mismo, que es el que nombra el diagrama de arquitectura.
   rest:
     restart: always
     build:
@@ -393,96 +396,6 @@ services:
       retries: 3
       start_period: 30s
 
-  graphql:
-    restart: always
-    build:
-      context: .
-      dockerfile: tp2_graphql/Dockerfile
-    image: mlops2-graphql
-    container_name: mlops2-graphql
-    profiles:
-      - serving
-    depends_on:
-      mlflow:
-        condition: service_healthy
-    ports:
-      - "${STACK_GRAPHQL_PORT:-8012}:8010"
-    networks:
-      - frontend
-      - backend
-    # El driver de Neo4j es perezoso y no conecta hasta la primera consulta, así que el
-    # servicio levanta igual con el perfil `lineage` apagado: lo único que falla entonces es el
-    # campo `lineage` de la query, que es el comportamiento que documenta el mini-TP 2.
-    environment:
-      <<: *serving-env
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-testpass}
-    # Un GET a /graphql solo devuelve GraphiQL si el pedido acepta HTML; sin eso Strawberry
-    # contesta 400. Y que el proceso esté sirviendo alcanza como chequeo acá: este servicio no
-    # arranca sin modelo, así que si responde es porque lo cargó.
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen(r.Request('http://localhost:8010/graphql', headers={'Accept': 'text/html'}))"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  grpc:
-    restart: always
-    build:
-      context: .
-      dockerfile: tp3_grpc/Dockerfile
-    image: mlops2-grpc
-    container_name: mlops2-grpc
-    profiles:
-      - serving
-    depends_on:
-      mlflow:
-        condition: service_healthy
-    ports:
-      - "${STACK_GRPC_PORT:-50052}:50051"
-    networks:
-      - frontend
-      - backend
-    environment: *serving-env
-    # Sin healthcheck: el servicio expone Predict y PredictStream, no un Health, y probarlo
-    # desde el contenedor significaría hacer una predicción de mentira en cada chequeo.
-
-  # El grafo de linaje del mini-TP 2, en su propio perfil porque es opcional: son 500 MB de
-  # memoria para una consulta que no hace falta para predecir. Publica en otros puertos que el
-  # `neo4j-tp` que levanta el Makefile (7474 y 7687), por lo mismo que las tres APIs.
-  neo4j:
-    restart: always
-    image: neo4j:5.26-community
-    container_name: mlops2-neo4j
-    profiles:
-      - lineage
-    ports:
-      - "${STACK_NEO4J_HTTP_PORT:-7475}:7474"
-      - "${STACK_NEO4J_BOLT_PORT:-7688}:7687"
-    networks:
-      - frontend
-      - backend
-    environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-testpass}
-      # Con los valores por defecto reserva más de 1 GB; acá el grafo son unos pocos nodos.
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
-    volumes:
-      - neo4j_data:/data
-    # Las credenciales van interpoladas por compose, con un solo `$`: el contenedor recibe
-    # `NEO4J_AUTH` y no estas dos variables, así que con `$$` el chequeo se autenticaría siempre
-    # con los valores por defecto y quedaría unhealthy para siempre con una clave distinta.
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-testpass} 'RETURN 1' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-
-
 networks:
   frontend:
     driver: bridge
@@ -492,4 +405,3 @@ networks:
 volumes:
   db_data:
   minio_data:
-  neo4j_data:

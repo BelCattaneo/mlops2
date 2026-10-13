@@ -1,12 +1,12 @@
 # Levantar la plataforma
 
-La plataforma del TP integrador corre en Docker: Airflow, MLflow, PostgreSQL y MinIO con un solo comando, y las tres APIs y el grafo de linaje detrás de sus propios perfiles. Esta página es cómo arrancarla, cómo correr el pipeline y dónde mirar lo que produjo.
+La plataforma del TP integrador corre en Docker: Airflow, MLflow, PostgreSQL y MinIO con un solo comando, y la API de predicción detrás de su propio perfil. Esta página es cómo arrancarla, cómo correr el pipeline y dónde mirar lo que produjo.
 
 ← [Arquitectura del integrador](arquitectura.md) · [README del repo](../README.md)
 
 ## Requisitos
 
-Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 2,65 GiB la plataforma sola, 3,29 GiB con las tres APIs del perfil `serving`, y 3,83 GiB sumando Neo4j con el perfil `lineage`.
+Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 3,35 GiB con todo arriba, los siete servicios de la plataforma más la API del perfil `serving`.
 
 Y un `.env`, que no se versiona porque ahí van los secretos:
 
@@ -71,46 +71,27 @@ Si no hay ningún dataset curado, la tarea falla diciendo que hay que correr el 
 make stack-serve
 ```
 
-Levanta las tres APIs de la plataforma, que sirven lo que registró el entrenamiento. Reusan el código de los mini-TPs, que es una entrega aparte: la misma imagen corrida suelta sirve el `model/model.pkl` versionado en el repo, y acá sirve el champion porque el entorno se lo indica. Van en su propio perfil del compose a propósito: sin una versión con el alias `champion` no hay nada que servir, así que se levantan después de `make stack-train` y no junto con la plataforma.
+Levanta la API de la plataforma, que sirve lo que registró el entrenamiento. Reusa el código del mini-TP 1, que es una entrega aparte: la misma imagen corrida suelta sirve el `model/model.pkl` versionado en el repo, y acá sirve el champion porque el entorno se lo indica. Va en su propio perfil del compose a propósito: sin una versión con el alias `champion` no hay nada que servir, así que se levanta después de `make stack-train` y no junto con la plataforma.
 
-| servicio | dónde | para qué |
+| | dónde | para qué |
 |---|---|---|
 | REST | <http://127.0.0.1:8002/docs> | `POST /v1/predict`, `/v1/predict/batch`, `/v1/metadata` y `/health` |
-| GraphQL | <http://127.0.0.1:8012/graphql> | los metadatos del modelo y el linaje, con GraphiQL para probarlo |
-| gRPC | `127.0.0.1:50052` | `Predict` y `PredictStream` |
 
-No son los 8000, 8010 y 50051 de los mini-TPs a propósito: los contenedores de la plataforma tienen tags, nombres y puertos publicados propios (`mlops2-rest`, `mlops2-graphql`, `mlops2-grpc`), así que la plataforma y los mini-TPs sueltos pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose cada servicio escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
+Es el único protocolo de servicio, y por qué está medido en [la arquitectura](arquitectura.md#decisiones-de-arquitectura): a 633 reportes por día la ventaja de gRPC son 1,35 segundos por día, y para la forma real de la carga —lotes, no eventos sueltos— REST le gana 6,92 ms contra 13,46.
 
-A diferencia de los DAGs, que se montan desde el repo y toman los cambios al instante, las imágenes de las APIs hornean el paquete `arrest_model` adentro. Por eso `make stack-serve` construye antes de levantar: saltearse ese paso deja los servicios sirviendo el código de la imagen anterior, con el modelo nuevo.
+No es el 8000 del mini-TP a propósito: el contenedor de la plataforma tiene tag, nombre y puerto propios (`mlops2-rest`), así que la plataforma y el mini-TP suelto pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
 
-Lo que reciben por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir ninguna imagen.
+A diferencia de los DAGs, que se montan desde el repo y toman los cambios al instante, la imagen de la API hornea el paquete `arrest_model` adentro. Por eso `make stack-serve` construye antes de levantar: saltearse ese paso deja el servicio sirviendo el código de la imagen anterior, con el modelo nuevo.
 
-El alias se resuelve una sola vez, al arrancar cada servicio, que es lo mismo que hacían con el `.pkl`. Así que después de promover una versión nueva hay que reiniciarlos para que la tomen:
+Lo que recibe por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir la imagen.
 
-```bash
-docker compose --profile all --profile serving restart rest graphql grpc
-```
-
-Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`.
-
-## El linaje del modelo
+El alias se resuelve una sola vez, al arrancar, que es lo mismo que hacía con el `.pkl`. Así que después de promover una versión nueva hay que reiniciar el servicio para que la tome:
 
 ```bash
-make stack-lineage
+docker compose --profile all --profile serving restart rest
 ```
 
-Levanta Neo4j y siembra el grafo de linaje —de qué datasets y qué transformaciones salió el modelo—, que es lo que responde el campo `lineage` de la query de GraphQL. Va en su propio perfil del compose porque es opcional: son 500 MB de memoria para una consulta que no hace falta para predecir.
-
-La siembra corre desde dentro del contenedor de GraphQL, que es el que ya tiene el driver y la dirección de Neo4j:
-
-```bash
-docker compose --profile all --profile serving --profile lineage exec -T graphql \
-    /app/.venv/bin/python -m tp2_graphql.lineage
-```
-
-Con el perfil apagado el servicio de GraphQL levanta igual —el driver es perezoso y no conecta hasta la primera consulta—, y lo único que falla es ese campo: la query devuelve los datos del modelo, `lineage: null` y un error que dice que el linaje no está disponible.
-
-La interfaz de Neo4j queda en <http://127.0.0.1:7475>, con el usuario y la clave de `.env` (por defecto `neo4j` / `testpass`). No son los 7474 y 7687 del `neo4j-tp` que levanta `make neo4j-up` para el mini-TP suelto, por lo mismo que las tres APIs.
+Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`, y `/v1/metadata` agrega el umbral con el que decide.
 
 ## Qué deja en el lake
 
@@ -137,8 +118,7 @@ En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con
 | `make stack-up` | levanta la plataforma y espera a que responda |
 | `make stack-dag` | despausa y dispara el ETL |
 | `make stack-train` | entrena con el último curado y registra el champion |
-| `make stack-serve` | levanta las tres APIs sirviendo el champion |
-| `make stack-lineage` | levanta Neo4j y siembra el linaje del modelo |
+| `make stack-serve` | levanta la API sirviendo el champion |
 | `make stack-ps` | muestra el estado de los servicios |
 | `make stack-logs` | sigue los logs de todos |
 | `make stack-down` | detiene la plataforma y conserva los volúmenes |
