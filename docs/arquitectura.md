@@ -55,7 +55,9 @@ Lo único que GraphQL aportaba y nadie más tenía era el linaje del modelo. Su 
 
 La trazabilidad que la plataforma sí tiene es la de MLflow: cada versión registrada guarda de qué partición curada salió, y esa partición está en el lake con sus parámetros. De ahí para atrás la cadena es determinista, porque la ventana son los 365 días previos a la fecha de la partición.
 
-Lo que MLflow no contesta es la pregunta al revés —"este mes del portal vino mal, ¿qué versiones hay que revisar?"— y para eso un grafo sí serviría, con nodos de instancia escritos por el pipeline mientras corre. Queda como trabajo futuro: el valor está claro y el costo también, porque haría que una caída de Neo4j pueda afectar al pipeline de datos.
+Lo que MLflow no contesta es la pregunta al revés —"este mes del portal vino mal, ¿qué versiones hay que revisar?"— que es un recorrido hacia adelante de profundidad desconocida. Para eso la plataforma mantiene un grafo en Neo4j con nodos de **instancia**, escrito por el pipeline mientras corre: una partición cruda, una intermedia, una curada y una versión del modelo, encadenadas por `DERIVES`.
+
+Escribirlo es best-effort, así que una caída de Neo4j no voltea el pipeline de datos, y el resumen de la corrida registra `lineage_written` para que el hueco no quede en silencio.
 
 ### Por qué esto no contradice los mini-TPs
 
@@ -71,13 +73,14 @@ Sobredimensionar la arquitectura tiene un costo que no se ve en un diagrama: cad
 | Data lake | MinIO | guarda los datasets en tres capas —`raw`, `enriched` y `curated` de `s3://data`— y los artefactos de modelos (`s3://mlflow`) |
 | Entrenamiento y ciclo de vida | Airflow, MLflow, PostgreSQL | el DAG `train_arrest_model` entrena sobre la capa curada y registra el modelo con el alias `champion` |
 | Servicio | una API REST | predicciones y metadatos del modelo `champion`, que trae su propia codificación adentro y recibe los campos crudos |
+| Trazabilidad | MLflow, Neo4j | de qué partición salió cada versión, y el grafo que recorre la cadena entera en las dos direcciones |
 
 ## Qué concepto de la materia aplica cada decisión
 
 | sesión | el concepto | cómo lo aplica la plataforma |
 |---|---|---|
 | S1 · Del modelo al servicio | predicción online en contenedores, contrato validado, versionado de API y de modelo, qué monitorear | el payload se valida antes de llegar al modelo; la versión servida sale del registro y viaja en cada respuesta; `/health` distingue "el proceso está arriba" de "hay modelo cargado" |
-| S2 · Grafos de linaje | el linaje dato → feature → modelo como grafo, para trazabilidad y auditoría | hoy la cubre MLflow: cada versión registra su partición curada de origen. El grafo queda como trabajo futuro, con nodos de instancia generados por el pipeline |
+| S2 · Grafos de linaje | el linaje dato → feature → modelo como grafo, para trazabilidad y auditoría | Neo4j con nodos de instancia que el pipeline escribe al correr, y la consulta multi-hop en las dos direcciones |
 | S3 · gRPC | contrato tipado y binario para la inferencia interna de baja latencia | el servicio gRPC del compose, con el modelo cargado una sola vez al arrancar |
 | S4 · Streaming | inferencia online sobre un flujo, features por ventana, monitoreo continuo | no se incorporó a la plataforma: el pipeline es mensual y la inferencia, a pedido |
 | S5 · Aprendizaje federado | mover el cómputo al dato, agregar solo parámetros | no se incorporó: los datos del portal de Chicago son públicos y están centralizados, así que no hay dilema del dato que resolver |

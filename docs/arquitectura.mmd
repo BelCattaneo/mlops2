@@ -41,10 +41,11 @@ flowchart TB
     ART[("s3://mlflow<br/>artefactos de modelos")]:::dato
   end
 
-  subgraph ciclo["Ciclo de vida"]
+  subgraph ciclo["Ciclo de vida y trazabilidad"]
     direction TB
     MLF["MLflow 3.16.1 :5001<br/>tracking + Model Registry · alias champion"]:::infra
     PG[("PostgreSQL :5433<br/>metadata de Airflow y mlflow_db")]:::infra
+    NEO[("Neo4j :7475 · bolt :7688<br/>grafo de linaje · nodos de instancia")]:::infra
   end
 
   subgraph pkg["Paquete compartido arrest_model"]
@@ -72,6 +73,7 @@ flowchart TB
   MLF --- PG
   MLF --- ART
   E5 -.->|"47 métricas de datos"| MLF
+  dags -.->|"cada partición y cada versión, best-effort"| NEO
   MLF -->|"models:/chicago-arrest-xgboost@champion"| serv
   pkg -.->|"la misma codificación al entrenar y al servir"| serv
   pkg -.-> TRA

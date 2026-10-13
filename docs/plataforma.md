@@ -6,7 +6,7 @@ La plataforma del TP integrador corre en Docker: Airflow, MLflow, PostgreSQL y M
 
 ## Requisitos
 
-Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 3,35 GiB con todo arriba, los siete servicios de la plataforma más la API del perfil `serving`.
+Docker con al menos 4 GB de memoria asignados. Medido con el pipeline en reposo: 3,75 GiB con todo arriba, los ocho servicios de la plataforma más la API del perfil `serving`.
 
 Y un `.env`, que no se versiona porque ahí van los secretos:
 
