@@ -15,6 +15,10 @@ dejar el grafo igual, no con dos nodos por el mismo archivo.
 Y se escribe best-effort. Si Neo4j no responde, las tareas siguen: el linaje es trazabilidad, no
 una dependencia del pipeline de datos. Lo que no puede pasar es que el hueco quede en silencio,
 así que quien escribe informa si pudo y el resumen de la corrida lo registra.
+
+Las tareas lo escriben también cuando toman su atajo de idempotencia, aunque no hayan recalculado
+nada. Es lo que vuelve el grafo auto-reparable: una partición que se creó con Neo4j caído entra
+en la corrida siguiente, porque si solo se escribiera al producir, ese hueco sería permanente.
 """
 
 import logging

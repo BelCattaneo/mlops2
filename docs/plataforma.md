@@ -120,7 +120,7 @@ RETURN DISTINCT m.name, m.version
 
 La primera también la contesta MLflow, que registra de qué partición curada salió cada versión. La segunda no: es un recorrido hacia adelante de profundidad desconocida, y es lo que justifica una base de grafos en vez de una tabla.
 
-Escribirlo es best-effort. Si Neo4j no responde, las tareas siguen —el linaje es trazabilidad, no una dependencia del pipeline de datos— y el resumen de la corrida registra `lineage_written` en 0, así que el hueco queda visible en MLflow en lugar de quedar en silencio. Verificado apagando Neo4j: la corrida termina en `success` y la métrica queda en 0.
+Escribirlo es best-effort. Si Neo4j no responde, las tareas siguen —el linaje es trazabilidad, no una dependencia del pipeline de datos— y el resumen de la corrida registra `lineage_written` en 0, así que el hueco queda visible en MLflow en lugar de quedar en silencio. Verificado apagando Neo4j: la corrida termina en `success` y la métrica queda en 0. Y el grafo se repara solo, porque las tareas escriben su linaje también cuando toman el atajo de idempotencia: la partición que quedó afuera entra en la corrida siguiente sin recalcular nada.
 
 ## Qué deja en el lake
 

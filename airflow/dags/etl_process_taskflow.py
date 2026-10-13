@@ -133,7 +133,25 @@ def process_etl_taskflow():
             config.ROLLING_WINDOW_DAYS,
         )
         if not faltan_reportes and not faltan_comisarias and not falta_el_historico:
-            return {"status": "success", "crimes_file": crimes_key, "rows": None, **ventana}
+            # El atajo también escribe el linaje: son `MERGE`, así que repetirlos no cambia el
+            # grafo, y si una corrida anterior lo escribió con Neo4j caído, esta lo repara. Sin
+            # esto el hueco sería permanente, porque esa partición ya nunca se vuelve a calcular.
+            linaje = record(
+                raw_statements(
+                    partitions_in_window(
+                        list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
+                        fin,
+                        config.ROLLING_WINDOW_DAYS,
+                    )
+                )
+            )
+            return {
+                "status": "success",
+                "crimes_file": crimes_key,
+                "rows": None,
+                "lineage": linaje,
+                **ventana,
+            }
 
         filas = None
         with tempfile.TemporaryDirectory() as temporal:
@@ -197,10 +215,21 @@ def process_etl_taskflow():
         sufijo = raw["partition_date"]
         destino = enriched_crimes(sufijo)
         if check_file_exists(BUCKET_NAME, destino):
+            linaje = record(
+                enriched_statements(
+                    destino,
+                    partitions_in_window(
+                        list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()),
+                        datetime.datetime.fromisoformat(raw["window_end"]),
+                        config.ROLLING_WINDOW_DAYS,
+                    ),
+                )
+            )
             return {
                 "status": "success",
                 "enriched_file": destino,
                 "partition_date": sufijo,
+                "lineage": linaje,
             }
 
         particiones = partitions_in_window(
@@ -247,11 +276,13 @@ def process_etl_taskflow():
         # puede servir, así que darla por completa dejaría al entrenamiento sin con qué armar el
         # modelo. Es el caso de las particiones escritas antes de que los parámetros existieran.
         if all(check_file_exists(BUCKET_NAME, clave(sufijo)) for clave in CURATED_ARTIFACTS):
+            linaje = record(curated_statements(train_key, enriched["enriched_file"]))
             return {
                 "status": "success",
                 "train_file": train_key,
                 "test_file": test_key,
                 "params_file": params_key,
+                "lineage": linaje,
             }
 
         limpio = download_to_dataframe(BUCKET_NAME, enriched["enriched_file"])
