@@ -50,6 +50,11 @@ x-airflow-common: &airflow-common
     # Para que el DAG pueda importar `arrest_model`, que es la codificación que comparten los
     # cuatro protocolos: el contrato de features del dataset curado sale de ahí y no de una
     # lista escrita a mano.
+    # Dónde escribir el grafo de linaje. Si no responde, las tareas siguen igual: el linaje
+    # es trazabilidad, no una dependencia del pipeline de datos.
+    NEO4J_URI: bolt://neo4j:7687
+    NEO4J_USER: ${NEO4J_USER:-neo4j}
+    NEO4J_PASSWORD: ${NEO4J_PASSWORD:-testpass}
     PYTHONPATH: /opt/project
   volumes:
     - ${AIRFLOW_PROJ_DIR:-./airflow}/dags:/opt/airflow/dags
@@ -400,6 +405,40 @@ services:
       retries: 3
       start_period: 30s
 
+  # El grafo de linaje: qué particiones crudas produjeron qué curada, y de cuál salió cada
+  # versión del modelo. Los nodos son instancias, no etapas: por eso vale una base de grafos y
+  # no un dibujo. La pregunta que contesta y MLflow no es la inversa —"este mes del portal vino
+  # mal, ¿qué versiones hay que revisar?"— que es un recorrido de profundidad desconocida.
+  #
+  # Va en el perfil `all` y no en uno opcional: lo escribe el pipeline mientras corre, y un
+  # grafo con huecos silenciosos es tan malo para auditar como uno equivocado.
+  neo4j:
+    restart: always
+    image: neo4j:5.26-community
+    container_name: mlops2-neo4j
+    profiles:
+      - all
+    ports:
+      - "${STACK_NEO4J_HTTP_PORT:-7475}:7474"
+      - "${STACK_NEO4J_BOLT_PORT:-7688}:7687"
+    networks:
+      - frontend
+      - backend
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-testpass}
+      # El grafo son unos cientos de nodos: con los valores por defecto reservaría más de 1 GB.
+      NEO4J_server_memory_heap_initial__size: 128m
+      NEO4J_server_memory_heap_max__size: 256m
+      NEO4J_server_memory_pagecache_size: 128m
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-testpass} 'RETURN 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
 networks:
   frontend:
     driver: bridge
@@ -409,3 +448,4 @@ networks:
 volumes:
   db_data:
   minio_data:
+  neo4j_data:

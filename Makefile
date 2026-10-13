@@ -9,6 +9,7 @@ MINIO_PORT_UI ?= 9001
 # El servicio de la plataforma publica en otro puerto que el contenedor suelto del mini-TP
 # (8000), para que los dos puedan estar arriba a la vez.
 STACK_REST_PORT ?= 8002
+STACK_NEO4J_HTTP_PORT ?= 7475
 -include .env
 
 REST_IMAGE := arrest-rest

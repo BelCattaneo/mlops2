@@ -102,6 +102,26 @@ Si el registro no contesta, el servicio sigue sirviendo el modelo que ya tenía 
 
 Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`, y `/v1/metadata` agrega el umbral con el que decide.
 
+## El linaje de cada versión
+
+El pipeline escribe un grafo mientras corre, en Neo4j, con un nodo por **instancia**: cada partición cruda, cada intermedia, cada curada y cada versión del modelo, encadenadas por `DERIVES`. No son las etapas del pipeline —eso ya está en el diagrama de arquitectura— sino lo que cada corrida produjo.
+
+Se consulta en <http://127.0.0.1:7475>, con el usuario y la clave de `.env`. Las dos preguntas que contesta:
+
+```cypher
+// de qué salió una versión, a cualquier profundidad
+MATCH (a)-[:DERIVES*1..]->(m:ModelVersion {name: "chicago-arrest-xgboost", version: 13})
+RETURN DISTINCT a.key, head(labels(a))
+
+// y la inversa: este mes del portal vino mal, ¿qué versiones hay que revisar?
+MATCH (o {key: "raw/crimes/month=2026-03/crimes.csv"})-[:DERIVES*1..]->(m:ModelVersion)
+RETURN DISTINCT m.name, m.version
+```
+
+La primera también la contesta MLflow, que registra de qué partición curada salió cada versión. La segunda no: es un recorrido hacia adelante de profundidad desconocida, y es lo que justifica una base de grafos en vez de una tabla.
+
+Escribirlo es best-effort. Si Neo4j no responde, las tareas siguen —el linaje es trazabilidad, no una dependencia del pipeline de datos— y el resumen de la corrida registra `lineage_written` en 0, así que el hueco queda visible en MLflow en lugar de quedar en silencio. Verificado apagando Neo4j: la corrida termina en `success` y la métrica queda en 0.
+
 ## Qué deja en el lake
 
 Tres capas en el bucket `data`, que se ven en la consola de MinIO:

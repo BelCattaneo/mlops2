@@ -28,6 +28,7 @@ from etl_helpers.minio import (
     list_objects_with_times,
 )
 from etl_helpers.partitions import newest_partition, partition_date
+from lineage_graph import model_statements, record
 from mlflow.exceptions import MlflowException
 from training_helpers import evaluate, fit_with_threshold
 
@@ -180,6 +181,10 @@ def train_arrest_model():
 
         cliente = mlflow.MlflowClient(TRACKING_URI)
         cliente.set_registered_model_alias(MODEL_NAME, "champion", version)
+
+        # La versión cuelga de la partición curada con la que se entrenó: con eso el grafo
+        # contesta de qué meses del portal salió, y al revés, qué versiones tocó cada mes.
+        linaje = record(model_statements(MODEL_NAME, int(version), curated_train(particion)))
         logger.info("Versión %s registrada y marcada como champion", version)
 
         return {
@@ -187,6 +192,7 @@ def train_arrest_model():
             "run_id": registrada,
             "model_version": version,
             "curated_partition": particion,
+            "lineage": linaje,
             "metrics": metricas,
         }
 

@@ -25,6 +25,10 @@ geopandas==1.2.0
 shapely>=2.0.0
 sodapy>=1.8.0
 
+# El driver del grafo de linaje, que las tareas escriben mientras corren. Va acá y no en un
+# grupo del pyproject porque lo usa el contenedor de Airflow, no el repo.
+neo4j>=6.3.0
+
 # El CLI de Airflow avisa en cada invocación que no puede importar graphviz y recomienda
 # instalarlo. Lo imprime por salida estándar, así que además rompe el parseo de `-o json`. Lo
 # usa solo para dibujar el grafo de un DAG; el paquete pesa poco y deja la salida limpia.

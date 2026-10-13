@@ -268,6 +268,7 @@ def log_pipeline_summary(
     final_train_count: int,
     final_test_count: int,
     feature_count: int,
+    lineage_written: float = 1.0,
     run_name: str = "pipeline_summary",
 ) -> dict[str, Any]:
     """
@@ -281,6 +282,7 @@ def log_pipeline_summary(
         final_train_count: Number of final training records after feature selection
         final_test_count: Number of final test records after feature selection
         feature_count: Number of final features
+        lineage_written: 1 si las tres capas escribieron su linaje, 0 si alguna no pudo
         run_name: MLflow run name
 
     Returns:
@@ -304,6 +306,7 @@ def log_pipeline_summary(
             "final_train_records": final_train_count,
             "final_test_records": final_test_count,
             "final_features": feature_count,
+            "lineage_written": lineage_written,
             "enrichment_retention_pct": (enriched_count / raw_count * 100) if raw_count > 0 else 0,
             "total_final_records": final_train_count + final_test_count,
             "overall_retention_pct": ((final_train_count + final_test_count) / raw_count * 100)

@@ -65,6 +65,7 @@ from etl_helpers.partitions import (
     split_by_month,
 )
 from etl_helpers.summary import summary_counts
+from lineage_graph import curated_statements, enriched_statements, raw_statements, record
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,17 @@ def process_etl_taskflow():
             ):
                 return {"status": "no_data", "rows": 0, **ventana}
 
-        return {"status": "success", "crimes_file": crimes_key, "rows": filas, **ventana}
+        particiones = partitions_in_window(
+            list_objects(BUCKET_NAME, prefix=raw_crimes_prefix()), fin, config.ROLLING_WINDOW_DAYS
+        )
+        linaje = record(raw_statements(particiones))
+        return {
+            "status": "success",
+            "crimes_file": crimes_key,
+            "rows": filas,
+            "lineage": linaje,
+            **ventana,
+        }
 
     @task.python
     def build_enriched(raw, **context):
@@ -214,12 +225,14 @@ def process_etl_taskflow():
         enriquecido = preprocess_for_split(enrich_crime_data(crimenes, comisarias))
         upload_from_dataframe(enriquecido, BUCKET_NAME, destino)
 
+        linaje = record(enriched_statements(destino, particiones))
         return {
             "status": "success",
             "enriched_file": destino,
             "partition_date": sufijo,
             "raw_rows": len(crimenes),
             "rows": len(enriquecido),
+            "lineage": linaje,
         }
 
     @task.python
@@ -288,11 +301,13 @@ def process_etl_taskflow():
         upload_from_dataframe(elegidas_train, BUCKET_NAME, train_key)
         upload_from_dataframe(elegidas_test, BUCKET_NAME, test_key)
 
+        linaje = record(curated_statements(train_key, enriched["enriched_file"]))
         return {
             "status": "success",
             "train_file": train_key,
             "test_file": test_key,
             "params_file": params_key,
+            "lineage": linaje,
             "split_rows": filas_corte,
             "rows": (len(elegidas_train), len(elegidas_test)),
             "features": len([c for c in elegidas_train.columns if c != config.TARGET_COLUMN]),
@@ -305,13 +320,23 @@ def process_etl_taskflow():
         Los conteos vienen por XCom y no de volver a bajar los datasets: cada capa sabe cuántas
         filas dejó en cada paso interno, así que el resumen no necesita leer nada del bucket.
         """
+        # Si alguna capa no pudo escribir su linaje, el hueco queda registrado como métrica en
+        # vez de quedar en silencio: un grafo incompleto es tan malo para auditar como uno falso.
+        escrito = all(capa.get("lineage", True) for capa in (raw, enriched, curated))
+        if not escrito:
+            logger.warning("Alguna capa no pudo escribir su linaje en el grafo")
+
         conteos = summary_counts(raw, enriched, curated)
         if conteos is None:
             logger.info("Las capas no recalcularon nada: no hay corrida que resumir")
-            return {"status": "skipped"}
+            return {"status": "skipped", "lineage": escrito}
 
-        log_pipeline_summary(**conteos, run_name=f"pipeline_summary_{raw['partition_date']}")
-        return {"status": "success"}
+        log_pipeline_summary(
+            **conteos,
+            lineage_written=float(escrito),
+            run_name=f"pipeline_summary_{raw['partition_date']}",
+        )
+        return {"status": "success", "lineage": escrito}
 
     crudo = land_raw()
     limpio = build_enriched(crudo)
