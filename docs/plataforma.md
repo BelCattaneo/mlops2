@@ -71,7 +71,7 @@ Si no hay ningún dataset curado, la tarea falla diciendo que hay que correr el 
 make stack-serve
 ```
 
-Levanta las tres APIs de los mini-TPs dentro de la plataforma, sirviendo lo que registró el entrenamiento en vez del `model/model.pkl` que tienen horneado. Van en su propio perfil del compose a propósito: sin una versión con el alias `champion` no hay nada que servir, así que se levantan después de `make stack-train` y no junto con la plataforma.
+Levanta las tres APIs de la plataforma, que sirven lo que registró el entrenamiento. Reusan el código de los mini-TPs, que es una entrega aparte: la misma imagen corrida suelta sirve el `model/model.pkl` versionado en el repo, y acá sirve el champion porque el entorno se lo indica. Van en su propio perfil del compose a propósito: sin una versión con el alias `champion` no hay nada que servir, así que se levantan después de `make stack-train` y no junto con la plataforma.
 
 | servicio | dónde | para qué |
 |---|---|---|

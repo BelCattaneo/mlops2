@@ -2,7 +2,7 @@
 
 Plataforma de predicción en tiempo real de "ML Models & Something More Inc." que sirve el modelo XGBoost de arrestos en Chicago (2024). Nivel en contenedores.
 
-Parte de la infraestructura del TP final de MLOps I y de los servicios de los mini-TPs, y suma una capa por sesión.
+Parte de la infraestructura del TP final de MLOps I y le aplica encima los conceptos de la materia. Lo que sigue es qué cambió y por qué.
 
 Equipo: trabajo individual. Bel Cattaneo cubre diseño, implementación y documentación.
 
@@ -28,7 +28,7 @@ La infraestructura viene del TP final de MLOps I, y vale la pena ver las dos arq
 | de dónde sale el modelo que se sirve | del artefacto que dejó el entrenamiento | del Model Registry, por el alias `champion` |
 | los parámetros de preprocesamiento | quedaban del lado del pipeline | viajan dentro del artefacto del modelo |
 | el umbral de decisión | un `0.5` escrito en el código | lo elige el entrenamiento sobre validación y viaja con el modelo |
-| protocolos de servicio | una API REST | REST, GraphQL con linaje en Neo4j, gRPC y un consumidor de streaming |
+| protocolos de servicio | una API REST | REST para los clientes, gRPC para la inferencia interna y GraphQL para los metadatos y el linaje |
 | el resumen de la corrida | bajaba 7 datasets de S3 para contar filas | los conteos viajan por XCom |
 
 La diferencia de fondo es que en MLOps I el pipeline era una cadena de archivos, donde cada etapa dependía de que la anterior hubiera dejado el suyo en el lugar justo. Ahora es un contrato: el ETL publica una capa curada que cumple el contrato de features de `arrest_model`, y el entrenamiento la consume sin saber quién la escribió.
@@ -42,17 +42,17 @@ La diferencia de fondo es que en MLOps I el pipeline era una cadena de archivos,
 | Entrenamiento y ciclo de vida | Airflow, MLflow, PostgreSQL | el DAG `train_arrest_model` entrena sobre la capa curada y registra el modelo con el alias `champion` |
 | Servicio | REST, gRPC, GraphQL con Neo4j | predicciones y metadatos del modelo `champion`, que trae su propia codificación adentro y recibe los campos crudos |
 
-## Lo que aporta cada sesión
+## Qué concepto de la materia aplica cada decisión
 
-| sesión | qué aporta | dónde está |
+| sesión | el concepto | cómo lo aplica la plataforma |
 |---|---|---|
-| S1 · APIs REST | contratos con Pydantic, versionado de API y de modelo, códigos de estado | `tp1_rest`, y en la plataforma sirviendo el champion del registro |
-| S2 · GraphQL y linaje | el tipo `Model` con sus métricas y el grafo dato → feature → modelo en Neo4j | `tp2_graphql`, con Neo4j en el perfil `lineage` del compose |
-| S3 · gRPC | el `.proto` como contrato tipado, stubs generados, el modelo cargado una sola vez | `tp3_grpc`, unary y server-streaming |
-| S4 · Streaming | un flujo de eventos y un consumidor que puntúa cada reporte al llegar, con ventana deslizante y alerta de drift | `tp4_streaming`, por fuera del compose |
-| S5 · Aprendizaje federado | FedAvg por distrito policial, datos non-IID y el costo del ruido de privacidad | `tp5_federated`, por fuera del compose |
-| S6 · Nube y data lake | las zonas del lake, Parquet en lo curado y MinIO como lake S3 | las tres capas de `s3://data`, con retención por capa y el bucket versionado |
-| S7 · Seguridad y gobernanza | pendiente: el material de la sesión no está publicado | lo que ya hay: secretos solo en `.env`, bucket versionado con retención, y el grafo de linaje para trazabilidad |
+| S1 · Del modelo al servicio | predicción online en contenedores, contrato validado, versionado de API y de modelo, qué monitorear | el payload se valida antes de llegar al modelo; la versión servida sale del registro y viaja en cada respuesta; `/health` distingue "el proceso está arriba" de "hay modelo cargado" |
+| S2 · Grafos de linaje | el linaje dato → feature → modelo como grafo, para trazabilidad y auditoría | Neo4j en el perfil `lineage`, consultable desde el servicio de metadatos junto con la versión y las métricas del modelo |
+| S3 · gRPC | contrato tipado y binario para la inferencia interna de baja latencia | el servicio gRPC del compose, con el modelo cargado una sola vez al arrancar |
+| S4 · Streaming | inferencia online sobre un flujo, features por ventana, monitoreo continuo | no se incorporó a la plataforma: el pipeline es mensual y la inferencia, a pedido |
+| S5 · Aprendizaje federado | mover el cómputo al dato, agregar solo parámetros | no se incorporó: los datos del portal de Chicago son públicos y están centralizados, así que no hay dilema del dato que resolver |
+| S6 · Nube y data lake | zonas del lake, *schema-on-read*, Parquet en lo curado, un solo origen de verdad | las tres capas de `s3://data` con retención propia y el bucket versionado; el lake es lo único que acopla el ETL con el entrenamiento |
+| S7 · Seguridad y gobernanza | autenticación, cifrado, auditoría | pendiente, el material de la sesión no está publicado. Lo que ya hay: secretos solo en `.env`, el bucket versionado con retención por capa, y el grafo de linaje |
 
 ## Hoja de ruta
 
