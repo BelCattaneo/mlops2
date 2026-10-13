@@ -33,6 +33,35 @@ La infraestructura viene del TP final de MLOps I, y vale la pena ver las dos arq
 
 La diferencia de fondo es que en MLOps I el pipeline era una cadena de archivos, donde cada etapa dependía de que la anterior hubiera dejado el suyo en el lugar justo. Ahora es un contrato: el ETL publica una capa curada que cumple el contrato de features de `arrest_model`, y el entrenamiento la consume sin saber quién la escribió.
 
+## Decisiones de arquitectura
+
+### Un solo protocolo de servicio, y es REST
+
+> Decidido el 2026-10-12 y todavía sin ejecutar: el compose y el diagrama de arriba siguen
+> mostrando los tres servicios. Esta nota se va cuando se saquen.
+
+La plataforma sirve el modelo por REST. No porque REST sea mejor en abstracto —medimos que gRPC es más rápido— sino porque a la carga de este problema esa ventaja no compra nada.
+
+**El volumen.** El portal publica 633 reportes por día. Eso es 26,4 por hora, 0,44 por minuto, uno cada 136 segundos: 0,007 predicciones por segundo. Con la mediana medida de una llamada REST dockerizada —4,94 ms con keep-alive— el servicio estaría ocupado el 0,0036% del tiempo.
+
+**Lo que gRPC ahorraría.** Dockerizado y reusando el canal, gRPC responde en 2,81 ms contra los 4,94 de REST: 2,13 ms por llamada, 1,76x. A 633 llamadas por día eso son **1,35 segundos por día**, 8 minutos por año. El costo de obtenerlos es un servicio más en el compose, una imagen más que mantener, un `.proto` que versionar y un puerto más que asegurar.
+
+**Y la forma de la carga no es de a uno.** Los reportes llegan en lote, con 12 días de atraso del portal, así que lo que la plataforma hace es puntuar conjuntos y no eventos sueltos. Ahí la comparación se da vuelta: el lote de 100 por REST tarda 6,92 ms y el mismo lote por `PredictStream` de gRPC, 13,46 ms. **REST le gana a gRPC por 1,95x en las seis corridas medidas.**
+
+Las mediciones están en [`tp3_grpc/latencias.md`](../tp3_grpc/latencias.md), con cuatro cohortes medidas tres veces cada una.
+
+### GraphQL tampoco entra
+
+Su ventaja medida es traer solo los campos pedidos: 89 bytes contra 557 de REST para la misma consulta de metadatos. Es real, y es irrelevante acá: son metadatos que se consultan de vez en cuando, y 468 bytes no pagan un contenedor, una imagen y un puerto más.
+
+Lo único que GraphQL aportaba y nadie más tenía era el linaje del modelo, que es gobernanza y hay que conservar. Se conserva en Neo4j, que la plataforma mantiene por su cuenta: el pipeline escribe el grafo mientras corre y se consulta en su propia interfaz, que para seguir aristas hacia atrás es mejor herramienta que un endpoint que devuelve una lista plana. El consumidor del linaje es una persona auditando, no una aplicación en un bucle.
+
+### Por qué esto no contradice los mini-TPs
+
+Los mini-TPs comparan REST, GraphQL y gRPC sobre el mismo modelo: ese es su objetivo y ahí la comparación tiene sentido. La plataforma no compara, sirve. Tiene un tipo de consumidor, así que tiene un protocolo.
+
+Sobredimensionar la arquitectura tiene un costo que no se ve en un diagrama: cada servicio de más es una imagen que reconstruir, una superficie que asegurar y una versión que mantener alineada con el paquete compartido.
+
 ## Capas
 
 | capa | componentes | qué hace |
