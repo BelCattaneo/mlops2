@@ -422,17 +422,6 @@ services:
       dockerfile: tp1_rest/Dockerfile
     image: mlops2-rest
     container_name: mlops2-rest
-    # La imagen sirve por defecto la app del mini-TP 1, que se entrega abierta. La plataforma
-    # corre la fábrica, que resuelve el control de acceso al arrancar: sin `REST_JWT_SECRET` el
-    # proceso no levanta, en vez de levantar sin control.
-    command:
-      - /app/.venv/bin/uvicorn
-      - --factory
-      - tp1_rest.app:service
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
     profiles:
       - serving
     depends_on:

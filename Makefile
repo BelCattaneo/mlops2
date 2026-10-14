@@ -55,15 +55,17 @@ lint: ## Revisa estilo y formato con ruff
 docker-network:
 	@docker network inspect $(DOCKER_NETWORK) > /dev/null 2>&1 || docker network create $(DOCKER_NETWORK) > /dev/null
 
-rest-run: ## TP1 · levanta la API local con uvicorn (recarga al guardar)
-	uv run uvicorn tp1_rest.app:app --reload --port $(REST_PORT)
+# El mini-TP 1 se entrega abierto: lo prueban su cliente, su notebook y el benchmark del TP3. El
+# servicio arranca protegido salvo que se le diga lo contrario, así que acá se le dice.
+rest-run: ## TP1 · levanta la API local con uvicorn, abierta (recarga al guardar)
+	REST_AUTH=off uv run uvicorn --factory tp1_rest.app:service --reload --port $(REST_PORT)
 
 rest-build: ## TP1 · construye la imagen Docker
 	docker build -f tp1_rest/Dockerfile -t $(REST_IMAGE) .
 
 rest-up: rest-build ## TP1 · levanta el contenedor y espera a que responda /health
 	@docker rm -f $(REST_CONTAINER) > /dev/null 2>&1 || true
-	docker run -d --rm -p $(REST_PORT):8000 --name $(REST_CONTAINER) $(REST_IMAGE)
+	docker run -d --rm -p $(REST_PORT):8000 -e REST_AUTH=off --name $(REST_CONTAINER) $(REST_IMAGE)
 	@curl -s --retry 45 --retry-all-errors --retry-delay 2 --max-time 5 http://127.0.0.1:$(REST_PORT)/health && echo
 
 rest-down: ## TP1 · detiene el contenedor

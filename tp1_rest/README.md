@@ -10,7 +10,7 @@ Todos los comandos se corren desde la raíz del repo.
 
 | comando | qué hace |
 |---|---|
-| `make rest-run` | levanta la API local con uvicorn en el puerto 8000 (docs interactivas en `/docs`) |
+| `make rest-run` | levanta la API local con uvicorn en el puerto 8000, abierta (docs interactivas en `/docs`) |
 | `make rest-up` | construye la imagen, levanta el contenedor y espera a que responda `/health` |
 | `make rest-health` | consulta `GET /health` |
 | `make rest-client` | corre el cliente de prueba (`client.py`) contra la API |
@@ -22,9 +22,9 @@ Los targets llevan el prefijo `rest-` porque el repo sirve el mismo modelo por v
 Sin `make`:
 
 ```bash
-uv run uvicorn tp1_rest.app:app --port 8000          # local
-docker build -f tp1_rest/Dockerfile -t arrest-rest . # imagen
-docker run --rm -p 8000:8000 arrest-rest             # contenedor
+uv run uvicorn tp1_rest.app:app --port 8000                     # local, abierta
+docker build -f tp1_rest/Dockerfile -t arrest-rest .            # imagen
+docker run --rm -p 8000:8000 -e REST_AUTH=off arrest-rest       # contenedor, abierto
 uv run python tp1_rest/client.py                     # cliente de prueba
 ```
 
@@ -43,7 +43,7 @@ Los endpoints de negocio van bajo el prefijo `/v1`; `/health` queda afuera porqu
 
 Este mini-TP se entrega **abierto**: así lo prueban su cliente, su notebook y el benchmark del mini-TP 3, y así está documentado arriba. El control de acceso es del integrador, que corre el mismo servicio detrás de token con rol, presupuesto de reportes y auditoría —`tp1_rest/security.py`, documentado en [la arquitectura](../docs/arquitectura.md#seguridad-del-servicio)—.
 
-Las dos formas conviven en el módulo sin una bandera escondida: `app` es la app abierta y `service()` es la fábrica de la plataforma, que resuelve el control al arrancar y **no levanta** si falta `REST_JWT_SECRET`. Abrir el servicio de la plataforma también hay que decirlo: `REST_AUTH=off`.
+Lo que no es abierto es el **default**: el servicio arranca protegido y **no levanta** si falta `REST_JWT_SECRET`, así que una imagen corrida a mano no sirve el modelo sin control. Abrirlo es una decisión que hay que decir, con `REST_AUTH=off`, y es lo que hacen los targets de arriba. En el módulo conviven las dos entradas: `service()`, la fábrica que resuelve el control al arrancar, y `app`, la app sin guardia que usan el notebook del mini-TP 2 y el benchmark del 3.
 
 ## Ejemplo
 
@@ -152,7 +152,7 @@ Se ve que un 422 corta en la validación sin tocar el modelo, y por eso es dos �
 
 | archivo | qué tiene |
 |---|---|
-| `app.py` | `create_app()`: carga del modelo en el `lifespan`, middleware de log, auditoría y 500, `/health` y el router `/v1`; `app` abierta y `service()` protegida |
+| `app.py` | `create_app()`: carga del modelo en el `lifespan`, middleware de log, auditoría y 500, `/health` y el router `/v1`; `service()` protegida —el default de la imagen— y `app` abierta |
 | `security.py` | el control de acceso de la plataforma: token con rol, presupuesto de reportes, huella de la entrada y el emisor de tokens (`python -m tp1_rest.security`) |
 | `client.py` | cliente de prueba end-to-end |
 | `Dockerfile` | `python:3.12-slim` + uv, instala los grupos `rest` y `serving` y copia `arrest_model/`, `tp1_rest/` y `model/model.pkl` |

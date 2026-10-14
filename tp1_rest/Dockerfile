@@ -15,4 +15,7 @@ COPY tp1_rest ./tp1_rest
 COPY model/model.pkl ./model/model.pkl
 
 EXPOSE 8000
-CMD ["/app/.venv/bin/uvicorn", "tp1_rest.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Arranca la fábrica, que resuelve el control de acceso al levantar: sin `REST_JWT_SECRET` el
+# proceso termina con error en vez de servir el modelo sin control. Abrirla es explícito y se
+# dice con `REST_AUTH=off`, que es como la corre el mini-TP 1 (`make rest-up`).
+CMD ["/app/.venv/bin/uvicorn", "--factory", "tp1_rest.app:service", "--host", "0.0.0.0", "--port", "8000"]
