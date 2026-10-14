@@ -35,8 +35,10 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 
 ```
 ├── Makefile         # atajos globales (install, test, lint), por TP (rest-*, graphql-*, grpc-*, stream-*, fed-*, lake-*) y de la plataforma (stack-*)
-├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL, MinIO y las tres APIs
+├── docker-compose.yaml  # la plataforma: Airflow, MLflow, PostgreSQL, MinIO, Neo4j y la API REST
 ├── docker/          # las imágenes de la plataforma (airflow, mlflow, postgres)
+├── docs/            # el integrador: cómo levantarlo, la arquitectura y la model card
+├── .github/         # el CI: lint y tests en cada push
 ├── airflow/         # dags/: el ETL en tres capas y el entrenamiento que registra el champion
 ├── model/           # model.pkl: modelo entrenado + parámetros de codificación
 ├── arrest_model/    # paquete compartido: contrato del payload, codificación y predicción
