@@ -50,10 +50,12 @@ Frena la extracción del modelo: un atacante que consulta sin límite reconstruy
 
 Y el costo para un consumidor legítimo es cero, porque conocemos el volumen: la plataforma procesa **633 reportes por día**, o sea 0,007 por segundo. Nadie que use el servicio para lo que fue hecho se acerca a cinco por minuto.
 
-## Qué falta para llevarlo al integrador
+## Cómo se llevó al integrador
 
-Las conclusiones del notebook lo detallan. En resumen, tres cosas cambian al salir del notebook:
+Las conclusiones del notebook lo detallan, y en la plataforma ya está puesto: el servicio REST del integrador arranca protegido y no levanta sin su secreto, el presupuesto se cuenta en reportes porque una llamada puede traer mil, y cada request deja una línea de auditoría con el usuario y la huella de la entrada. Está documentado en [la arquitectura de la plataforma](../docs/arquitectura.md#seguridad-del-servicio).
 
-- el estado del límite vive en memoria del proceso, así que con más de una réplica el límite efectivo se multiplica;
-- la auditoría en una lista se pierde al reiniciar, y un registro que se borra solo no es un registro de auditoría;
-- y el agujero más grande de la plataforma no es la API: ocho de los doce servicios del compose comparten la credencial root de MinIO. Asegurar la API y dejar esa credencial sería asegurar la puerta y abrir la ventana.
+Tres cosas cambiaron al salir del notebook:
+
+- el estado del límite vive en memoria del proceso, así que con más de una réplica el límite efectivo se multiplica —la plataforma corre una sola—;
+- la auditoría en una lista se pierde al reiniciar, así que en la plataforma va al log del servicio, que es lo que persiste, e incluye los rechazos;
+- y el agujero más grande no era la API: ocho de los doce servicios del compose compartían la credencial root de MinIO. Asegurar la API y dejar esa credencial habría sido asegurar la puerta y abrir la ventana, así que ahora cada servicio tiene su propio usuario con lo mínimo que necesita.
