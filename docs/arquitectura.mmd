@@ -74,7 +74,7 @@ flowchart TB
   TRA -->|"modelo pyfunc + params + umbral"| MLF
   MLF --- PG
   MLF --- ART
-  E5 -.->|"47 métricas de datos"| MLF
+  E5 -.->|"33 métricas de datos en 3 corridas"| MLF
   dags -.->|"cada partición y cada versión, best-effort"| NEO
   MLF -->|"models:/chicago-arrest-xgboost@champion"| serv
   pkg -.->|"la misma codificación al entrenar y al servir"| serv
