@@ -29,6 +29,17 @@ jobs:
 
       - run: make lint
 
-      # Los tests que piden Neo4j, Kafka, MinIO o MLflow se saltean solos cuando no hay nada
-      # escuchando, así que el runner no necesita levantar ningún servicio.
+      # El data lake sí se prueba contra un MinIO de verdad: sin esto se saltean 18 tests y el
+      # CI no toca el almacenamiento. Va con `docker run` y no como `services:` del job porque
+      # esa forma no deja pasarle el comando, y la imagen necesita `server /data`. Credenciales
+      # y puerto son los que esperan los defaults de `tp6_datalake/lake.py`.
+      - name: Levanta MinIO para los tests del lake
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio123 \
+            coollabsio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          timeout 60 sh -c 'until curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/live; do sleep 1; done'
+
+      # Los de Neo4j, Kafka y el servidor de MLflow siguen salteándose: son nueve, y levantar un
+      # tracking server con su Postgres cuesta más de lo que cubre.
       - run: make test
