@@ -61,8 +61,8 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 | `features.py` | la codificación: una función por feature, registradas en `ENCODERS` |
 | `model.py` | `load_bundle()` para leer el `.pkl` y `predict()` para predecir un lote |
 | `registry.py` | de dónde sale el modelo: el `.pkl` del repo o el `champion` del registro de MLflow |
-| `params.py` | el formato de los parámetros de preprocesamiento, que viajan con el modelo |
-| `serving.py` | el modelo servible: recibe los 6 campos crudos, codifica adentro y predice |
+| `params.py` | el formato de lo que viaja con el modelo: los parámetros de codificación y el umbral |
+| `serving.py` | el modelo servible: recibe los 6 campos crudos, codifica adentro y devuelve probabilidad y decisión |
 | `log.py` | el logger de cada servicio, configurado sin tocar el logging del resto del proceso |
 
 Ningún servicio reimplementa la codificación ni el formato de la respuesta: todos usan este paquete.
