@@ -6,8 +6,6 @@ sino con métricas y con aserciones del propio pipeline, como el contrato de fea
 """
 
 from .loggers import (
-    log_balance_metrics,
-    log_feature_selection_metrics,
     log_pipeline_summary,
     log_raw_data_metrics,
     log_split_metrics,
@@ -17,8 +15,6 @@ from .mlflow_utils import get_value_distribution, log_metrics, log_params
 __all__ = [
     "log_raw_data_metrics",
     "log_split_metrics",
-    "log_balance_metrics",
-    "log_feature_selection_metrics",
     "log_pipeline_summary",
     "log_metrics",
     "log_params",

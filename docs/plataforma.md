@@ -149,7 +149,7 @@ El detalle de qué hace cada capa está en [la arquitectura](arquitectura.md).
 
 El bucket está versionado, así que un borrado no borra: deja una marca de borrado y el objeto se recupera por su `VersionId`.
 
-En MLflow quedan cinco corridas por cada pasada del pipeline, una por etapa, con las métricas de cuántas filas entraron y salieron, el balance de clases y las features elegidas con su score.
+En MLflow quedan tres corridas por cada pasada del pipeline —la capa cruda, el corte de entrenamiento y prueba, y el resumen—, con 33 métricas en total: cobertura, faltantes y tasa de arrestos de lo que llegó; tamaños y distribución de la etiqueta en el corte; y cuántas filas sobrevivieron cada capa, con qué retención y si el linaje se escribió.
 
 ## Los comandos
 

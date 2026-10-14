@@ -2,7 +2,7 @@
 End-to-End ETL Pipeline Tests
 
 Integration tests for the complete ETL pipeline:
-enrich -> split -> outliers -> encode -> scale -> balance -> features
+enrich -> split -> outliers -> encode -> scale -> contract
 
 Las fixtures venían en el conftest.py del repo de MLOps I; viven acá porque este es el
 único archivo que las usa. Los helpers se importan adentro de cada test, y el directorio
@@ -337,98 +337,6 @@ class TestDataScaling:
         assert "distance_crime_to_police_station_standardized" in train_scaled.columns
 
 
-class TestDataBalancing:
-    """Tests for data balancing stage."""
-
-    def test_balancing_improves_class_ratio(self, train_df: pd.DataFrame):
-        """Test that balancing improves the class ratio when data is imbalanced."""
-        from etl_helpers.data_balancing import balance_data
-        from etl_helpers.data_encoding import encode_data
-        from etl_helpers.data_scaling import scale_data
-
-        # Given: encoded and scaled train data
-        train_encoded, _, _ = encode_data(train_df.copy(), train_df.copy())
-        train_scaled, _, _ = scale_data(train_encoded, train_encoded)
-        original_counts = train_scaled["arrest"].value_counts()
-        original_ratio = original_counts.min() / original_counts.max()
-
-        # Skip if data is already balanced (SMOTE requires minority < 50% of majority)
-        if original_ratio >= 0.5:
-            assert True
-            return
-
-        # When: we balance the data
-        balanced = balance_data(train_scaled)
-
-        # Then: class ratio should improve (closer to 1)
-        balanced_counts = balanced["arrest"].value_counts()
-        balanced_ratio = balanced_counts.min() / balanced_counts.max()
-        assert balanced_ratio > original_ratio
-
-    def test_balancing_preserves_columns(self, train_df: pd.DataFrame):
-        """Test that balancing preserves all columns when data is imbalanced."""
-        from etl_helpers.data_balancing import balance_data
-        from etl_helpers.data_encoding import encode_data
-        from etl_helpers.data_scaling import scale_data
-
-        # Given: encoded and scaled train data
-        train_encoded, _, _ = encode_data(train_df.copy(), train_df.copy())
-        train_scaled, _, _ = scale_data(train_encoded, train_encoded)
-        original_counts = train_scaled["arrest"].value_counts()
-        original_ratio = original_counts.min() / original_counts.max()
-
-        # Skip if data is already balanced
-        if original_ratio >= 0.5:
-            assert True
-            return
-
-        # When: we balance the data
-        balanced = balance_data(train_scaled)
-
-        # Then: all columns should be preserved
-        assert set(balanced.columns) == set(train_scaled.columns)
-
-
-class TestFeatureSelection:
-    """Tests for feature selection stage."""
-
-    def test_feature_selection_reduces_columns(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
-        """Test that feature selection reduces the number of columns."""
-        from etl_helpers.data_encoding import encode_data
-        from etl_helpers.data_scaling import scale_data
-        from etl_helpers.feature_selection import select_features
-
-        # Given: encoded and scaled data
-        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
-        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
-        original_col_count = train_scaled.shape[1]
-
-        # When: we select features
-        train_selected, test_selected, mi_scores = select_features(train_scaled, test_scaled)
-
-        # Then: column count should decrease or stay same
-        assert train_selected.shape[1] <= original_col_count
-
-    def test_feature_selection_preserves_target(
-        self, train_df: pd.DataFrame, test_df: pd.DataFrame
-    ):
-        """Test that feature selection keeps the target column."""
-        from etl_helpers.data_encoding import encode_data
-        from etl_helpers.data_scaling import scale_data
-        from etl_helpers.feature_selection import select_features
-
-        # Given: encoded and scaled data with target column
-        train_encoded, test_encoded, _ = encode_data(train_df.copy(), test_df.copy())
-        train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
-
-        # When: we select features
-        train_selected, test_selected, _ = select_features(train_scaled, test_scaled)
-
-        # Then: target column should be preserved
-        assert "arrest" in train_selected.columns
-        assert "arrest" in test_selected.columns
-
-
 class TestFullPipeline:
     """End-to-end tests for the complete pipeline."""
 
@@ -438,11 +346,11 @@ class TestFullPipeline:
         sample_stations_df: pd.DataFrame,
     ):
         """Test complete pipeline from raw data to ML-ready output."""
+        from etl_helpers.contract import CURATED_FEATURES, rename_to_model, take_contract
         from etl_helpers.data_encoding import encode_data
         from etl_helpers.data_enrichment import enrich_crime_data
         from etl_helpers.data_scaling import scale_data
         from etl_helpers.data_splitter import preprocess_for_split, split_train_test
-        from etl_helpers.feature_selection import select_features
         from etl_helpers.outlier_processing import process_outliers
 
         # Given: raw crime and station data
@@ -472,11 +380,9 @@ class TestFullPipeline:
         train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
         assert len(train_scaled) > 0
 
-        # Step 6: Skip balancing for sample data (already balanced)
-        # In production, balance_data would be called here
-
-        # Step 7: Feature selection
-        train_final, test_final, _ = select_features(train_scaled, test_scaled)
+        # Step 6: Contract — las features del modelo y la etiqueta, en orden
+        train_final = take_contract(rename_to_model(train_scaled), CURATED_FEATURES, "arrest")
+        test_final = take_contract(rename_to_model(test_scaled), CURATED_FEATURES, "arrest")
 
         # Then: output should be ML-ready
         assert len(train_final) > 0
@@ -498,25 +404,26 @@ class TestFullPipeline:
         sample_stations_df: pd.DataFrame,
     ):
         """Test that the final output has no NaN values."""
+        from etl_helpers.contract import CURATED_FEATURES, rename_to_model, take_contract
         from etl_helpers.data_encoding import encode_data
         from etl_helpers.data_enrichment import enrich_crime_data
         from etl_helpers.data_scaling import scale_data
         from etl_helpers.data_splitter import preprocess_for_split, split_train_test
-        from etl_helpers.feature_selection import select_features
         from etl_helpers.outlier_processing import process_outliers
 
         # Given: raw crime and station data
         crimes = sample_crimes_df
         stations = sample_stations_df
 
-        # When: we run the full pipeline (skip balancing for sample data)
+        # When: we run the full pipeline
         enriched = enrich_crime_data(crimes, stations)
         preprocessed = preprocess_for_split(enriched)
         train_df, test_df = split_train_test(preprocessed)
         train_no_outliers, test_no_outliers = process_outliers(train_df, test_df)
         train_encoded, test_encoded, _ = encode_data(train_no_outliers, test_no_outliers)
         train_scaled, test_scaled, _ = scale_data(train_encoded, test_encoded)
-        train_final, test_final, _ = select_features(train_scaled, test_scaled)
+        train_final = take_contract(rename_to_model(train_scaled), CURATED_FEATURES, "arrest")
+        test_final = take_contract(rename_to_model(test_scaled), CURATED_FEATURES, "arrest")
 
         # Then: no NaN values should exist in final output
         assert train_final.isna().sum().sum() == 0, "NaN found in train output"
