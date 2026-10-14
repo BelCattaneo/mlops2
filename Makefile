@@ -10,6 +10,12 @@ MINIO_PORT_UI ?= 9001
 # (8000), para que los dos puedan estar arriba a la vez.
 STACK_REST_PORT ?= 8002
 STACK_NEO4J_HTTP_PORT ?= 7475
+# Las credenciales que imprime `stack-up`, con los mismos valores por defecto que el compose:
+# escritas a mano, el mensaje mentiría en cuanto alguien las cambie en su .env.
+MINIO_ACCESS_KEY ?= minio
+MINIO_SECRET_ACCESS_KEY ?= minio123
+_AIRFLOW_WWW_USER_USERNAME ?= airflow
+_AIRFLOW_WWW_USER_PASSWORD ?= airflow
 -include .env
 
 REST_IMAGE := arrest-rest
@@ -174,10 +180,10 @@ stack-up: ## Integrador · levanta la plataforma y espera a que responda
 	docker compose --profile all up -d --build
 	@curl -s -o /dev/null --retry 90 --retry-all-errors --retry-delay 2 --max-time 5 \
 		http://127.0.0.1:$(AIRFLOW_PORT)/api/v2/version \
-		&& echo "Airflow   http://127.0.0.1:$(AIRFLOW_PORT)  (airflow / airflow)"
+		&& echo "Airflow   http://127.0.0.1:$(AIRFLOW_PORT)  ($(_AIRFLOW_WWW_USER_USERNAME) / $(_AIRFLOW_WWW_USER_PASSWORD))"
 	@curl -s -o /dev/null --retry 60 --retry-all-errors --retry-delay 2 --max-time 5 \
 		http://127.0.0.1:$(MLFLOW_PORT) && echo "MLflow    http://127.0.0.1:$(MLFLOW_PORT)"
-	@echo "MinIO     http://127.0.0.1:$(MINIO_PORT_UI)  (minio / minio123)"
+	@echo "MinIO     http://127.0.0.1:$(MINIO_PORT_UI)  ($(MINIO_ACCESS_KEY) / $(MINIO_SECRET_ACCESS_KEY))"
 
 stack-down: ## Integrador · detiene la plataforma y conserva los volúmenes
 	docker compose --profile all --profile serving down
