@@ -1,0 +1,34 @@
+# Lo mismo que corre antes de cada commit, pero en una máquina que no es la mía: con el lock
+# congelado, así un `uv.lock` desactualizado falla acá en vez de aparecer en la próxima máquina.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-y-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # La versión sale de .python-version, que es la misma que usa el repo en local.
+      - run: uv python install
+
+      - run: uv sync --frozen
+
+      - run: make lint
+
+      # Los tests que piden Neo4j, Kafka, MinIO o MLflow se saltean solos cuando no hay nada
+      # escuchando, así que el runner no necesita levantar ningún servicio.
+      - run: make test
