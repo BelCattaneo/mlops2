@@ -59,8 +59,8 @@ def test_the_decision_threshold_defaults_to_half(bundle: dict[str, Any]) -> None
 
 def test_a_bundle_can_carry_its_own_threshold(bundle: dict[str, Any]) -> None:
     # El umbral es un parámetro del modelo como cualquier otro: el que entrena lo elige y viaja
-    # con él. Medido sobre la ventana entera, el mejor corte del modelo actual es 0,58 y no 0,5,
-    # así que el 0,5 fijo le dejaba MCC sin usar.
+    # con él. Medido sobre el test de la versión 15, decidir en su corte da MCC 0,5775 contra
+    # 0,4765 decidiendo en 0,5, así que el 0,5 fijo dejaba MCC sin usar.
     con_umbral = {**bundle, "metadata": {**bundle["metadata"], "threshold": 0.01}}
 
     prediccion = predict(con_umbral, [CrimeReport(**EXAMPLE_REPORT)])[0]

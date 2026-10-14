@@ -145,6 +145,8 @@ def test_the_largest_batch_passes_even_if_the_minute_already_had_traffic() -> No
 
     guard.charge("bel", MAX_BATCH_REPORTS)
 
+    assert [gasto for _, gasto in guard.spent["bel"]] == [1, MAX_BATCH_REPORTS]
+
 
 def test_spending_more_than_the_minute_budget_is_429() -> None:
     guard = TokenGuard(SECRET, clock=Clock())
@@ -164,6 +166,8 @@ def test_the_budget_is_per_user() -> None:
 
     guard.charge("otra", REPORTS_PER_MINUTE)
 
+    assert [gasto for _, gasto in guard.spent["otra"]] == [REPORTS_PER_MINUTE]
+
 
 def test_the_minute_window_slides() -> None:
     reloj = Clock()
@@ -173,6 +177,9 @@ def test_the_minute_window_slides() -> None:
     reloj.advance(61)
 
     guard.charge("bel", REPORTS_PER_MINUTE)
+
+    # Las dos pasaron, y las dos siguen contando para el presupuesto del día.
+    assert [gasto for _, gasto in guard.spent["bel"]] == [REPORTS_PER_MINUTE] * 2
 
 
 def test_the_daily_budget_caps_what_the_minute_budget_lets_through() -> None:
@@ -200,6 +207,9 @@ def test_the_daily_window_also_slides() -> None:
     reloj.advance(24 * 60 * 60)
 
     guard.charge("bel", MAX_BATCH_REPORTS)
+
+    # El día viejo se olvidó: lo único que queda contando es lo que se acaba de cobrar.
+    assert [gasto for _, gasto in guard.spent["bel"]] == [MAX_BATCH_REPORTS]
 
 
 def test_the_open_guard_serves_without_credentials() -> None:
