@@ -101,4 +101,4 @@ Además de los tests de cada servicio, la codificación se verifica contra 50 fi
 
 Los tests del ETL corren los helpers del DAG sobre fixtures chicas (`tests/data/sample_crimes.csv` y `sample_stations.csv`), sin MinIO ni Airflow.
 
-Los tests del linaje necesitan Neo4j (`make neo4j-up`) y los del flujo contra el broker necesitan Redpanda (`make redpanda-up`). Sin esos contenedores se saltean solos y el resto de la suite corre igual.
+Algunos tests necesitan un servicio levantado y se saltean solos cuando no lo encuentran: los del linaje piden Neo4j (`make neo4j-up`), los del flujo piden Redpanda (`make redpanda-up`), y los del data lake piden MinIO y el servidor de MLflow, que vienen con la plataforma (`make stack-up`). El CI levanta MinIO por eso: sin él se saltean 18 y la suite no toca el almacenamiento.
