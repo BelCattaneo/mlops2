@@ -111,7 +111,7 @@ Si el registro no contesta, el servicio sigue sirviendo el modelo que ya tenía 
 
 Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`, y `/v1/metadata` agrega el umbral con el que decide.
 
-Si el servicio queda `unhealthy` apenas levantado y su log dice `Falta REST_JWT_SECRET`, es que el `.env` no tiene el secreto del control de acceso: el servicio no arranca sin él, en vez de arrancar sin control. Está en `.env.example`.
+Si el contenedor `mlops2-rest` queda reiniciando en loop, miralo con `docker logs mlops2-rest`: cuando dice `Falta REST_JWT_SECRET`, es que el `.env` no tiene el secreto del control de acceso. El proceso termina con error en vez de levantar sin control, y `restart: always` lo vuelve a intentar. El secreto está en `.env.example`.
 
 ## El linaje de cada versión
 

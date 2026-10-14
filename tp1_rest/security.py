@@ -128,6 +128,12 @@ class TokenGuard:
 
         Se cobra después de validar y antes de predecir: un payload que el contrato rechaza no
         gasta cupo de nadie, y uno válido no llega al modelo si el presupuesto está agotado.
+
+        Las cuentas no se toman un lock. FastAPI corre los endpoints sincrónicos en un pool de
+        hilos, así que dos requests del mismo usuario en el mismo instante pueden leer el mismo
+        gasto y pasar las dos: el exceso posible es una request, y el costo de un lock por
+        request no se justifica para acotar eso. Con más de una réplica el límite directamente
+        se multiplica, porque el estado vive en el proceso.
         """
         ahora = self.clock()
         historia = [(t, n) for t, n in self.spent.get(user, []) if ahora - t < DAY]
@@ -142,9 +148,9 @@ class TokenGuard:
 def guard_from_env(env: Mapping[str, str]) -> OpenGuard | TokenGuard:
     """El guardia que corresponde al entorno, o `RuntimeError` si no alcanza para decidir.
 
-    Falla cerrado: sin secreto el servicio no arranca. Servir abierto es una decisión que hay
-    que decir en voz alta —`REST_AUTH=off`, como hacen los targets del mini-TP 1— y no el default
-    de un deploy al que se le olvidó la variable.
+    Falla cerrado: sin secreto el servicio no arranca. Servir abierto es una decisión que hay que
+    decir en voz alta, con `REST_AUTH=off`, y no el default de un deploy al que se le olvidó la
+    variable. El mini-TP 1 no pasa por acá: sirve con `app`, que es la otra entrada del módulo.
     """
     if env.get(AUTH_ENV, "").lower() == "off":
         return OpenGuard()

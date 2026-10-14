@@ -146,6 +146,7 @@ services:
       - /bin/sh
       - -c
       - |
+        set -e
         sleep 5
         /usr/bin/mc alias set s3 http://s3:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_ACCESS_KEY:-minio123}
         /usr/bin/mc mb --ignore-existing s3/${MLFLOW_BUCKET_NAME:-mlflow}
@@ -442,7 +443,7 @@ services:
     networks:
       - frontend
       - backend
-    environment: &serving-env
+    environment:
       # La uri es un alias, no un número de versión: promover otra versión del modelo no
       # requiere tocar el compose ni reconstruir la imagen, solo mover el alias en MLflow.
       MODEL_URI: "models:/${MODEL_NAME:-chicago-arrest-xgboost}@champion"

@@ -38,10 +38,9 @@ def audit_trail(request: Request) -> str:
     """
     user = getattr(request.state, "user", None)
     digest = getattr(request.state, "digest", None)
-    return "".join(
-        parte
-        for parte in (f", usuario {user}" if user else "", f", entrada {digest}" if digest else "")
-    )
+    quien = f", usuario {user}" if user else ""
+    que = f", entrada {digest}" if digest else ""
+    return quien + que
 
 
 def create_app(
@@ -153,15 +152,17 @@ def create_app(
         request: Request, report: CrimeReport, user: Annotated[str, Depends(caller)]
     ) -> PredictionOut:
         """Predice un reporte; FastAPI ya validó el payload (422 si no cumple)."""
-        return predict(loaded_bundle(), charged(request, user, [report]))[0]
+        bundle = loaded_bundle()  # primero el modelo: un 503 no le gasta el cupo a nadie
+        return predict(bundle, charged(request, user, [report]))[0]
 
     @v1.post("/predict/batch", response_model=BatchPredictionOut)
     def predict_batch(
         request: Request, batch: BatchRequest, user: Annotated[str, Depends(caller)]
     ) -> BatchPredictionOut:
         """Predice de 1 a 1000 reportes con una sola llamada al modelo."""
+        bundle = loaded_bundle()
         reports = charged(request, user, batch.reports)
-        return BatchPredictionOut(predictions=predict(loaded_bundle(), reports))
+        return BatchPredictionOut(predictions=predict(bundle, reports))
 
     @v1.get("/metadata", response_model=ModelMetadata)
     def metadata(user: Annotated[str, Depends(caller)]) -> ModelMetadata:

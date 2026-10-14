@@ -417,3 +417,19 @@ def test_the_token_cli_refuses_when_the_service_is_open(monkeypatch: pytest.Monk
 
     with pytest.raises(SystemExit):
         main(["bel", "analista"])
+
+
+def test_a_service_outage_does_not_spend_the_budget(valid_payload: dict[str, Any]) -> None:
+    # Si no hay modelo que servir, la respuesta es 503 y el presupuesto queda intacto: una caída
+    # del servicio no puede costarle el cupo del día a quien la sufre.
+    guard = TokenGuard(SECRET, clock=Clock(), per_minute=2, per_day=2)
+    sin_modelo = TestClient(create_app(lambda: None, guard=guard))
+
+    with sin_modelo:
+        lote = sin_modelo.post(
+            "/v1/predict/batch", json={"reports": [valid_payload] * 2}, headers=header()
+        )
+        suelta = sin_modelo.post("/v1/predict", json=valid_payload, headers=header())
+
+    assert (lote.status_code, suelta.status_code) == (503, 503)
+    assert guard.spent.get("bel", []) == []
