@@ -82,6 +82,10 @@ rest = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
 ]
+# Lo que el mini-TP 7 necesita para firmar y verificar los tokens de su control de acceso.
+seguridad = [
+    "pyjwt>=2.10.0",
+]
 # Lo que necesita un servicio para traer el champion del Model Registry en vez del .pkl del
 # repo: el cliente liviano de MLflow (sin servidor ni UI) y boto3 para bajar el artefacto
 # de MinIO. Medido: alcanza `mlflow-skinny` para resolver el alias y bajar los artefactos.

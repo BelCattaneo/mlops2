@@ -2,7 +2,7 @@
 
 Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos y puntuado sobre un flujo de eventos.
 
-Los seis mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Dentro de la plataforma del TP integrador los tres servicios sirven, en vez del `.pkl`, la versión que el entrenamiento dejó marcada como `champion` en el Model Registry. Cada mini-TP tiene su propia presentación:
+Los siete mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Dentro de la plataforma del TP integrador el servicio sirve, en vez del `.pkl`, la versión que el entrenamiento dejó marcada como `champion` en el Model Registry. Cada mini-TP tiene su propia presentación:
 
 | Mini-TP | Tema | Detalle | Estado |
 |---|---|---|---|
@@ -12,6 +12,7 @@ Los seis mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.p
 | 4 | Scoring sobre un flujo, con métricas y alerta de drift | [`tp4_streaming/README.md`](tp4_streaming/README.md) | Listo |
 | 5 | Entrenamiento federado con FedAvg | [`tp5_federated/README.md`](tp5_federated/README.md) | Listo |
 | 6 | El modelo en un Data Lake, servido desde ahí | [`tp6_datalake/README.md`](tp6_datalake/README.md) | Listo |
+| 7 | El modelo asegurado: JWT, roles, límite de tasa y auditoría | [`tp7_seguridad/README.md`](tp7_seguridad/README.md) | Listo |
 
 ## Puesta en marcha
 
@@ -43,6 +44,7 @@ La plataforma del TP integrador se levanta con `make stack-up` y se documenta ap
 ├── tp4_streaming/   # Mini-TP 4: streaming (events.py, sources.py, metrics.py, consumer.py, compare.py, run.py, README.md)
 ├── tp5_federated/   # Mini-TP 5: federado (data.py, model.py, partitions.py, federated.py, privacy.py, run.py, README.md)
 ├── tp6_datalake/    # Mini-TP 6: data lake (lake.py, ingest.py, curated.py, models.py, tracking.py, run.py, README.md)
+├── tp7_seguridad/   # Mini-TP 7: seguridad con SAIF (mini_tp7_actividad.ipynb, README.md)
 └── tests/           # tests + data/encoding_cases.csv (filas de referencia del TP-final)
 ```
 
