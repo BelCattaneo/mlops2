@@ -1,5 +1,7 @@
 # Mini-TPs · Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
 
+[![CI](https://github.com/BelCattaneo/mlops2/actions/workflows/ci.yml/badge.svg)](https://github.com/BelCattaneo/mlops2/actions/workflows/ci.yml)
+
 Modelo propio de Aprendizaje de Máquina: predicción de arrestos en crímenes reportados en Chicago (2024) con XGBoost ([TP-final](https://github.com/CEIA-22Co2025-Grupo4/TP-final)), servido por tres protocolos distintos y puntuado sobre un flujo de eventos.
 
 Los siete mini-TPs comparten el paquete `arrest_model/` y el mismo `model/model.pkl`: lo que cambia es cómo se sirve, no el modelo ni la codificación. Dentro de la plataforma del TP integrador el servicio sirve, en vez del `.pkl`, la versión que el entrenamiento dejó marcada como `champion` en el Model Registry. Cada mini-TP tiene su propia presentación:
