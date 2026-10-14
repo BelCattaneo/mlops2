@@ -76,6 +76,8 @@ Lo que el límite compra no es imposibilidad: un atacante que consulta sin tope 
 
 El secreto viene del entorno y el servicio **no arranca sin él**: servir sin control exige decirlo en voz alta con `REST_AUTH=off`, que es lo que hace el mini-TP 1, entregado abierto. Los tokens los firma el propio servicio dentro de su contenedor, con `make stack-token`, así el secreto no tiene que salir de ahí; en producción el emisor es un IdP y el servicio solo verifica.
 
+**Una credencial por servicio.** Hasta acá los servicios del compose compartían la credencial root de MinIO: diez de los doce la tenían, así que cualquiera de ellos podía borrar el data lake entero, y asegurar la API dejando eso sería asegurar la puerta y abrir la ventana. Ahora el contenedor que crea los buckets crea también un usuario por servicio con su política: Airflow es dueño del bucket de datos —lo crea, le pone versionado y retención— y escribe artefactos en el de MLflow; MLflow administra el suyo; el servicio que sirve el modelo solo lee. La root queda en MinIO y en ese contenedor de arranque. Verificado contra la plataforma: con la credencial del servicio REST, escribir en `s3://mlflow` o leer `s3://data` dan `AccessDenied`, y el entrenamiento siguió registrando versiones con la suya.
+
 Qué no cubre: el estado del presupuesto vive en memoria del proceso, así que con más de una réplica el límite efectivo se multiplica —la plataforma corre una sola, y escalarla pide mover ese estado a un almacén compartido—, y la auditoría va al log del contenedor, que es lo que persiste, y no a un almacén de solo-agregar.
 
 ## Capas

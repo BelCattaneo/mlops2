@@ -43,8 +43,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__SECRETS__BACKEND: airflow.secrets.local_filesystem.LocalFilesystemBackend
     AIRFLOW__SECRETS__BACKEND_KWARGS: '{"variables_file_path": "/opt/secrets/variables.yaml", "connections_file_path": "/opt/secrets/connections.yaml"}'
     SOCRATA_APP_TOKEN: ${SOCRATA_APP_TOKEN}
-    AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minio}
-    AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-minio123}
+    AWS_ACCESS_KEY_ID: ${AIRFLOW_MINIO_KEY:-airflow-svc}
+    AWS_SECRET_ACCESS_KEY: ${AIRFLOW_MINIO_SECRET:-airflow-svc-secret}
     AWS_ENDPOINT_URL_S3: http://s3:9000
     MLFLOW_S3_ENDPOINT_URL: http://s3:9000
     # Para que el DAG pueda importar `arrest_model`, que es la codificación que comparten los
@@ -139,14 +139,62 @@ services:
       - s3
     networks:
       - backend
-    entrypoint: >
-      /bin/sh -c '
-      sleep 5;
-      /usr/bin/mc alias set s3 http://s3:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_ACCESS_KEY:-minio123};
-      /usr/bin/mc mb s3/${MLFLOW_BUCKET_NAME:-mlflow};
-      /usr/bin/mc mb s3/${DATA_REPO_BUCKET_NAME:-data};
-      exit 0;
-      '
+    # Crea los buckets y, además, una credencial por servicio con lo mínimo que cada uno necesita.
+    # La root queda acá y en MinIO: antes la compartían diez de los doce servicios, así que
+    # cualquiera de ellos podía borrar el data lake entero.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sleep 5
+        /usr/bin/mc alias set s3 http://s3:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_ACCESS_KEY:-minio123}
+        /usr/bin/mc mb --ignore-existing s3/${MLFLOW_BUCKET_NAME:-mlflow}
+        /usr/bin/mc mb --ignore-existing s3/${DATA_REPO_BUCKET_NAME:-data}
+
+        # Airflow es dueño del bucket de datos —lo crea, le pone versionado y retención por
+        # capa— y escribe los artefactos de los modelos que registra.
+        cat > /tmp/airflow.json <<'JSON'
+        {"Version": "2012-10-17", "Statement": [
+          {"Effect": "Allow", "Action": ["s3:*"],
+           "Resource": ["arn:aws:s3:::${DATA_REPO_BUCKET_NAME:-data}",
+                        "arn:aws:s3:::${DATA_REPO_BUCKET_NAME:-data}/*"]},
+          {"Effect": "Allow",
+           "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+                      "s3:ListBucket", "s3:GetBucketLocation"],
+           "Resource": ["arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}",
+                        "arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}/*"]}
+        ]}
+        JSON
+
+        # MLflow solo administra su propio bucket de artefactos.
+        cat > /tmp/mlflow.json <<'JSON'
+        {"Version": "2012-10-17", "Statement": [
+          {"Effect": "Allow", "Action": ["s3:*"],
+           "Resource": ["arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}",
+                        "arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}/*"]}
+        ]}
+        JSON
+
+        # El servicio que sirve el modelo solo baja el artefacto del champion: no escribe nada.
+        cat > /tmp/rest.json <<'JSON'
+        {"Version": "2012-10-17", "Statement": [
+          {"Effect": "Allow", "Action": ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"],
+           "Resource": ["arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}",
+                        "arn:aws:s3:::${MLFLOW_BUCKET_NAME:-mlflow}/*"]}
+        ]}
+        JSON
+
+        for servicio in airflow mlflow rest; do
+          /usr/bin/mc admin policy create s3 "$$servicio" "/tmp/$$servicio.json"
+        done
+        /usr/bin/mc admin user add s3 ${AIRFLOW_MINIO_KEY:-airflow-svc} ${AIRFLOW_MINIO_SECRET:-airflow-svc-secret}
+        /usr/bin/mc admin user add s3 ${MLFLOW_MINIO_KEY:-mlflow-svc} ${MLFLOW_MINIO_SECRET:-mlflow-svc-secret}
+        /usr/bin/mc admin user add s3 ${REST_MINIO_KEY:-rest-svc} ${REST_MINIO_SECRET:-rest-svc-secret}
+        # `attach` falla si la política ya está puesta, y esto corre en cada `up`.
+        /usr/bin/mc admin policy attach s3 airflow --user ${AIRFLOW_MINIO_KEY:-airflow-svc} || true
+        /usr/bin/mc admin policy attach s3 mlflow --user ${MLFLOW_MINIO_KEY:-mlflow-svc} || true
+        /usr/bin/mc admin policy attach s3 rest --user ${REST_MINIO_KEY:-rest-svc} || true
+        exit 0
 
   mlflow:
     restart: always
@@ -169,8 +217,8 @@ services:
       # MLflow 3 levanta procesos de fondo para scoring online y archivado de trazas. Acá no se
       # usan, y cada uno carga la librería entera: son varios cientos de MB por proceso.
       - MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false
-      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minio}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-minio123}
+      - AWS_ACCESS_KEY_ID=${MLFLOW_MINIO_KEY:-mlflow-svc}
+      - AWS_SECRET_ACCESS_KEY=${MLFLOW_MINIO_SECRET:-mlflow-svc-secret}
       - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
       - MLFLOW_S3_ADDRESSING_STYLE=path
     # gunicorn arranca 4 workers por defecto y cada uno carga MLflow entero: 2 GB solo de
@@ -408,8 +456,8 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_S3_ENDPOINT_URL: http://s3:9000
       MLFLOW_S3_ADDRESSING_STYLE: path
-      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minio}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-minio123}
+      AWS_ACCESS_KEY_ID: ${REST_MINIO_KEY:-rest-svc}
+      AWS_SECRET_ACCESS_KEY: ${REST_MINIO_SECRET:-rest-svc-secret}
     # La imagen es python:3.12-slim y no trae curl ni wget. /health da 503 mientras no hay
     # modelo, así que el servicio queda unhealthy hasta que haya un champion.
     healthcheck:
