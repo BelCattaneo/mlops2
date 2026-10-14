@@ -27,7 +27,7 @@ make help      # lista completa de comandos
 
 Para levantar y probar cada servicio, ver el README del mini-TP correspondiente.
 
-La plataforma del TP integrador se levanta con `make stack-up` y se documenta aparte: [cómo levantarla](docs/plataforma.md) y [la arquitectura](docs/arquitectura.md).
+La plataforma del TP integrador se levanta con `make stack-up` y se documenta aparte: [cómo levantarla](docs/plataforma.md), [la arquitectura](docs/arquitectura.md) y [la model card del modelo que sirve](docs/model-card.md).
 
 ## Estructura
 

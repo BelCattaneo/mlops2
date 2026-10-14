@@ -100,7 +100,7 @@ Qué no cubre: el estado del presupuesto vive en memoria del proceso, así que c
 | S4 · Streaming | inferencia online sobre un flujo, features por ventana, monitoreo continuo | no se incorporó a la plataforma: el pipeline es mensual y la inferencia, a pedido |
 | S5 · Aprendizaje federado | mover el cómputo al dato, agregar solo parámetros | no se incorporó: los datos del portal de Chicago son públicos y están centralizados, así que no hay dilema del dato que resolver |
 | S6 · Nube y data lake | zonas del lake, *schema-on-read*, Parquet en lo curado, un solo origen de verdad | las tres capas de `s3://data` con retención propia y el bucket versionado; el lake es lo único que acopla el ETL con el entrenamiento |
-| S7 · Seguridad y gobernanza | autenticación, cifrado, auditoría | token con rol sobre todo `/v1`, presupuesto de reportes por usuario y una línea de auditoría por request con la huella de la entrada; los secretos solo en `.env` y el bucket versionado con retención por capa |
+| S7 · Seguridad y gobernanza | autenticación, cifrado, auditoría, model card | token con rol sobre todo `/v1`, presupuesto de reportes por usuario y una línea de auditoría por request con la huella de la entrada; una credencial de MinIO por servicio en vez de la root compartida; la [model card](model-card.md) con los límites y las consideraciones éticas del modelo servido |
 
 ## Hoja de ruta
 

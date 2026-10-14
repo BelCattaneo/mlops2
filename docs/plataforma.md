@@ -88,7 +88,7 @@ TOKEN=$(make -s stack-token)          # USUARIO=bel ROL=analista por defecto
 curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8002/v1/metadata
 ```
 
-El control está en [la arquitectura](arquitectura.md#seguridad-del-servicio): qué frena, con qué números y qué queda afuera.
+El control está en [la arquitectura](arquitectura.md#seguridad-del-servicio): qué frena, con qué números y qué queda afuera. Qué decide el modelo que hay del otro lado, con qué datos se entrenó y para qué no sirve, en [la model card](model-card.md).
 
 Es el único protocolo de servicio, y por qué está medido en [la arquitectura](arquitectura.md#decisiones-de-arquitectura): a 633 reportes por día la ventaja de gRPC son 1,35 segundos por día, y para la forma real de la carga —lotes, no eventos sueltos— REST le gana 6,92 ms contra 13,46.
 
