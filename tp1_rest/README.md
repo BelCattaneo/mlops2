@@ -39,6 +39,12 @@ uv run python tp1_rest/client.py                     # cliente de prueba
 
 Los endpoints de negocio van bajo el prefijo `/v1`; `/health` queda afuera porque es de infraestructura.
 
+### Abierto acá, con token en la plataforma
+
+Este mini-TP se entrega **abierto**: así lo prueban su cliente, su notebook y el benchmark del mini-TP 3, y así está documentado arriba. El control de acceso es del integrador, que corre el mismo servicio detrás de token con rol, presupuesto de reportes y auditoría —`tp1_rest/security.py`, documentado en [la arquitectura](../docs/arquitectura.md#seguridad-del-servicio)—.
+
+Las dos formas conviven en el módulo sin una bandera escondida: `app` es la app abierta y `service()` es la fábrica de la plataforma, que resuelve el control al arrancar y **no levanta** si falta `REST_JWT_SECRET`. Abrir el servicio de la plataforma también hay que decirlo: `REST_AUTH=off`.
+
 ## Ejemplo
 
 El payload de abajo es la primera fila de `Crimes_Chicago_2024.csv`. Es el `EXAMPLE_REPORT` de `arrest_model/schemas.py`: el mismo que usan la doc de OpenAPI, el cliente y los tests, así no se desincronizan. La respuesta está fijada como valor de referencia en `tests/test_api.py`.
@@ -146,7 +152,8 @@ Se ve que un 422 corta en la validación sin tocar el modelo, y por eso es dos �
 
 | archivo | qué tiene |
 |---|---|
-| `app.py` | `create_app()`: carga del modelo en el `lifespan`, middleware de log y 500, `/health` y el router `/v1` |
+| `app.py` | `create_app()`: carga del modelo en el `lifespan`, middleware de log, auditoría y 500, `/health` y el router `/v1`; `app` abierta y `service()` protegida |
+| `security.py` | el control de acceso de la plataforma: token con rol, presupuesto de reportes, huella de la entrada y el emisor de tokens (`python -m tp1_rest.security`) |
 | `client.py` | cliente de prueba end-to-end |
 | `Dockerfile` | `python:3.12-slim` + uv, instala los grupos `rest` y `serving` y copia `arrest_model/`, `tp1_rest/` y `model/model.pkl` |
 

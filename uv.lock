@@ -1808,10 +1808,8 @@ lake = [
 ]
 rest = [
     { name = "fastapi" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-seguridad = [
     { name = "pyjwt" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 serving = [
     { name = "boto3" },
@@ -1865,9 +1863,9 @@ lake = [
 ]
 rest = [
     { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "pyjwt", specifier = ">=2.10.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
-seguridad = [{ name = "pyjwt", specifier = ">=2.10.0" }]
 serving = [
     { name = "boto3", specifier = ">=1.40.0" },
     { name = "mlflow-skinny", specifier = ">=3.16.1" },

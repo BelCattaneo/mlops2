@@ -32,7 +32,7 @@ DOCKER_NETWORK := arrest-net
 .PHONY: graphql-compare graphql-seed neo4j-up neo4j-down
 .PHONY: grpc-stubs grpc-run grpc-build grpc-up grpc-down grpc-logs grpc-client grpc-bench
 .PHONY: stream-run stream-compare stream-kafka redpanda-up redpanda-down fed-run lake-run
-.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve
+.PHONY: stack-up stack-down stack-ps stack-logs stack-dag stack-train stack-serve stack-token
 
 diagramas: ## Regenera los PNG de arquitectura desde los .mmd (necesita node)
 	npx -y @mermaid-js/mermaid-cli -i docs/arquitectura.mmd -o docs/arquitectura.png -b white -s 2
@@ -195,6 +195,12 @@ stack-serve: ## Integrador · levanta la API sirviendo el champion (después de 
 		http://127.0.0.1:$(STACK_REST_PORT)/health \
 		&& echo "REST      http://127.0.0.1:$(STACK_REST_PORT)/docs" \
 		|| echo "REST todavía no sirve: /health da 503 mientras no haya champion (make stack-train)"
+
+# El token lo firma el propio servicio, dentro de su contenedor: así el secreto no sale de ahí.
+# Uso: TOKEN=$$(make -s stack-token) y después curl -H "Authorization: Bearer $$TOKEN" ...
+stack-token: ## Integrador · emite un token para la API (USUARIO=bel ROL=analista)
+	@docker compose --profile all --profile serving exec -T rest \
+		/app/.venv/bin/python -m tp1_rest.security $(or $(USUARIO),bel) $(or $(ROL),analista)
 
 stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow

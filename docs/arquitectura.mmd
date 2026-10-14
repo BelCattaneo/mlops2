@@ -60,7 +60,9 @@ flowchart TB
 
   subgraph serv["Servicio · perfil serving"]
     direction TB
-    REST["REST :8002<br/>/v1/predict · /batch · /metadata · /health<br/>el único protocolo: ver las decisiones"]:::infra
+    SEC["Control de acceso<br/>token con rol · presupuesto de reportes<br/>auditoría con huella de la entrada"]:::infra
+    REST["REST :8002<br/>/v1/predict · /batch · /metadata detrás de token<br/>/health abierto para la sonda del compose"]:::infra
+    SEC --> REST
   end
 
   SOC -->|"descarga incremental"| etl
@@ -77,7 +79,7 @@ flowchart TB
   MLF -->|"models:/chicago-arrest-xgboost@champion"| serv
   pkg -.->|"la misma codificación al entrenar y al servir"| serv
   pkg -.-> TRA
-  serv --> CLI["apps y analistas"]:::externo
+  serv -->|"predicciones y metadatos, con token"| CLI["apps y analistas"]:::externo
 
   subgraph ref2["Referencias"]
     direction TB

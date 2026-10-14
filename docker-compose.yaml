@@ -373,6 +373,17 @@ services:
       dockerfile: tp1_rest/Dockerfile
     image: mlops2-rest
     container_name: mlops2-rest
+    # La imagen sirve por defecto la app del mini-TP 1, que se entrega abierta. La plataforma
+    # corre la fábrica, que resuelve el control de acceso al arrancar: sin `REST_JWT_SECRET` el
+    # proceso no levanta, en vez de levantar sin control.
+    command:
+      - /app/.venv/bin/uvicorn
+      - --factory
+      - tp1_rest.app:service
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
     profiles:
       - serving
     depends_on:
@@ -391,6 +402,9 @@ services:
       # promover es mover el alias y esperar un minuto, sin reiniciar nada. La consulta no
       # baja artefactos: solo resuelve el alias.
       MODEL_TTL_SECONDS: "60"
+      # Con qué firma y verifica los tokens de acceso. Va vacío si falta en el .env, y entonces
+      # el servicio no arranca y lo dice en su log: `make stack-token` emite los tokens.
+      REST_JWT_SECRET: ${REST_JWT_SECRET:-}
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_S3_ENDPOINT_URL: http://s3:9000
       MLFLOW_S3_ADDRESSING_STYLE: path

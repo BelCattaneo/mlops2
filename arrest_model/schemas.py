@@ -13,6 +13,10 @@ from arrest_model.config import DEFAULT_THRESHOLD
 
 CHICAGO = ZoneInfo("America/Chicago")
 
+# Cuántos reportes acepta una sola llamada al lote. Es una constante y no un literal porque el
+# presupuesto del control de acceso se deriva de él: ver `tp1_rest.security`.
+MAX_BATCH_REPORTS = 1000
+
 # Los 31 valores de "Primary Type" que aparecen en el train del TP-final.
 PrimaryType = Literal[
     "ARSON",
@@ -106,7 +110,7 @@ class BatchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    reports: list[CrimeReport] = Field(min_length=1, max_length=1000)
+    reports: list[CrimeReport] = Field(min_length=1, max_length=MAX_BATCH_REPORTS)
 
 
 class BatchPredictionOut(BaseModel):

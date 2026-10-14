@@ -81,6 +81,15 @@ Levanta la API de la plataforma, que sirve lo que registró el entrenamiento. Re
 |---|---|---|
 | REST | <http://127.0.0.1:8002/docs> | `POST /v1/predict`, `/v1/predict/batch`, `/v1/metadata` y `/health` |
 
+Todo `/v1` pide token: sin credencial son 401, con una válida pero sin rol autorizado son 403.
+
+```bash
+TOKEN=$(make -s stack-token)          # USUARIO=bel ROL=analista por defecto
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8002/v1/metadata
+```
+
+El control está en [la arquitectura](arquitectura.md#seguridad-del-servicio): qué frena, con qué números y qué queda afuera.
+
 Es el único protocolo de servicio, y por qué está medido en [la arquitectura](arquitectura.md#decisiones-de-arquitectura): a 633 reportes por día la ventaja de gRPC son 1,35 segundos por día, y para la forma real de la carga —lotes, no eventos sueltos— REST le gana 6,92 ms contra 13,46.
 
 No es el 8000 del mini-TP a propósito: el contenedor de la plataforma tiene tag, nombre y puerto propios (`mlops2-rest`), así que la plataforma y el mini-TP suelto pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
@@ -101,6 +110,8 @@ Verificado contra la plataforma corriendo: con el servicio sirviendo la v11 se m
 Si el registro no contesta, el servicio sigue sirviendo el modelo que ya tenía cargado: una degradación del registro no puede convertirse en una caída del servicio. Y si arranca sin champion queda en 503 y lo vuelve a intentar, así que entrenar después lo levanta solo.
 
 Que la versión servida es la del registro y no la del `.pkl` se ve en la respuesta: `GET /health` y cada predicción informan `model_version`, y `/v1/metadata` agrega el umbral con el que decide.
+
+Si el servicio queda `unhealthy` apenas levantado y su log dice `Falta REST_JWT_SECRET`, es que el `.env` no tiene el secreto del control de acceso: el servicio no arranca sin él, en vez de arrancar sin control. Está en `.env.example`.
 
 ## El linaje de cada versión
 

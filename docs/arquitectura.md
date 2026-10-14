@@ -29,6 +29,7 @@ La infraestructura viene del TP final de MLOps I, y vale la pena ver las dos arq
 | los parámetros de preprocesamiento | quedaban del lado del pipeline | viajan dentro del artefacto del modelo |
 | el umbral de decisión | un `0.5` escrito en el código | lo elige el entrenamiento sobre validación y viaja con el modelo |
 | protocolos de servicio | una API REST | una API REST, elegida midiendo contra gRPC y GraphQL en vez de por defecto |
+| quién puede predecir | cualquiera que llegue al puerto | token firmado con rol, presupuesto por usuario y una línea de auditoría por request |
 | el resumen de la corrida | bajaba 7 datasets de S3 para contar filas | los conteos viajan por XCom |
 
 La diferencia de fondo es que en MLOps I el pipeline era una cadena de archivos, donde cada etapa dependía de que la anterior hubiera dejado el suyo en el lugar justo. Ahora es un contrato: el ETL publica una capa curada que cumple el contrato de features de `arrest_model`, y el entrenamiento la consume sin saber quién la escribió.
@@ -65,6 +66,18 @@ Los mini-TPs comparan REST, GraphQL y gRPC sobre el mismo modelo: ese es su obje
 
 Sobredimensionar la arquitectura tiene un costo que no se ve en un diagrama: cada servicio de más es una imagen que reconstruir, una superficie que asegurar y una versión que mantener alineada con el paquete compartido.
 
+### Seguridad del servicio
+
+La API dejó de ser anónima: cada predicción tiene un responsable. Todo `/v1` pide un token firmado con HS256 que lleva quién es y con qué rol —401 sin credencial, 403 con una válida cuyo rol no alcanza—, y el vencimiento es de quince minutos, porque lo que limita el daño de una credencial filtrada es cuánto dura y no cuán largo sea el secreto. `/v1/metadata` pide token aunque no prediga: publica las métricas, las features y el umbral de decisión, que es justo lo que necesita quien quiera entrenar un sustituto del modelo. `/health` queda abierto porque lo usa el healthcheck del compose y una sonda con credenciales es un problema operativo en sí mismo; informa el estado y la versión cargada, no las métricas ni el umbral.
+
+**El presupuesto se cuenta en reportes y no en llamadas**, porque una llamada puede traer mil y limitar llamadas no acota el trabajo. Los números salen del volumen medido: 633 reportes por día, 0,44 por minuto. El tope por minuto son dos lotes máximos, 2000, y el del día 5000, unas ocho veces el volumen real, así que ningún consumidor legítimo los ve. Un solo lote por minuto se descartó midiendo contra la plataforma: con el tope igual al lote máximo, una predicción suelta en el mismo minuto vuelve imposible la llamada más grande que el contrato permite. Se cobra después de validar y antes de predecir, así que un reporte fuera de Chicago no le gasta cupo a nadie.
+
+Lo que el límite compra no es imposibilidad: un atacante que consulta sin tope reconstruye la frontera de decisión preguntando, y con tope diario eso se vuelve lento y **visible**. Lo visible es el registro de auditoría: cada request deja una línea con usuario, status, latencia, versión del modelo y la huella de la entrada —SHA-256 de los reportes ya normalizados, truncada—. Es la huella y no el reporte porque un reporte trae la latitud y la longitud de un hecho: conservarlo entero convertiría el registro en una segunda base de datos personales. Con la huella alcanza para lo que sirve, probar que dos consultas fueron por lo mismo y atar cada respuesta a su entrada. Los rechazos se registran igual, porque el pico de 401 o de 429 es la señal que hay que poder ver después.
+
+El secreto viene del entorno y el servicio **no arranca sin él**: servir sin control exige decirlo en voz alta con `REST_AUTH=off`, que es lo que hace el mini-TP 1, entregado abierto. Los tokens los firma el propio servicio dentro de su contenedor, con `make stack-token`, así el secreto no tiene que salir de ahí; en producción el emisor es un IdP y el servicio solo verifica.
+
+Qué no cubre: el estado del presupuesto vive en memoria del proceso, así que con más de una réplica el límite efectivo se multiplica —la plataforma corre una sola, y escalarla pide mover ese estado a un almacén compartido—, y la auditoría va al log del contenedor, que es lo que persiste, y no a un almacén de solo-agregar.
+
 ## Capas
 
 | capa | componentes | qué hace |
@@ -72,7 +85,7 @@ Sobredimensionar la arquitectura tiene un costo que no se ve en un diagrama: cad
 | Ingesta y orquestación | Airflow | el DAG de ETL baja los reportes de Socrata y los procesa |
 | Data lake | MinIO | guarda los datasets en tres capas —`raw`, `enriched` y `curated` de `s3://data`— y los artefactos de modelos (`s3://mlflow`) |
 | Entrenamiento y ciclo de vida | Airflow, MLflow, PostgreSQL | el DAG `train_arrest_model` entrena sobre la capa curada y registra el modelo con el alias `champion` |
-| Servicio | una API REST | predicciones y metadatos del modelo `champion`, que trae su propia codificación adentro y recibe los campos crudos |
+| Servicio | una API REST | predicciones y metadatos del modelo `champion`, que trae su propia codificación adentro y recibe los campos crudos, detrás de token con rol y presupuesto |
 | Trazabilidad | MLflow, Neo4j | de qué partición salió cada versión, y el grafo que recorre la cadena entera en las dos direcciones |
 
 ## Qué concepto de la materia aplica cada decisión
@@ -81,11 +94,11 @@ Sobredimensionar la arquitectura tiene un costo que no se ve en un diagrama: cad
 |---|---|---|
 | S1 · Del modelo al servicio | predicción online en contenedores, contrato validado, versionado de API y de modelo, qué monitorear | el payload se valida antes de llegar al modelo; la versión servida sale del registro y viaja en cada respuesta; `/health` distingue "el proceso está arriba" de "hay modelo cargado" |
 | S2 · Grafos de linaje | el linaje dato → feature → modelo como grafo, para trazabilidad y auditoría | Neo4j con nodos de instancia que el pipeline escribe al correr, y la consulta multi-hop en las dos direcciones |
-| S3 · gRPC | contrato tipado y binario para la inferencia interna de baja latencia | el servicio gRPC del compose, con el modelo cargado una sola vez al arrancar |
+| S3 · gRPC | contrato tipado y binario para la inferencia interna de baja latencia | medido contra REST sobre el mismo modelo y descartado para esta carga, con los números de arriba; el servidor queda como entrega del mini-TP 3 |
 | S4 · Streaming | inferencia online sobre un flujo, features por ventana, monitoreo continuo | no se incorporó a la plataforma: el pipeline es mensual y la inferencia, a pedido |
 | S5 · Aprendizaje federado | mover el cómputo al dato, agregar solo parámetros | no se incorporó: los datos del portal de Chicago son públicos y están centralizados, así que no hay dilema del dato que resolver |
 | S6 · Nube y data lake | zonas del lake, *schema-on-read*, Parquet en lo curado, un solo origen de verdad | las tres capas de `s3://data` con retención propia y el bucket versionado; el lake es lo único que acopla el ETL con el entrenamiento |
-| S7 · Seguridad y gobernanza | autenticación, cifrado, auditoría | pendiente. Lo que ya hay: secretos solo en `.env` y el bucket versionado con retención por capa |
+| S7 · Seguridad y gobernanza | autenticación, cifrado, auditoría | token con rol sobre todo `/v1`, presupuesto de reportes por usuario y una línea de auditoría por request con la huella de la entrada; los secretos solo en `.env` y el bucket versionado con retención por capa |
 
 ## Hoja de ruta
 
