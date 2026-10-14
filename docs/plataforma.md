@@ -159,6 +159,7 @@ En MLflow quedan tres corridas por cada pasada del pipeline —la capa cruda, el
 | `make stack-dag` | despausa y dispara el ETL |
 | `make stack-train` | entrena con el último curado y registra el champion |
 | `make stack-serve` | levanta la API sirviendo el champion |
+| `make stack-token` | emite un token para pedirle predicciones (`USUARIO=` y `ROL=`) |
 | `make stack-ps` | muestra el estado de los servicios |
 | `make stack-logs` | sigue los logs de todos |
 | `make stack-down` | detiene la plataforma y conserva los volúmenes |
@@ -167,7 +168,7 @@ En MLflow quedan tres corridas por cada pasada del pipeline —la capa cruda, el
 
 ## Si algo no arranca
 
-Las APIs no levantan o `/health` da 503: es que todavía no hay nada con el alias `champion`. `make stack-train` lo registra. El log de cada una dice qué no pudo cargar.
+La API no levanta o `/health` da 503: es que todavía no hay nada con el alias `champion`. `make stack-train` lo registra, y el log del servicio dice qué no pudo cargar.
 
 El modelo salió entrenado con muy pocas filas: la ventana cruda quedó incompleta. `make stack-ps` no lo dice, pero contar las particiones sí: tienen que ser unas trece, una por mes. En la consola de MinIO, bajo `raw/crimes/`. Si hay una sola, la próxima corrida del ETL baja el histórico que falta: la decisión de la carga inicial mira la ventana entera y no el archivo del mes corriente.
 
