@@ -1,9 +1,6 @@
+# Lo que el servidor de tracking necesita y `mlflow` no trae: el driver de la base de metadata
+# y el cliente de S3 para los artefactos. El resto del stack numérico —pandas, numpy, scipy,
+# scikit-learn, pyarrow— ya viene con `mlflow`, así que no se repite acá.
 psycopg[binary]
 boto3
 cryptography
-pymysql
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
