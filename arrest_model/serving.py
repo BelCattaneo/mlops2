@@ -12,9 +12,11 @@ categorías vecinas, así que mover las frecuencias un 0,2% —lo que cambian en
 categorías enteras cruzen el umbral de golpe. No hay parámetros "parecidos": son los del modelo
 o cualquier cosa.
 
-Por eso el artefacto contiene las dos mitades. Recibe los seis campos crudos del contrato —los
-mismos que recibe la API REST— y devuelve la probabilidad: el consumidor no codifica nada, así
-que no hay forma de que codifique distinto de como se entrenó.
+Por eso el artefacto contiene las tres partes: el estimador, los parámetros con los que se
+codifica y el umbral con el que se decide. Recibe los seis campos crudos del contrato —los
+mismos que recibe la API REST— y devuelve la probabilidad y la decisión: el consumidor no
+codifica ni elige corte, así que no hay forma de que codifique distinto de como se entrenó ni
+de que decida distinto de como se midió.
 
 Valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo.
 """
@@ -25,6 +27,7 @@ import mlflow.pyfunc
 import pandas as pd
 from xgboost import XGBClassifier
 
+from arrest_model.config import DEFAULT_THRESHOLD
 from arrest_model.features import MODEL_FEATURES, encode_payload
 from arrest_model.params import load_params
 from arrest_model.schemas import EXAMPLE_REPORT, CrimeReport
@@ -48,13 +51,27 @@ class ArrestModel(mlflow.pyfunc.PythonModel):
         self.model.load_model(context.artifacts["model"])
         with open(context.artifacts["params"], "rb") as archivo:
             self.params = load_params(archivo.read())
+        # El umbral sale de los parámetros y no del registro: así el artefacto decide igual
+        # cargado desde donde sea. Los que se escribieron antes no lo traen y decide el 0,5.
+        self.threshold = float(self.params.pop("threshold", DEFAULT_THRESHOLD))
 
     def predict(
         self, context: Any, model_input: pd.DataFrame, params: dict[str, Any] | None = None
-    ) -> Any:
-        """Valida los campos crudos, los codifica y devuelve la probabilidad de arresto."""
+    ) -> pd.DataFrame:
+        """Valida los campos crudos, los codifica y devuelve probabilidad y decisión.
+
+        Devuelve las dos columnas y no solo la probabilidad porque el umbral es parte del
+        modelo: quien carga el artefacto tiene que poder decidir igual que la API sin tener que
+        averiguar en el registro con qué corte se midió.
+        """
         reportes = [
             CrimeReport.model_validate(fila) for fila in model_input.to_dict(orient="records")
         ]
         features = encode_payload(reportes, self.params)
-        return self.model.predict_proba(features[list(MODEL_FEATURES)])[:, 1]
+        probabilidades = self.model.predict_proba(features[list(MODEL_FEATURES)])[:, 1]
+        return pd.DataFrame(
+            {
+                "probability": probabilidades,
+                "arrest": (probabilidades > self.threshold).astype(int),
+            }
+        )

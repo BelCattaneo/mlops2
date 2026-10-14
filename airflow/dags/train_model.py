@@ -34,7 +34,7 @@ from training_helpers import evaluate, fit_with_threshold
 
 import arrest_model
 from arrest_model.config import MODEL_NAME
-from arrest_model.params import load_params
+from arrest_model.params import dump_params, load_params
 from arrest_model.registry import load_from_registry
 from arrest_model.schemas import EXAMPLE_REPORT
 from arrest_model.serving import ArrestModel
@@ -148,9 +148,9 @@ def train_arrest_model():
                     "validation_rows": ajustado.filas_de_validacion,
                     "test_rows": len(test),
                     "features": len(features),
-                    # El umbral viaja como parámetro de la corrida: de ahí lo lee el cargador
-                    # que arma el bundle, así que el servicio decide con el mismo corte con el
-                    # que se midió esta versión.
+                    # El umbral también va como parámetro de la corrida, para poder comparar
+                    # entrenamientos en MLflow. Pero el que decide es el que viaja adentro del
+                    # artefacto: ver cómo se escribe más abajo.
                     "threshold": umbral,
                 }
             )
@@ -165,7 +165,13 @@ def train_arrest_model():
                 estimador = os.path.join(temporal, "model.ubj")
                 parametros = os.path.join(temporal, "params.json")
                 modelo.save_model(estimador)
-                Path(parametros).write_bytes(params_crudos)
+                # Los parámetros del artefacto son los del ETL más el umbral que acaba de
+                # elegirse: con eso el artefacto trae todo lo que hace falta para codificar y
+                # decidir, y quien lo carga —la API, `mlflow.pyfunc.load_model`, cualquiera—
+                # reproduce exactamente las métricas con las que se midió esta versión.
+                Path(parametros).write_bytes(
+                    dump_params({**load_params(params_crudos), "threshold": umbral})
+                )
                 # La versión sale de lo que devuelve el registro, no de buscar la mayor: con
                 # dos entrenamientos a la vez, buscar la mayor marcaría la del otro.
                 registrado = mlflow.pyfunc.log_model(

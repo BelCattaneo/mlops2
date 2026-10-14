@@ -358,3 +358,42 @@ def test_the_refresh_interval_comes_from_the_environment() -> None:
     proveedor = model_provider({"MODEL_TTL_SECONDS": "7"})
 
     assert proveedor._ttl == 7.0
+
+
+def test_the_threshold_in_the_artifact_wins_over_the_one_recorded_in_the_run(
+    tmp_path: Path, bundle: dict[str, Any]
+) -> None:
+    # Desde que el umbral viaja adentro del artefacto, ese es el que decide: el parámetro de la
+    # corrida queda para comparar entrenamientos, no para configurar el servicio.
+    bundle["model"].save_model(tmp_path / "model.ubj")
+    (tmp_path / "params.json").write_bytes(dump_params({**bundle["params"], "threshold": 0.81}))
+
+    desde_el_registro = bundle_from_artifacts(
+        tmp_path,
+        name="chicago-arrest-xgboost",
+        version=14,
+        metrics={"mcc": 0.58},
+        trained_at=datetime(2026, 10, 14, tzinfo=UTC),
+        threshold=0.58,
+    )
+
+    assert desde_el_registro["metadata"]["threshold"] == 0.81
+
+
+def test_the_encoder_does_not_receive_the_threshold_as_a_parameter(
+    tmp_path: Path, bundle: dict[str, Any]
+) -> None:
+    # El umbral no es un parámetro de codificación: `encode_payload` recibe frecuencias,
+    # escaladores y comisarías, y nada más.
+    bundle["model"].save_model(tmp_path / "model.ubj")
+    (tmp_path / "params.json").write_bytes(dump_params({**bundle["params"], "threshold": 0.81}))
+
+    desde_el_registro = bundle_from_artifacts(
+        tmp_path,
+        name="chicago-arrest-xgboost",
+        version=14,
+        metrics={"mcc": 0.58},
+        trained_at=datetime(2026, 10, 14, tzinfo=UTC),
+    )
+
+    assert set(desde_el_registro["params"]) == {"freq", "scale", "stations"}

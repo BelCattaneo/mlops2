@@ -135,3 +135,21 @@ def test_the_round_tripped_params_still_encode() -> None:
     )
 
     assert encode_frame(reporte, vuelta).notna().all().all()
+
+
+def test_the_threshold_rides_inside_the_params_when_the_training_chose_one() -> None:
+    # El umbral es parte del modelo, no del servicio: viaja en el mismo artefacto que las
+    # frecuencias y los escaladores, así que quien carga el artefacto puede decidir igual que
+    # la API, sin preguntarle nada al registro.
+    con_umbral = {**build_params(FRECUENCIAS, ESCALA, COMISARIAS), "threshold": 0.81}
+
+    recuperados = load_params(dump_params(con_umbral))
+
+    assert recuperados["threshold"] == 0.81
+
+
+def test_params_without_a_threshold_stay_as_they_were() -> None:
+    # Los artefactos escritos antes de esto no tienen la clave, y tienen que seguir cargando.
+    recuperados = load_params(dump_params(build_params(FRECUENCIAS, ESCALA, COMISARIAS)))
+
+    assert "threshold" not in recuperados

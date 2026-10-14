@@ -57,7 +57,7 @@ Dispara el DAG `train_arrest_model`, que es aparte del ETL a propósito: reentre
 
 Entrena sobre la partición curada escrita más recientemente —la última escrita, no la de fecha mayor— y mide las seis métricas contra el test de esa misma partición.
 
-Lo que registra en MLflow no es el estimador suelto sino el modelo servible: recibe los seis campos crudos del contrato, codifica adentro con los parámetros de esa partición, y devuelve la probabilidad. El consumidor no codifica nada, así que no puede codificar distinto de como se entrenó. Queda con su firma de entrada declarada y valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo con `mlflow models serve`.
+Lo que registra en MLflow no es el estimador suelto sino el modelo servible: recibe los seis campos crudos del contrato, codifica adentro con los parámetros de esa partición, y devuelve la probabilidad y la decisión. El artefacto lleva las tres partes —el estimador, los parámetros de codificación y el umbral elegido—, así que el consumidor no codifica ni elige corte: cargarlo con `mlflow.pyfunc.load_model` da exactamente lo mismo que pedirle una predicción a la API. Queda con su firma de entrada declarada y valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo con `mlflow models serve`.
 
 La versión registrada toma el alias `champion`, que es lo que las APIs van a pedir: promover una versión es una operación de registro y no un redespliegue.
 

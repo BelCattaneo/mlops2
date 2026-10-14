@@ -73,12 +73,18 @@ def bundle_from_artifacts(
     """
     estimador = XGBClassifier()
     estimador.load_model(str(_find(directory, MODEL_FILE)))
+    parametros = load_params(_find(directory, PARAMS_FILE).read_bytes())
+    # El umbral del artefacto gana: desde que viaja adentro, el parámetro de la corrida es el
+    # respaldo para las versiones que se registraron antes. Sale de los parámetros con `pop`
+    # porque el codificador recibe parámetros de codificación y nada más.
+    del_artefacto = parametros.pop("threshold", None)
+    elegido = del_artefacto if del_artefacto is not None else threshold
     # La clave del umbral solo existe si el entrenamiento eligió uno: `predict` la lee con `get`,
     # así que su ausencia es lo que deja el 0.5 por defecto.
-    umbral = {"threshold": float(threshold)} if threshold is not None else {}
+    umbral = {"threshold": float(elegido)} if elegido is not None else {}
     return {
         "model": estimador,
-        "params": load_params(_find(directory, PARAMS_FILE).read_bytes()),
+        "params": parametros,
         "metadata": {
             "name": name,
             "version": version,

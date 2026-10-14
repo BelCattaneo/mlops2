@@ -27,7 +27,7 @@ La infraestructura viene del TP final de MLOps I, y vale la pena ver las dos arq
 | el entrenamiento | un servicio `trainer` aparte | un DAG propio, acoplado al ETL solo por la capa curada |
 | de dónde sale el modelo que se sirve | del artefacto que dejó el entrenamiento | del Model Registry, por el alias `champion` |
 | los parámetros de preprocesamiento | quedaban del lado del pipeline | viajan dentro del artefacto del modelo |
-| el umbral de decisión | un `0.5` escrito en el código | lo elige el entrenamiento sobre validación y viaja con el modelo |
+| el umbral de decisión | un `0.5` escrito en el código | lo elige el entrenamiento sobre validación y viaja adentro del artefacto, con los parámetros de codificación |
 | protocolos de servicio | una API REST | una API REST, elegida midiendo contra gRPC y GraphQL en vez de por defecto |
 | quién puede predecir | cualquiera que llegue al puerto | token firmado con rol, presupuesto por usuario y una línea de auditoría por request |
 | el resumen de la corrida | bajaba 7 datasets de S3 para contar filas | los conteos viajan por XCom |
