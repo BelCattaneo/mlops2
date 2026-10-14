@@ -40,9 +40,9 @@ La capa elegida es REST, que es por donde la plataforma del integrador expone el
 
 ## La validación es el contrato de verdad
 
-El notebook de la cátedra propone validar con una lista de floats de largo fijo. Acá la entrada es `CrimeReport`, el contrato que comparten los cuatro protocolos del repo, con sus rangos ya puestos. Validar en el notebook es validar con lo mismo que valida producción.
+El notebook de la cátedra propone validar con una lista de floats de largo fijo. Acá la entrada es `CrimeReport`, el contrato que comparten los mini-TPs que consumen el modelo, con sus rangos ya puestos. Validar en el notebook es validar con lo mismo que valida producción.
 
-Y eso es seguridad, no solo calidad, porque **un modelo no avisa cuando le dan algo fuera de su dominio: responde igual y con la misma confianza**. Con latitud 0 —el Golfo de Guinea— la codificación calcula la distancia a la comisaría más cercana de Chicago, que son miles de kilómetros, y el modelo devuelve una probabilidad que parece seria. El contrato la rechaza antes de que el modelo la vea.
+Y eso es seguridad, no solo calidad, porque **un modelo no avisa cuando le dan algo fuera de su dominio: responde igual y con la misma confianza**. Con latitud 0 —que con la longitud de Chicago cae en el Pacífico, frente a Ecuador— la codificación calcula la distancia a la comisaría más cercana de Chicago, que son miles de kilómetros, y el modelo devuelve una probabilidad que parece seria. El contrato la rechaza antes de que el modelo la vea.
 
 ## Por qué el límite de tasa casi no molesta acá
 
@@ -56,4 +56,4 @@ Las conclusiones del notebook lo detallan. En resumen, tres cosas cambian al sal
 
 - el estado del límite vive en memoria del proceso, así que con más de una réplica el límite efectivo se multiplica;
 - la auditoría en una lista se pierde al reiniciar, y un registro que se borra solo no es un registro de auditoría;
-- y el agujero más grande de la plataforma no es la API: los servicios del compose comparten la credencial root de MinIO. Asegurar la API y dejar esa credencial sería asegurar la puerta y abrir la ventana.
+- y el agujero más grande de la plataforma no es la API: ocho de los doce servicios del compose comparten la credencial root de MinIO. Asegurar la API y dejar esa credencial sería asegurar la puerta y abrir la ventana.
