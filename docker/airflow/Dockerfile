@@ -8,7 +8,8 @@
 # De paso desaparece el problema que obligaba a desinstalar los providers de Google y Snowflake:
 # declaraban `pandas>=2.1.2,<2.2` como dependencia obligatoria, y ese techo cascadeaba —pandas
 # 2.1 pide `numpy<2`, y scipy y geopandas actuales piden `numpy>=2`— dejando el stack numérico
-# del contenedor desalineado del repo, lo que cambia el resultado del balanceo del dataset.
+# del contenedor desalineado del repo, o sea calculando las features con otra versión de pandas
+# y de numpy que la que mide la máquina.
 FROM apache/airflow:slim-3.0.2
 COPY requirements.txt /requirements.txt
 

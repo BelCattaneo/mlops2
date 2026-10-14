@@ -8,10 +8,10 @@ boto3~=1.34
 # no menciona ni a pyOpenSSL ni a la versión. El stack quedaba sano y el DAG listado, pero sin
 # poder importarse.
 cryptography<46
-# El stack numérico va pinneado a la versión del repo, no con `>=`. El motivo es medido: la
-# salida del balanceo depende del desempate entre distancias del vecino más cercano, así que una
-# versión distinta cambia unas filas sintéticas del dataset de entrenamiento. Alinearlo es lo que
-# hace que una corrida en el contenedor y una en la máquina den el mismo resultado.
+# El stack numérico va pinneado a la versión del repo, no con `>=`. El modelo se ajusta adentro
+# del contenedor y se mide contra números calculados en la máquina, así que una versión distinta
+# de pandas o de numpy mueve frecuencias y escaladores y las dos corridas dejan de ser
+# comparables. Pinnearlo es lo que hace que den lo mismo.
 #
 # Esto es posible porque la imagen parte de la variante `slim`, que no trae los providers de
 # Google y Snowflake: eran ellos los que imponían `pandas<2.2`.
@@ -19,7 +19,6 @@ pandas==3.0.5
 numpy==2.5.3
 scipy==1.18.1
 scikit-learn==1.9.1
-imbalanced-learn==0.14.2
 joblib==1.6.0
 geopandas==1.2.0
 shapely>=2.0.0
