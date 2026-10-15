@@ -20,6 +20,16 @@ CONTEOS = (
 )
 
 
+def wrote_new_partition(curated: dict[str, Any]) -> bool:
+    """Si la corrida escribió una partición curada nueva. Falso si volvió temprano.
+
+    Es la misma señal que mira el resumen: la capa que escribió algo reporta sus conteos y la
+    que volvió temprano no los trae. De esto depende que la corrida publique la capa, que es lo
+    que dispara el entrenamiento: sin partición nueva no hay nada que entrenar.
+    """
+    return "rows" in curated
+
+
 def summary_counts(
     raw: dict[str, Any], enriched: dict[str, Any], curated: dict[str, Any]
 ) -> dict[str, int] | None:

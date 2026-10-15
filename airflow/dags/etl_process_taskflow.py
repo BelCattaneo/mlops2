@@ -17,7 +17,9 @@ import tempfile
 
 import pandas as pd
 from airflow.decorators import dag, task
+from airflow.exceptions import AirflowSkipException
 from etl_config import BUCKET_NAME, DEFAULT_ARGS, config
+from etl_helpers.assets import CURATED_LAYER
 from etl_helpers.contract import (
     CURATED_FEATURES,
     assert_no_missing,
@@ -64,7 +66,7 @@ from etl_helpers.partitions import (
     partitions_in_window,
     split_by_month,
 )
-from etl_helpers.summary import summary_counts
+from etl_helpers.summary import summary_counts, wrote_new_partition
 from lineage_graph import curated_statements, enriched_statements, raw_statements, record
 
 logger = logging.getLogger(__name__)
@@ -369,10 +371,26 @@ def process_etl_taskflow():
         )
         return {"status": "success", "lineage": escrito}
 
+    @task.python(outlets=[CURATED_LAYER])
+    def publish_curated(curated):
+        """Publica la capa curada, que es lo que dispara el entrenamiento.
+
+        Es una tarea aparte y no un `outlets` sobre `build_curated` porque el aviso tiene que
+        poder no salir, y una tarea que se saltea no emite el evento. No sale cuando no hubo
+        dato nuevo, ni cuando la partición ya estaba: entrenar ahí daría una versión más sobre
+        exactamente los mismos datos. El criterio lo decide `wrote_new_partition`, el mismo
+        que mira el resumen.
+        """
+        if not wrote_new_partition(curated):
+            raise AirflowSkipException("sin partición curada nueva: no hay nada que entrenar")
+        logger.info("Capa curada publicada: %s", curated["train_file"])
+        return curated["train_file"]
+
     crudo = land_raw()
     limpio = build_enriched(crudo)
     final = build_curated(limpio)
     setup_s3() >> crudo >> limpio >> final >> log_summary(crudo, limpio, final)
+    publish_curated(final)
 
 
 dag = process_etl_taskflow()

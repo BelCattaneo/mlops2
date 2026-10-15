@@ -2,7 +2,7 @@
 
 La plataforma del TP integrador corre en Docker: Airflow, MLflow, PostgreSQL y MinIO con un solo comando, y la API de predicción detrás de su propio perfil. Esta página es cómo arrancarla, cómo correr el pipeline y dónde mirar lo que produjo.
 
-← [Arquitectura del integrador](arquitectura.md) · [README del repo](../README.md)
+← [Arquitectura del integrador](arquitectura.md), [README del repo](../README.md)
 
 ## Requisitos
 
@@ -27,7 +27,7 @@ Construye las imágenes la primera vez, levanta los servicios y espera a que res
 | servicio | dónde | credenciales | para qué |
 |---|---|---|---|
 | Airflow | <http://127.0.0.1:8081> | `airflow` / `airflow` | dispara y monitorea el pipeline |
-| MLflow | <http://127.0.0.1:5001> | — | las métricas de cada corrida del pipeline |
+| MLflow | <http://127.0.0.1:5001> | sin credenciales | las métricas de cada corrida del pipeline |
 | MinIO | <http://127.0.0.1:9001> | `minio` / `minio123` | el data lake: `data` y `mlflow` |
 | PostgreSQL | `127.0.0.1:5433` | `airflow` / `airflow` | metadata de Airflow y de MLflow |
 
@@ -41,7 +41,7 @@ make stack-dag
 
 Despausa el DAG `etl_with_taskflow` y lo dispara. El avance se mira en la interfaz de Airflow, en la vista de grafo.
 
-Medido en una instalación nueva: la primera corrida tarda 8,9 minutos, casi todos de descarga, porque no hay nada en el lake y baja la ventana completa de 365 días —13 particiones mensuales, 81 MB, unos 226.000 reportes—. Las siguientes tardan 7 segundos, porque reusan la capa cruda y solo recalculan las capas derivadas.
+Medido en una instalación nueva: la primera corrida tarda 8,9 minutos, casi todos de descarga, porque no hay nada en el lake y baja la ventana completa de 365 días (13 particiones mensuales, 81 MB, unos 226.000 reportes). Las siguientes tardan 7 segundos, porque reusan la capa cruda y solo recalculan las capas derivadas.
 
 Despausar el DAG hace que el scheduler cree además su propia corrida del período corriente, así que en una instalación nueva puede haber dos: la programada y la que dispara el comando. El DAG admite una sola corrida a la vez, así que la segunda espera en cola y cuando le toca encuentra la ventana ya completa. Eso es a propósito: dos corridas simultáneas se pisarían en el lake.
 
@@ -53,11 +53,13 @@ El pipeline también corre solo, una vez por mes, desde que el DAG queda despaus
 make stack-train
 ```
 
-Dispara el DAG `train_arrest_model`, que es aparte del ETL a propósito: reentrenar no tiene que obligar a reprocesar los datos, y procesar datos nuevos no tiene que disparar un entrenamiento. Lo que los une es la capa curada del lake.
+El entrenamiento no necesita que nadie lo dispare: el DAG `train_arrest_model` está agendado sobre la capa curada, que el ETL declara como asset de Airflow y publica cuando escribe una partición nueva. Termina el ETL y la corrida de entrenamiento arranca sola.
 
-Entrena sobre la partición curada escrita más recientemente —la última escrita, no la de fecha mayor— y mide las seis métricas contra el test de esa misma partición.
+`make stack-train` es el camino de la mano, para reentrenar sin dato nuevo. El DAG sigue siendo aparte del ETL a propósito: reentrenar no tiene que obligar a reprocesar los datos. Lo que los une es la capa curada del lake, no una dependencia entre tareas.
 
-Lo que registra en MLflow no es el estimador suelto sino el modelo servible: recibe los seis campos crudos del contrato, codifica adentro con los parámetros de esa partición, y devuelve la probabilidad y la decisión. El artefacto lleva las tres partes —el estimador, los parámetros de codificación y el umbral elegido—, así que el consumidor no codifica ni elige corte: cargarlo con `mlflow.pyfunc.load_model` da exactamente lo mismo que pedirle una predicción a la API. Queda con su firma de entrada declarada y valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo con `mlflow models serve`.
+Entrena sobre la partición curada escrita más recientemente (la última escrita, no la de fecha mayor) y mide las seis métricas contra el test de esa misma partición.
+
+Lo que registra en MLflow no es el estimador suelto sino el modelo servible: recibe los seis campos crudos del contrato, codifica adentro con los parámetros de esa partición, y devuelve la probabilidad y la decisión. El artefacto lleva las tres partes (el estimador, los parámetros de codificación y el umbral elegido), así que el consumidor no codifica ni elige corte: cargarlo con `mlflow.pyfunc.load_model` da exactamente lo mismo que pedirle una predicción a la API. Queda con su firma de entrada declarada y valida con el mismo contrato que las APIs, así que también se sostiene expuesto solo con `mlflow models serve`.
 
 La versión registrada toma el alias `champion`, que es lo que las APIs van a pedir: promover una versión es una operación de registro y no un redespliegue.
 
@@ -90,7 +92,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8002/v1/metadata
 
 El control está en [la arquitectura](arquitectura.md#seguridad-del-servicio): qué frena, con qué números y qué queda afuera. Qué decide el modelo que hay del otro lado, con qué datos se entrenó y para qué no sirve, en [la model card](model-card.md).
 
-Es el único protocolo de servicio, y por qué está medido en [la arquitectura](arquitectura.md#decisiones-de-arquitectura): a 633 reportes por día la ventaja de gRPC son 1,35 segundos por día, y para la forma real de la carga —lotes, no eventos sueltos— REST le gana 6,92 ms contra 13,46.
+Es el único protocolo de servicio, y por qué está medido en [la arquitectura](arquitectura.md#decisiones-de-arquitectura): a 633 reportes por día la ventaja de gRPC son 1,35 segundos por día, y para la forma real de la carga (lotes, no eventos sueltos) REST le gana 6,92 ms contra 13,46.
 
 No es el 8000 del mini-TP a propósito: el contenedor de la plataforma tiene tag, nombre y puerto propios (`mlops2-rest`), así que la plataforma y el mini-TP suelto pueden estar arriba a la vez y ningún `make rest-build` le pisa la imagen al otro. Adentro de la red del compose escucha en su puerto de siempre, que es el que nombra el diagrama de arquitectura.
 
@@ -98,14 +100,14 @@ A diferencia de los DAGs, que se montan desde el repo y toman los cambios al ins
 
 Lo que recibe por entorno es `MODEL_URI=models:/chicago-arrest-xgboost@champion`: un alias, no un número de versión. Promover otra versión es mover el alias en MLflow, sin tocar el compose ni reconstruir la imagen.
 
-El servicio le pregunta al registro cada `MODEL_TTL_SECONDS` —60 en el compose— si hay otra versión, así que **promover no exige reiniciar nada**: se mueve el alias y en el próximo chequeo el servicio empieza a servir la versión nueva. La consulta no baja artefactos, solo resuelve el alias, y la descarga ocurre únicamente cuando el número de versión cambió.
+El servicio le pregunta al registro cada `MODEL_TTL_SECONDS` (60 en el compose) si hay otra versión, así que **promover no exige reiniciar nada**: se mueve el alias y en el próximo chequeo el servicio empieza a servir la versión nueva. La consulta no baja artefactos, solo resuelve el alias, y la descarga ocurre únicamente cuando el número de versión cambió.
 
 ```bash
 # mover el alias desde cualquier cliente de MLflow
 mlflow.MlflowClient().set_registered_model_alias("chicago-arrest-xgboost", "champion", "9")
 ```
 
-Verificado contra la plataforma corriendo: con el servicio sirviendo la v11 se movió el alias a la v9; al instante seguía respondiendo v11 —todavía dentro del intervalo— y después del chequeo pasó a v9, sin que nadie tocara el contenedor.
+Verificado contra la plataforma corriendo: con el servicio sirviendo la v11 se movió el alias a la v9. Al instante seguía respondiendo v11 (todavía dentro del intervalo) y después del chequeo pasó a v9, sin que nadie tocara el contenedor.
 
 Si el registro no contesta, el servicio sigue sirviendo el modelo que ya tenía cargado: una degradación del registro no puede convertirse en una caída del servicio. Y si arranca sin champion queda en 503 y lo vuelve a intentar, así que entrenar después lo levanta solo.
 
@@ -115,7 +117,7 @@ Si el contenedor `mlops2-rest` queda reiniciando en loop, miralo con `docker log
 
 ## El linaje de cada versión
 
-El pipeline escribe un grafo mientras corre, en Neo4j, con un nodo por **instancia**: cada partición cruda, cada intermedia, cada curada y cada versión del modelo, encadenadas por `DERIVES`. No son las etapas del pipeline —eso ya está en el diagrama de arquitectura— sino lo que cada corrida produjo.
+El pipeline escribe un grafo mientras corre, en Neo4j, con un nodo por **instancia**: cada partición cruda, cada intermedia, cada curada y cada versión del modelo, encadenadas por `DERIVES`. No son las etapas del pipeline (eso ya está en el diagrama de arquitectura) sino lo que cada corrida produjo.
 
 Se consulta en <http://127.0.0.1:7475>, con el usuario y la clave de `.env`. Las dos preguntas que contesta:
 
@@ -131,7 +133,7 @@ RETURN DISTINCT m.name, m.version
 
 La primera también la contesta MLflow, que registra de qué partición curada salió cada versión. La segunda no: es un recorrido hacia adelante de profundidad desconocida, y es lo que justifica una base de grafos en vez de una tabla.
 
-Escribirlo es best-effort. Si Neo4j no responde, las tareas siguen —el linaje es trazabilidad, no una dependencia del pipeline de datos— y el resumen de la corrida registra `lineage_written` en 0, así que el hueco queda visible en MLflow en lugar de quedar en silencio. Verificado apagando Neo4j: la corrida termina en `success` y la métrica queda en 0. Y el grafo se repara solo, porque las tareas escriben su linaje también cuando toman el atajo de idempotencia: la partición que quedó afuera entra en la corrida siguiente sin recalcular nada.
+Escribirlo es best-effort. Si Neo4j no responde, las tareas siguen (el linaje es trazabilidad, no una dependencia del pipeline de datos) y el resumen de la corrida registra `lineage_written` en 0, así que el hueco queda visible en MLflow en lugar de quedar en silencio. Verificado apagando Neo4j: la corrida termina en `success` y la métrica queda en 0. Y el grafo se repara solo, porque las tareas escriben su linaje también cuando toman el atajo de idempotencia: la partición que quedó afuera entra en la corrida siguiente sin recalcular nada.
 
 ## Qué deja en el lake
 
@@ -143,13 +145,13 @@ Tres capas en el bucket `data`, que se ven en la consola de MinIO:
 | intermedia | `enriched/crimes/date=YYYY-MM-DD/crimes.parquet` | Parquet | expira a los 30 días |
 | curada | `curated/train/date=YYYY-MM-DD/train.parquet`, su `test`, y `curated/params/date=YYYY-MM-DD/params.json` | Parquet y JSON | se conserva |
 
-La capa curada es el par de entrenamiento y prueba con las 7 features del modelo más la etiqueta, y los parámetros con los que se codificó: las frecuencias de cada categoría, la media y el desvío de cada numérica, y las comisarías proyectadas. Esos parámetros son la otra mitad del modelo —con otros, el mismo estimador predice cualquier cosa— así que el entrenamiento los mete adentro del artefacto. La capa está completa cuando están los tres: si falta alguno, la corrida siguiente la recalcula.
+La capa curada es el par de entrenamiento y prueba con las 7 features del modelo más la etiqueta, y los parámetros con los que se codificó: las frecuencias de cada categoría, la media y el desvío de cada numérica, y las comisarías proyectadas. Esos parámetros son la otra mitad del modelo (con otros, el mismo estimador predice cualquier cosa) así que el entrenamiento los mete adentro del artefacto. La capa está completa cuando están los tres: si falta alguno, la corrida siguiente la recalcula.
 
 El detalle de qué hace cada capa está en [la arquitectura](arquitectura.md).
 
 El bucket está versionado, así que un borrado no borra: deja una marca de borrado y el objeto se recupera por su `VersionId`.
 
-En MLflow quedan tres corridas por cada pasada del pipeline —la capa cruda, el corte de entrenamiento y prueba, y el resumen—, con 33 métricas en total: cobertura, faltantes y tasa de arrestos de lo que llegó; tamaños y distribución de la etiqueta en el corte; y cuántas filas sobrevivieron cada capa, con qué retención y si el linaje se escribió.
+En MLflow quedan tres corridas por cada pasada del pipeline (la capa cruda, el corte de entrenamiento y prueba, y el resumen), con 33 métricas en total: cobertura, faltantes y tasa de arrestos de lo que llegó, tamaños y distribución de la etiqueta en el corte, y cuántas filas sobrevivieron cada capa, con qué retención y si el linaje se escribió.
 
 ## Los comandos
 

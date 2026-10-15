@@ -1,0 +1,5 @@
+# Airflow abre cada archivo de esta carpeta que nombre a "airflow" y a "dag" buscando DAGs, y al
+# abrirlo suelto le da al `sys.path` la carpeta del archivo y no la de los DAGs: un módulo que
+# importa a `etl_config` falla ahí con `ModuleNotFoundError` y el error queda colgado en la
+# interfaz. Este no define ningún DAG, lo importan los dos. Glob, relativo a esta carpeta.
+etl_helpers/assets.py

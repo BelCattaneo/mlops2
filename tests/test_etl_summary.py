@@ -1,6 +1,6 @@
 """El resumen de la corrida, armado con los conteos que trae cada capa."""
 
-from etl_helpers.summary import CONTEOS, summary_counts
+from etl_helpers.summary import CONTEOS, summary_counts, wrote_new_partition
 
 CRUDO = {"status": "success", "rows": 227976}
 LIMPIO = {"status": "success", "raw_rows": 227976, "rows": 226951}
@@ -69,3 +69,23 @@ def test_the_counts_are_exactly_what_the_mlflow_logger_accepts() -> None:
 
     assert obligatorios == set(CONTEOS)
     assert set(summary_counts(CRUDO, LIMPIO, FINAL)) == set(CONTEOS)
+
+
+def test_a_layer_that_wrote_a_partition_reports_it() -> None:
+    assert wrote_new_partition(FINAL) is True
+
+
+def test_a_layer_that_came_back_early_did_not_write_a_partition() -> None:
+    # Vuelve temprano cuando los tres artefactos ya estaban: trae las claves pero ningún conteo.
+    ya_estaba = {
+        "status": "success",
+        "train_file": "curated/train/date=2026-10-15/train.parquet",
+        "test_file": "curated/test/date=2026-10-15/test.parquet",
+        "params_file": "curated/params/date=2026-10-15/params.json",
+    }
+
+    assert wrote_new_partition(ya_estaba) is False
+
+
+def test_a_run_without_data_did_not_write_a_partition() -> None:
+    assert wrote_new_partition({"status": "no_data"}) is False

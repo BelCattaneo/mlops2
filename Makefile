@@ -214,6 +214,6 @@ stack-dag: ## Integrador · despausa y dispara el ETL (con la plataforma arriba)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause etl_with_taskflow
 	docker compose --profile all exec -T airflow-scheduler airflow dags trigger etl_with_taskflow
 
-stack-train: ## Integrador · entrena con el último dataset curado y registra el champion
+stack-train: ## Integrador: reentrena a mano (sin dato nuevo el ETL no lo dispara solo)
 	docker compose --profile all exec -T airflow-scheduler airflow dags unpause train_arrest_model
 	docker compose --profile all exec -T airflow-scheduler airflow dags trigger train_arrest_model

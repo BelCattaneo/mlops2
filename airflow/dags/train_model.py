@@ -1,8 +1,11 @@
 """Entrena el modelo con el dataset curado y lo registra en MLflow.
 
-Separado del ETL a propósito: reentrenar no tiene que obligar a volver a procesar los datos, y
-procesar datos nuevos no tiene que disparar un entrenamiento. El acople entre los dos es la capa
-curada del lake, no una dependencia entre tareas.
+Separado del ETL a propósito: reentrenar no tiene que obligar a volver a procesar los datos. El
+acople entre los dos es la capa curada del lake declarada como asset, no una dependencia entre
+tareas: el ETL la publica cuando escribe una partición nueva y Airflow arranca esta corrida. Por
+eso no hay calendario acá. Poner `@monthly` en los dos los dejaría corriendo en paralelo el mismo
+día, entrenando sobre la partición del mes anterior. Disparar a mano sigue andando, que es lo que
+hace falta para reentrenar sin dato nuevo.
 
 El modelo queda registrado con el alias `champion`, que es lo que las APIs van a pedir: así
 promover una versión es una operación de registro y no un redespliegue.
@@ -20,6 +23,7 @@ import pandas as pd
 from airflow.decorators import dag, task
 from drift import drift_metrics
 from etl_config import BUCKET_NAME, DEFAULT_ARGS, TRAINING_EXPERIMENT, config
+from etl_helpers.assets import CURATED_LAYER
 from etl_helpers.contract import CURATED_FEATURES, enforce_feature_contract
 from etl_helpers.keys import curated_params, curated_prefix, curated_test, curated_train
 from etl_helpers.minio import (
@@ -78,7 +82,7 @@ def champion_params(name: str) -> dict | None:
     dag_id="train_arrest_model",
     description="Entrena el modelo de arrestos con el dataset curado y lo registra en MLflow",
     default_args=DEFAULT_ARGS,
-    schedule=None,
+    schedule=[CURATED_LAYER],
     start_date=datetime.datetime(2024, 1, 1),
     catchup=False,
     tags=["training", "Chicago", "MLflow"],
