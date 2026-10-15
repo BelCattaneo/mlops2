@@ -571,9 +571,9 @@
   <div class="cuerpo">
     <div>
       <ul>
-        <li><strong>No hay cifrado en tránsito.</strong> El token viaja en claro dentro de la red del compose: en una instalación real va detrás de un proxy con certificado, que es configuración de despliegue.</li>
-        <li><strong>La cuota vive en memoria del proceso.</strong> Con más de una réplica el límite se multiplica. La plataforma corre una sola.</li>
-        <li><strong>No medí el error por grupo</strong> (ni por distrito ni por tipo de delito), y es lo primero que haría antes de darle cualquier uso operativo.</li>
+        <li><strong>Falta cifrado en tránsito.</strong> Dentro de la red del compose el token viaja en claro, así que una instalación real tiene que poner el servicio detrás de un proxy con certificado. Es configuración de despliegue y no del servicio, por eso quedó afuera.</li>
+        <li><strong>La cuota no aguanta escalar.</strong> Las cuentas viven en la memoria del proceso, así que con dos réplicas el límite efectivo se duplica. La plataforma corre una sola, y crecer pide mover ese estado a un almacén compartido.</li>
+        <li><strong>Falta medir el error por grupo</strong>, por distrito y por tipo de delito. Es lo primero que haría antes de darle cualquier uso operativo, y mientras no esté, la model card dice que el modelo no sirve para decidir sobre una persona.</li>
       </ul>
     </div>
     <div class="datos">
