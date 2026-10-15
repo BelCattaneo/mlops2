@@ -35,6 +35,11 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres/${PG_DATABASE:-airflow}
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__API_AUTH__JWT_SECRET: 'qt2Edq6LIRdv5k0DDznVOA=='
+    # Sin emisor declarado la interfaz web tira 500 al entrar. Airflow 3.0.2 lee este valor
+    # con un fallback que convierte "no configurado" en una lista vacía en vez de en None
+    # (`api_fastapi/auth/tokens.py:251`), así que el claim `iss` del token sale como `[]` y
+    # PyJWT 2.15 lo rechaza: "Issuer (iss) must be a string". Dárselo lo evita.
+    AIRFLOW__API_AUTH__JWT_ISSUER: apache-airflow
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false' # Change to 'false' to remove the tutorials and examples
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
