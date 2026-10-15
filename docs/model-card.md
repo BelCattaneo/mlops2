@@ -10,7 +10,7 @@ Qué hace el modelo que sirve la plataforma, con qué datos se entrenó, qué ta
 | algoritmo | `XGBClassifier` con los hiperparámetros por defecto y `scale_pos_weight` calculado del dato (5,46 en esta versión) |
 | entrada | los 6 campos crudos de un reporte: `iucr`, `primary_type`, `location_description`, `date`, `latitude`, `longitude` |
 | features | 7, que el modelo calcula adentro: frecuencia de IUCR, de tipo primario y de lugar, seno del día, X e Y proyectadas y estandarizadas, y distancia a la comisaría más cercana |
-| salida | probabilidad de que el reporte haya terminado en arresto, y la decisión binaria con el umbral del modelo |
+| salida | un puntaje entre 0 y 1 de que el reporte haya terminado en arresto, y la decisión binaria con el umbral del modelo |
 | umbral | 0,80, elegido sobre validación maximizando MCC y guardado con el modelo |
 | dueño | la cátedra de Operaciones de Aprendizaje Automático II, CEIA–FIUBA |
 
@@ -70,6 +70,7 @@ Los datos de entrada son públicos y están agregados por el portal, pero un rep
 
 ## Limitaciones
 
+- **El puntaje no es una probabilidad calibrada.** `scale_pos_weight` repesa la clase minoritaria, así que el número que sale está inflado contra la tasa real: sobre el test, la media es 0,3319 contra un 0,1550 de arrestos reales. Ordena bien, que es lo que el umbral y el AUC necesitan, pero no se lee como un riesgo. Los reportes que puntúan entre 0,4 y 0,5 terminan en arresto el 15,2% de las veces, no el 45%. Si hiciera falta leerlo como probabilidad habría que calibrarlo aparte, con isotónica o Platt sobre un conjunto que el modelo no vio.
 - **Dominio cerrado.** El contrato rechaza coordenadas fuera de Chicago con 422. Un reporte fuera de rango no obtiene una predicción mala, no obtiene ninguna.
 - **Categorías nuevas.** Un IUCR o un lugar que el modelo no vio se codifican con frecuencia 0, como hizo el entrenamiento con el test. La predicción es válida pero menos informada.
 - **Deriva.** El entrenamiento compara la distribución nueva contra la del champion y registra la deriva como métricas (`drift_max_sigma`, `drift_freq_new_categories`). En esta versión dieron 0: la ventana no se movió.
