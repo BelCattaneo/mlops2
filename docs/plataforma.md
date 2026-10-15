@@ -123,7 +123,7 @@ Se consulta en <http://127.0.0.1:7475>, con el usuario y la clave de `.env`. Las
 
 ```cypher
 // de qué salió una versión, a cualquier profundidad
-MATCH (a)-[:DERIVES*1..]->(m:ModelVersion {name: "chicago-arrest-xgboost", version: 13})
+MATCH (a)-[:DERIVES*1..]->(m:ModelVersion {name: "chicago-arrest-xgboost", version: 2})
 RETURN DISTINCT a.key, head(labels(a))
 
 // y la inversa: este mes del portal vino mal, ¿qué versiones hay que revisar?

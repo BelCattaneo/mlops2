@@ -193,7 +193,9 @@
   /* Una imagen que ocupa la slide, para los diagramas */
   .figura { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
   .figura img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .pie-figura { font-size: 0.76em; color: var(--tinta-suave); text-align: left; margin-top: auto; }
+  /* Más ancho que el resto de los párrafos: son dos renglones de referencia, y con las
+     46ch de `p` cada uno se partía en dos. */
+  .pie-figura { font-size: 0.76em; color: var(--tinta-suave); text-align: left; margin-top: auto; max-width: 85ch; }
 
   /* Pie: número de slide */
   .pie {
@@ -562,7 +564,8 @@
     <path class="enlace" d="M590.0,126 L590.0,152"/>
     <text class="etiqueta" x="556" y="476" text-anchor="middle">y baja el modelo</text>
   </svg>
-  <p class="pie-figura">El diagrama completo, con los doce servicios, sus puertos y los dos DAGs: <a class="link-diagrama" href="arquitectura.png" target="_blank">arquitectura.png</a></p>
+  <p class="pie-figura">El diagrama completo, con los doce servicios, sus puertos y los dos DAGs: <a class="link-diagrama" href="arquitectura.png" target="_blank">arquitectura.png</a><br>
+    El grafo de linaje, con la plataforma arriba: <a class="link-diagrama" href="http://127.0.0.1:7475/browser/?connectURL=bolt%3A%2F%2Fneo4j%40127.0.0.1%3A7688&amp;db=neo4j" target="_blank">el linaje en Neo4j</a></p>
   <div class="pie">8</div>
 </section>
 
