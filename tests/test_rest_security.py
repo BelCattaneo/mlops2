@@ -114,7 +114,7 @@ def test_a_valid_token_with_another_role_is_403_and_not_401() -> None:
 
 
 def test_a_token_without_a_subject_is_401() -> None:
-    # Sin `sub` no hay a quién auditar ni a quién cobrarle el presupuesto.
+    # Sin `sub` no hay a quién auditar ni a quién cobrarle la cuota.
     anonimo = jwt.encode(
         {"rol": "analista", "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(5)},
         SECRET,
@@ -137,9 +137,9 @@ def test_the_rejection_does_not_echo_the_library_message() -> None:
 
 
 def test_the_largest_batch_passes_even_if_the_minute_already_had_traffic() -> None:
-    # Medido contra la plataforma: con el presupuesto del minuto igual al tope del lote, una
+    # Medido contra la plataforma: con la cuota del minuto igual al tope del lote, una
     # predicción suelta antes vuelve imposible la llamada más grande que el contrato acepta. El
-    # presupuesto tiene que dejar lugar al lote máximo más el tráfico normal del minuto.
+    # cuota tiene que dejar lugar al lote máximo más el tráfico normal del minuto.
     guard = TokenGuard(SECRET, clock=Clock())
     guard.charge("bel", 1)
 
@@ -148,7 +148,7 @@ def test_the_largest_batch_passes_even_if_the_minute_already_had_traffic() -> No
     assert [gasto for _, gasto in guard.spent["bel"]] == [1, MAX_BATCH_REPORTS]
 
 
-def test_spending_more_than_the_minute_budget_is_429() -> None:
+def test_spending_more_than_the_minute_quota_is_429() -> None:
     guard = TokenGuard(SECRET, clock=Clock())
     guard.charge("bel", REPORTS_PER_MINUTE)
 
@@ -158,7 +158,7 @@ def test_spending_more_than_the_minute_budget_is_429() -> None:
     assert fallo.value.status_code == 429
 
 
-def test_the_budget_is_per_user() -> None:
+def test_the_quota_is_per_user() -> None:
     # Se cobra por usuario del token y no por IP: detrás de un proxy todas las consultas llegan
     # con la misma IP, así que limitar por IP castigaría a todos por el abuso de uno.
     guard = TokenGuard(SECRET, clock=Clock())
@@ -178,11 +178,11 @@ def test_the_minute_window_slides() -> None:
 
     guard.charge("bel", REPORTS_PER_MINUTE)
 
-    # Las dos pasaron, y las dos siguen contando para el presupuesto del día.
+    # Las dos pasaron, y las dos siguen contando para la cuota del día.
     assert [gasto for _, gasto in guard.spent["bel"]] == [REPORTS_PER_MINUTE] * 2
 
 
-def test_the_daily_budget_caps_what_the_minute_budget_lets_through() -> None:
+def test_the_daily_quota_caps_what_the_minute_quota_lets_through() -> None:
     # Lotes máximos repartidos en la hora pasan todos por minuto y agotan el día: lo que acota
     # la extracción del modelo es este segundo tope.
     reloj = Clock()
@@ -304,7 +304,7 @@ def test_the_metadata_of_the_model_needs_a_token(bundle: dict[str, Any]) -> None
 def test_a_batch_charges_every_report_it_carries(
     bundle: dict[str, Any], valid_payload: dict[str, Any]
 ) -> None:
-    # El presupuesto se cuenta en reportes y no en llamadas: una llamada puede traer mil.
+    # La cuota se cuenta en reportes y no en llamadas: una llamada puede traer mil.
     client, _ = guarded(bundle, per_minute=2, per_day=99)
 
     with client:
@@ -317,7 +317,7 @@ def test_a_batch_charges_every_report_it_carries(
     assert siguiente.status_code == 429
 
 
-def test_a_payload_the_contract_rejects_does_not_spend_budget(
+def test_a_payload_the_contract_rejects_does_not_spend_quota(
     bundle: dict[str, Any], valid_payload: dict[str, Any]
 ) -> None:
     # Se cobra después de validar: un reporte fuera de Chicago no le gasta el cupo a nadie.
@@ -351,8 +351,8 @@ def test_the_audit_names_who_asked_and_the_hash_of_what_asked(
 
     linea = [record.getMessage() for record in caplog.records if record.name == "tp1_rest"][-1]
     assert "usuario bel" in linea
-    # La huella es del reporte ya validado y no del payload crudo: dos escrituras del mismo
-    # reporte —la fecha con T o con espacio, el lugar en minúsculas— dan la misma huella.
+    # El hash es del reporte ya validado y no del payload crudo: dos escrituras del mismo
+    # reporte (la fecha con T o con espacio, el lugar en minúsculas) dan el mismo hash.
     assert f"entrada {report_digest([CrimeReport(**valid_payload).model_dump()])}" in linea
 
 
@@ -374,17 +374,17 @@ def test_the_audit_also_records_what_was_rejected(
 def test_the_hash_does_not_carry_the_report(valid_payload: dict[str, Any]) -> None:
     # Un reporte trae la latitud y la longitud de un hecho: guardarlo entero convertiría el
     # registro de auditoría en una segunda base de datos personales.
-    huella = report_digest([valid_payload])
+    hash_entrada = report_digest([valid_payload])
 
-    assert str(valid_payload["latitude"]) not in huella
-    assert valid_payload["iucr"] not in huella
+    assert str(valid_payload["latitude"]) not in hash_entrada
+    assert valid_payload["iucr"] not in hash_entrada
 
 
 def test_the_same_report_hashes_the_same_however_it_was_written(
     valid_payload: dict[str, Any],
 ) -> None:
-    # Para lo que sirve la huella: probar que dos consultas fueron por lo mismo. El contrato
-    # normaliza antes, así que el mismo reporte escrito distinto cae en la misma huella.
+    # Para lo que sirve el hash: probar que dos consultas fueron por lo mismo. El contrato
+    # normaliza antes, así que el mismo reporte escrito distinto cae en el mismo hash.
     otra_escritura = {
         **valid_payload,
         "location_description": " apartment ",
@@ -429,8 +429,8 @@ def test_the_token_cli_refuses_when_the_service_is_open(monkeypatch: pytest.Monk
         main(["bel", "analista"])
 
 
-def test_a_service_outage_does_not_spend_the_budget(valid_payload: dict[str, Any]) -> None:
-    # Si no hay modelo que servir, la respuesta es 503 y el presupuesto queda intacto: una caída
+def test_a_service_outage_does_not_spend_the_quota(valid_payload: dict[str, Any]) -> None:
+    # Si no hay modelo que servir, la respuesta es 503 y la cuota queda intacta: una caída
     # del servicio no puede costarle el cupo del día a quien la sufre.
     guard = TokenGuard(SECRET, clock=Clock(), per_minute=2, per_day=2)
     sin_modelo = TestClient(create_app(lambda: None, guard=guard))

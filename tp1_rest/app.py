@@ -140,7 +140,7 @@ def create_app(
         return user
 
     def charged(request: Request, user: str, reports: list[CrimeReport]) -> list[CrimeReport]:
-        """Cobra los reportes al presupuesto del usuario y los deja anotados en la auditoría."""
+        """Cobra los reportes a la cuota del usuario y los deja anotados en la auditoría."""
         guard.charge(user, len(reports))
         request.state.digest = report_digest([report.model_dump() for report in reports])
         return reports

@@ -1,10 +1,10 @@
 """Quién pregunta y cuánto puede preguntarle al modelo.
 
 El servicio de la plataforma deja de ser anónimo: cada predicción tiene un responsable, un rol
-que la autoriza y un presupuesto. El emisor de los tokens queda afuera a propósito —en producción
+que la autoriza y una cuota. El emisor de los tokens queda afuera a propósito —en producción
 es un IdP—; acá el servicio solo verifica la firma del secreto que le da el entorno.
 
-El presupuesto se cuenta en reportes y no en llamadas porque una llamada puede traer mil, así que
+La cuota se cuenta en reportes y no en llamadas porque una llamada puede traer mil, así que
 limitar llamadas no acota el trabajo. Los números salen del volumen medido: el portal publica 633
 reportes por día, o sea 0,44 por minuto, y el contrato acepta hasta `MAX_BATCH_REPORTS` por
 llamada. El tope del minuto son dos lotes máximos —uno solo haría que la llamada más grande que
@@ -46,7 +46,7 @@ DAY = 24 * 60 * MINUTE
 ANONYMOUS = "anónimo"
 INVALID_TOKEN_DETAIL = "credencial inválida"
 FORBIDDEN_DETAIL = "el rol no autoriza a pedir predicciones"
-THROTTLED_DETAIL = "presupuesto de reportes agotado"
+THROTTLED_DETAIL = "cuota de reportes agotada"
 
 
 def issue_token(
@@ -68,11 +68,11 @@ def issue_token(
 
 
 def report_digest(reports: Sequence[Mapping[str, object]]) -> str:
-    """Huella de la entrada, para que el registro de auditoría no sea la entrada.
+    """Hash de la entrada, para que el registro de auditoría no sea la entrada.
 
     Un reporte trae la latitud y la longitud de un hecho, así que guardarlo entero convertiría el
     registro en una segunda base de datos personales, que es justo lo que la auditoría debería
-    proteger. Con la huella alcanza para lo que sirve: probar que dos consultas fueron por lo
+    proteger. Con el hash alcanza para lo que sirve: probar que dos consultas fueron por lo
     mismo y atar cada respuesta a su entrada.
     """
     canonical = json.dumps(list(reports), sort_keys=True, default=str).encode("utf-8")
@@ -91,12 +91,12 @@ class OpenGuard:
         return ANONYMOUS
 
     def charge(self, user: str, reports: int) -> None:
-        """No hay presupuesto que gastar."""
+        """No hay cuota que gastar."""
 
 
 @dataclass
 class TokenGuard:
-    """Verifica el token, exige un rol autorizado y cobra el presupuesto de reportes."""
+    """Verifica el token, exige un rol autorizado y cobra la cuota de reportes."""
 
     secret: str
     roles: frozenset[str] = ALLOWED_ROLES
@@ -124,10 +124,10 @@ class TokenGuard:
         return user
 
     def charge(self, user: str, reports: int) -> None:
-        """Cobra `reports` al presupuesto del usuario, o corta con 429 si ya no le queda.
+        """Cobra `reports` a la cuota del usuario, o corta con 429 si ya no le queda.
 
         Se cobra después de validar y antes de predecir: un payload que el contrato rechaza no
-        gasta cupo de nadie, y uno válido no llega al modelo si el presupuesto está agotado.
+        gasta cupo de nadie, y uno válido no llega al modelo si la cuota está agotada.
 
         Las cuentas no se toman un lock. FastAPI corre los endpoints sincrónicos en un pool de
         hilos, así que dos requests del mismo usuario en el mismo instante pueden leer el mismo

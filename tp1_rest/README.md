@@ -2,7 +2,7 @@
 
 API que sirve el modelo de arrestos de Chicago por HTTP. Carga `model/model.pkl` una sola vez al arrancar, recibe los 6 campos crudos de un reporte, hace la codificación en el servidor y devuelve la predicción.
 
-← [README general del repo](../README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
+← [README general del repo](../README.md), [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md), [Mini-TP 3 (gRPC)](../tp3_grpc/README.md), [Mini-TP 4 (streaming)](../tp4_streaming/README.md), [Mini-TP 5 (federado)](../tp5_federated/README.md), [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 
@@ -41,7 +41,7 @@ Los endpoints de negocio van bajo el prefijo `/v1`; `/health` queda afuera porqu
 
 ### Abierto acá, con token en la plataforma
 
-Este mini-TP se entrega **abierto**: así lo prueban su cliente, su notebook y el benchmark del mini-TP 3, y así está documentado arriba. El control de acceso es del integrador, que corre el mismo servicio detrás de token con rol, presupuesto de reportes y auditoría —`tp1_rest/security.py`, documentado en [la arquitectura](../docs/arquitectura.md#seguridad-del-servicio)—.
+Este mini-TP se entrega **abierto**: así lo prueban su cliente, su notebook y el benchmark del mini-TP 3, y así está documentado arriba. El control de acceso es del integrador, que corre el mismo servicio detrás de token con rol, cuota de reportes y auditoría —`tp1_rest/security.py`, documentado en [la arquitectura](../docs/arquitectura.md#seguridad-del-servicio)—.
 
 Lo que no es abierto es el **default**: el servicio arranca protegido y **no levanta** si falta `REST_JWT_SECRET`, así que una imagen corrida a mano no sirve el modelo sin control. Abrirlo es una decisión que hay que decir, con `REST_AUTH=off`, y es lo que hacen los targets de arriba. En el módulo conviven las dos entradas: `service()`, la fábrica que resuelve el control al arrancar, y `app`, la app sin guardia que usan el notebook del mini-TP 2 y el benchmark del 3.
 
@@ -104,7 +104,7 @@ El payload se valida antes de llegar al modelo; si no cumple, la API responde 42
 | `primary_type` | uno de los 31 tipos que aparecen en el train del TP-final |
 | `location_description` | opcional; vacío se codifica como `UNKNOWN` |
 | `date` | fecha ISO 8601. Sin zona horaria se asume hora de Chicago; con zona se convierte |
-| `latitude` · `longitude` | dentro de los límites de Chicago: [41.60, 42.05] y [-87.95, -87.50] |
+| `latitude` y `longitude` | dentro de los límites de Chicago: [41.60, 42.05] y [-87.95, -87.50] |
 | cualquier otro campo | se rechaza: el contrato no acepta campos extra |
 
 Los textos se normalizan antes de validar: `" battery "` se acepta como `"BATTERY"`.
@@ -153,7 +153,7 @@ Se ve que un 422 corta en la validación sin tocar el modelo, y por eso es dos �
 | archivo | qué tiene |
 |---|---|
 | `app.py` | `create_app()`: carga del modelo en el `lifespan`, middleware de log, auditoría y 500, `/health` y el router `/v1`; `service()` protegida —el default de la imagen— y `app` abierta |
-| `security.py` | el control de acceso de la plataforma: token con rol, presupuesto de reportes, huella de la entrada y el emisor de tokens (`python -m tp1_rest.security`) |
+| `security.py` | el control de acceso de la plataforma: token con rol, cuota de reportes, hash de la entrada y el emisor de tokens (`python -m tp1_rest.security`) |
 | `client.py` | cliente de prueba end-to-end |
 | `Dockerfile` | `python:3.12-slim` + uv, instala los grupos `rest` y `serving` y copia `arrest_model/`, `tp1_rest/` y `model/model.pkl` |
 

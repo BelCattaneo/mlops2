@@ -2,7 +2,7 @@
 
 El mismo modelo de arrestos de Chicago que sirven las APIs del repo, ahora detrás de autenticación, autorización por rol, límite de tasa y un registro de auditoría. El marco es [SAIF](https://safety.google/cybersecurity-advancements/saif/), el *Secure AI Framework* de Google.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
+← [README general del repo](../README.md), [Mini-TP 1 (REST)](../tp1_rest/README.md), [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md), [Mini-TP 3 (gRPC)](../tp3_grpc/README.md), [Mini-TP 4 (streaming)](../tp4_streaming/README.md), [Mini-TP 5 (federado)](../tp5_federated/README.md), [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 
@@ -52,7 +52,7 @@ Y el costo para un consumidor legítimo es cero, porque conocemos el volumen: la
 
 ## Cómo se llevó al integrador
 
-Las conclusiones del notebook lo detallan, y en la plataforma ya está puesto: el servicio REST del integrador arranca protegido y no levanta sin su secreto, el presupuesto se cuenta en reportes porque una llamada puede traer mil, y cada request deja una línea de auditoría con el usuario y la huella de la entrada. Está documentado en [la arquitectura de la plataforma](../docs/arquitectura.md#seguridad-del-servicio).
+Las conclusiones del notebook lo detallan, y en la plataforma ya está puesto: el servicio REST del integrador arranca protegido y no levanta sin su secreto, la cuota se cuenta en reportes porque una llamada puede traer mil, y cada request deja una línea de auditoría con el usuario y el hash de la entrada. Está documentado en [la arquitectura de la plataforma](../docs/arquitectura.md#seguridad-del-servicio).
 
 Tres cosas cambiaron al salir del notebook:
 
