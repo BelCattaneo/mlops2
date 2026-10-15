@@ -2,7 +2,7 @@
 
 El mismo modelo de arrestos de Chicago que el TP1 sirve por REST, expuesto por gRPC: contrato tipado en un `.proto`, protobuf binario sobre HTTP/2, con un método unary y uno de server-streaming.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
+← [README general del repo](../README.md), [Mini-TP 1 (REST)](../tp1_rest/README.md), [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md), [Mini-TP 4 (streaming)](../tp4_streaming/README.md), [Mini-TP 5 (federado)](../tp5_federated/README.md), [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 
@@ -15,7 +15,7 @@ Todos los comandos se corren desde la raíz del repo.
 | `make grpc-up` | construye la imagen, levanta el contenedor y espera a que acepte conexiones |
 | `make grpc-client` | corre el cliente de prueba contra el servicio |
 | `make grpc-bench` | compara la latencia contra REST (los dos servicios arriba) |
-| `make grpc-logs` · `make grpc-down` | logs y detener el contenedor |
+| `make grpc-logs` y `make grpc-down` | logs y detener el contenedor |
 
 Sin `make`:
 
@@ -79,7 +79,7 @@ uv run jupyter nbconvert --to notebook --execute --inplace tp3_grpc/mini_tp3_act
 | archivo | qué tiene |
 |---|---|
 | `scoring.proto` | el contrato: mensajes y servicio |
-| `scoring_pb2.py` · `scoring_pb2_grpc.py` | generados por protoc; versionados, no se editan |
+| `scoring_pb2.py` y `scoring_pb2_grpc.py` | generados por protoc; versionados, no se editan |
 | `server.py` | `report_from_proto`, el servicer con los dos métodos, el interceptor de log y `serve()` |
 | `client.py` | cliente de prueba end-to-end; devuelve 0/1 según los status esperados |
 | `benchmark.py` | la comparación de latencia contra REST |

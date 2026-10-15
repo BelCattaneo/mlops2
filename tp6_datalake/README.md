@@ -2,7 +2,7 @@
 
 El mismo modelo de arrestos de Chicago que sirven las APIs del repo, ahora guardado en un Data Lake y servido desde ahí en lugar de leerlo del disco o de hornearlo en la imagen.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md)
+← [README general del repo](../README.md), [Mini-TP 1 (REST)](../tp1_rest/README.md), [Mini-TP 2 (GraphQL)](../tp2_graphql/README.md), [Mini-TP 3 (gRPC)](../tp3_grpc/README.md), [Mini-TP 4 (streaming)](../tp4_streaming/README.md), [Mini-TP 5 (federado)](../tp5_federated/README.md)
 
 ## Cómo correrlo
 

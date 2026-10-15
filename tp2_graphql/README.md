@@ -2,7 +2,7 @@
 
 Los metadatos del mismo modelo de arrestos de Chicago que el TP1 sirve por REST, expuestos por GraphQL: un esquema tipado con Strawberry, y un campo que lee el linaje del modelo desde Neo4j.
 
-← [README general del repo](../README.md) · [Mini-TP 1 (REST)](../tp1_rest/README.md) · [Mini-TP 3 (gRPC)](../tp3_grpc/README.md) · [Mini-TP 4 (streaming)](../tp4_streaming/README.md) · [Mini-TP 5 (federado)](../tp5_federated/README.md) · [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
+← [README general del repo](../README.md), [Mini-TP 1 (REST)](../tp1_rest/README.md), [Mini-TP 3 (gRPC)](../tp3_grpc/README.md), [Mini-TP 4 (streaming)](../tp4_streaming/README.md), [Mini-TP 5 (federado)](../tp5_federated/README.md), [Mini-TP 6 (data lake)](../tp6_datalake/README.md)
 
 ## Cómo correrlo
 
@@ -11,11 +11,11 @@ Todos los comandos se corren desde la raíz del repo.
 | comando | qué hace |
 |---|---|
 | `make graphql-run` | levanta la API en el puerto 8010, con GraphiQL en `/graphql` |
-| `make graphql-up` · `make graphql-down` | levanta y detiene la API en Docker, en el mismo puerto |
+| `make graphql-up` y `make graphql-down` | levanta y detiene la API en Docker, en el mismo puerto |
 | `make graphql-logs` | muestra los logs del contenedor |
 | `make graphql-client` | corre el cliente de prueba contra la API |
 | `make graphql-compare` | compara la misma lectura por REST y por GraphQL (con la API REST del TP1 también arriba) |
-| `make neo4j-up` · `make neo4j-down` | levanta y detiene Neo4j en Docker |
+| `make neo4j-up` y `make neo4j-down` | levanta y detiene Neo4j en Docker |
 | `make graphql-seed` | siembra el linaje del modelo en Neo4j |
 
 Para probarlo desde el navegador, con `make graphql-run` corriendo, abrir <http://127.0.0.1:8010/graphql> y pegar:

@@ -1,4 +1,4 @@
-# Mini-TPs · Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
+# Mini-TPs de Operaciones de Aprendizaje Automático II (CEIA-FIUBA)
 
 [![CI](https://github.com/BelCattaneo/mlops2/actions/workflows/ci.yml/badge.svg)](https://github.com/BelCattaneo/mlops2/actions/workflows/ci.yml)
 
@@ -84,9 +84,9 @@ Está en `arrest_model/features.py`, con una función por feature registrada en 
 
 | campo crudo | feature | transformación |
 |---|---|---|
-| `iucr` | `IUCR_freq` | frecuencia en train; 0 si no apareció |
+| `iucr` | `IUCR_freq` | frecuencia en train, 0 si no apareció |
 | `primary_type` | `Primary_Type_freq` | frecuencia en train |
-| `location_description` | `Location_Description_freq` | frecuencia en train; vacío → `UNKNOWN` |
+| `location_description` | `Location_Description_freq` | frecuencia en train, vacío → `UNKNOWN` |
 | `date` | `Day_sin` | día de la semana (domingo=1) → `sin(2π·d/7)` |
 | `latitude`, `longitude` | `X/Y Coordinate_standardized` | proyección a EPSG:3435 → z-score |
 | `latitude`, `longitude` | `Distance Crime To Police Station_standardized` | comisaría más cercana (EPSG:26971) → `log1p` → z-score |
