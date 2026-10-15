@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TP integrador de MLOps II, M. Belén Cattaneo</title>
+<style>
+  /* La paleta: cuatro neutros y un solo acento. Lo que distingue una cosa de otra es el peso
+     y el tamaño, no el color; el acento se reserva para lo que de verdad hay que mirar.
+
+     Para probar otro acento, cambiar estas dos líneas y nada más:
+       terracota   --acento: #B4532A;  --acento-tenue: #F7EBE5;
+       verde hondo --acento: #1F6B4A;  --acento-tenue: #E6F0EB; */
+  :root {
+    --papel: #FCFCFD;
+    --tinta: #11181F;
+    --tinta-suave: #5A6775;
+    --linea: #E3E7EC;
+    --acento: #2F6FB0;
+    --acento-tenue: #EAF1F9;
+    --sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #20242A;
+    font-family: var(--sans);
+    color: var(--tinta);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Cada slide es 16:9 y escala con el ancho de la ventana, así se ve igual en pantalla
+     y proyectada. */
+  .slide {
+    position: relative;
+    width: 100vw;
+    height: 56.25vw;
+    max-height: 100vh;
+    max-width: 177.78vh;
+    margin: 0 auto 1.5rem;
+    background: var(--papel);
+    padding: 5.5% 7%;
+    display: none;
+    flex-direction: column;
+    font-size: calc(0.9vw + 0.45vh);
+  }
+  .slide.activa { display: flex; }
+
+  h1 { font-size: 3.3em; line-height: 1.1; font-weight: 650; letter-spacing: -0.02em; }
+  h2 {
+    font-size: 2.35em;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    padding-bottom: 0.5em;
+    border-bottom: 2px solid var(--acento);
+    margin-bottom: 0.9em;
+  }
+  /* Con un diagrama abajo, el título ocupa lo justo: cada píxel que suelta lo toma el dibujo,
+     que se escala por la altura disponible. El título no se mueve, solo se acerca al cuerpo. */
+  h2:has(+ .diagrama) {
+    margin-bottom: 0.45em;
+  }
+  p { font-size: 1.26em; line-height: 1.5; color: var(--tinta-suave); max-width: 46ch; }
+  /* Sin negrita en el cuerpo: la jerarquía la hacen los títulos. Lo que iba resaltado queda
+     en tinta plena contra el gris del resto, que alcanza para que el ojo lo encuentre. */
+  strong { color: var(--tinta); font-weight: inherit; }
+
+  /* Portada */
+  .portada { justify-content: center; }
+  .portada .materia {
+    font-size: 0.95em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--acento);
+    font-weight: 600;
+    margin-bottom: 1.6em;
+  }
+  .portada h1 { max-width: 20ch; }
+  .portada .bajada { font-size: 1.42em; margin-top: 0.8em; max-width: 42ch; }
+  .cierre { align-items: center; text-align: center; }
+  .cierre h1 { font-size: 4.2em; max-width: none; }
+  .cierre .bajada { max-width: none; color: var(--tinta-suave); }
+  /* La firma sale del flujo para que el "Gracias" quede centrado en la hoja y no empujado
+     por el margen automático que la portada usa para bajarla. */
+  .cierre .firma { position: absolute; left: 7%; right: 7%; bottom: 5.5%; margin-top: 0; }
+  .portada .firma {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.95em;
+    color: var(--tinta-suave);
+    border-top: 1px solid var(--linea);
+    padding-top: 1.2em;
+  }
+
+  /* La frase que abre una slide, debajo del título y a todo el ancho. */
+  .subtitulo {
+    font-size: 1.5em;
+    line-height: 1.35;
+    color: var(--tinta);
+    max-width: 60ch;
+    margin: -0.2em 0 1.1em;
+  }
+
+  /* Cuerpo de una slide de contenido */
+  .cuerpo { display: flex; gap: 3.5em; flex: 1; align-items: flex-start; }
+  .cuerpo > * { flex: 1; }
+
+  ul { list-style: none; display: flex; flex-direction: column; gap: 1.35em; }
+  li {
+    font-size: 1.2em;
+    line-height: 1.45;
+    color: var(--tinta-suave);
+    padding-left: 1.1em;
+    position: relative;
+  }
+  li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.62em;
+    width: 0.42em;
+    height: 0.42em;
+    background: var(--acento);
+  }
+
+  /* El componente que lleva el peso: un número medido con su etiqueta. */
+  .datos { display: flex; flex-direction: column; gap: 1.3em; }
+  /* Cuando la columna de números va a la derecha, se angosta y se pega al margen: el texto es
+     corto y en media slide quedaba flotando en el medio. */
+  /* La columna de números va siempre a la derecha, angosta y pegada al margen. */
+  .cuerpo > .datos:last-child { flex: 0 0 34%; margin-left: auto; }
+  .dato { border-left: 3px solid var(--acento); padding-left: 1em; }
+  .dato .cifra {
+    font-family: var(--mono);
+    font-size: 2.5em;
+    font-weight: 600;
+    color: var(--tinta);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .dato .que { font-size: 1.03em; color: var(--tinta-suave); margin-top: 0.45em; }
+  /* El dato que vale menos que el otro de la misma slide: mismo acento, menos presencia. */
+  .dato.secundario { border-left-color: var(--linea); }
+  .dato.secundario .cifra { font-size: 1.7em; color: var(--tinta-suave); }
+
+  /* Antes y después, para las slides de mejoras. */
+  .cambio { display: flex; align-items: baseline; gap: 0.6em; font-family: var(--mono); }
+  .cambio .antes { color: var(--tinta-suave); text-decoration: line-through; }
+  .cambio .flecha { color: var(--tinta-suave); }
+  .cambio .despues { color: var(--acento); font-weight: 650; }
+
+  /* Dos columnas: qué se evaluó y qué dio. Más rápido de leer que una lista de viñetas. */
+  .tabla { display: flex; flex-direction: column; flex: 1; }
+  .tabla .fila { display: flex; gap: 1.6em; padding: 0.72em 0; border-bottom: 1px solid var(--linea); }
+  .tabla .fila:last-child { border-bottom: none; }
+  .tabla .que { flex: 0 0 34%; font-size: 1.1em; font-weight: 620; color: var(--tinta); line-height: 1.35; }
+  .tabla .resultado { flex: 1; font-size: 1.05em; color: var(--tinta-suave); line-height: 1.4; }
+  .tabla .resultado code { font-family: var(--mono); font-size: 0.95em; color: var(--tinta); }
+
+  .nota {
+    margin-top: auto;
+    padding-top: 1.4em;
+    border-top: 1px solid var(--linea);
+    font-size: 0.98em;
+    color: var(--tinta-suave);
+    max-width: 70ch;
+  }
+  .nota code { font-family: var(--mono); font-size: 0.95em; color: var(--tinta); }
+
+  /* El diagrama de la plataforma, dibujado acá adentro: escala sin pixelarse al proyectar y
+     usa las mismas variables de color que el resto. El completo vive en arquitectura.png. */
+  .diagrama { width: 100%; height: auto; flex: 1; min-height: 0; }
+  .diagrama text { font-family: var(--sans); }
+  .diagrama .pieza-titulo { font-size: 15px; font-weight: 650; }
+  .diagrama .pieza-titulo.mono { font-size: 12px; font-family: var(--mono); }
+  .diagrama .pieza-sub { font-size: 12.5px; }
+  .diagrama .contenedor { fill: none; stroke: var(--linea); stroke-width: 1.5; stroke-dasharray: 7 5; }
+  .diagrama .contenedor-nombre { font-size: 13px; fill: var(--tinta-suave); font-weight: 600; font-family: var(--mono); }
+  .diagrama .flecha { stroke: var(--tinta-suave); stroke-width: 1.8; fill: none; marker-end: url(#punta); }
+  .diagrama .flecha.tenue { stroke-dasharray: 5 4; }
+  /* Dependencia de infraestructura: sin punta, porque se usa en los dos sentidos. */
+  .diagrama .enlace { stroke: #9AA7B4; stroke-width: 1.5; fill: none; stroke-dasharray: 2 3; }
+  .diagrama .etiqueta { font-size: 11.5px; fill: var(--tinta-suave); font-style: italic; }
+
+  .link-diagrama { font-size: 0.9em; color: var(--acento); text-decoration: none; border-bottom: 1px solid var(--linea); }
+
+  /* Lo que todavía falta escribir, marcado a propósito. Se saca borrando esta regla. */
+
+  /* Una imagen que ocupa la slide, para los diagramas */
+  .figura { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .figura img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .pie-figura { font-size: 0.76em; color: var(--tinta-suave); text-align: left; margin-top: auto; }
+
+  /* Pie: número de slide */
+  .pie {
+    position: absolute;
+    right: 7%;
+    bottom: 3.5%;
+    font-family: var(--mono);
+    font-size: 0.85em;
+    color: var(--linea);
+  }
+
+  /* Navegación */
+  .barra {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: #fff;
+    font-family: var(--mono);
+    opacity: 0.25;
+    transition: opacity 0.2s;
+  }
+  .barra:hover { opacity: 1; }
+  .barra button {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0 0.3rem;
+  }
+
+  /* Para exportar a PDF: cada slide en su página, todas visibles. */
+  @media print {
+    body { background: #fff; }
+    .slide { display: flex !important; page-break-after: always; margin: 0; max-height: none; max-width: none; width: 100%; height: 100vh; }
+    .barra { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5A6775"/>
+    </marker>
+  </defs>
+</svg>
+
+
+<section class="slide portada activa">
+  <div class="materia">MLOps II, MIA, FIUBA</div>
+  <h1>Una plataforma para predecir arrestos en Chicago</h1>
+  <p class="bajada">De la infraestructura heredada de MLOps I a una plataforma que entrena, registra, sirve y audita su propio modelo.</p>
+  <div class="firma">
+    <span>M. Belén Cattaneo, TP integrador</span>
+    <span>Octubre de 2026</span>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>El problema</h2>
+  <p class="subtitulo">Dado un reporte de delito de la ciudad de Chicago, predecir si <strong>terminó en arresto</strong>.</p>
+  <div class="cuerpo">
+    <div>
+      <ul>
+        <li>El dato es público: el portal de datos abiertos publica cada reporte con su tipo, su lugar y sus coordenadas.</li>
+        <li>Un pipeline lo procesa en tres capas y entrena un XGBoost sobre la ventana de los últimos 365 días.</li>
+        <li>El modelo queda productivo detrás de una API REST, que sirve la versión marcada como <code>champion</code>.</li>
+      </ul>
+    </div>
+    <div class="datos">
+      <div class="dato">
+        <div class="cifra">633</div>
+        <div class="que">reportes por día, uno cada 136 segundos: el volumen que justifica cada decisión de la arquitectura</div>
+      </div>
+      <div class="dato secundario">
+        <div class="cifra">15,5%</div>
+        <div class="que">de los reportes terminan en arresto, así que la métrica es MCC y no accuracy</div>
+      </div>
+    </div>
+  </div>
+  <p class="nota">El modelo predice <strong>arrestos, no delitos</strong>: la etiqueta registra lo que hizo la policía. Por eso no sirve para decidir sobre una persona, y la model card lo dice.</p>
+  <div class="pie">2</div>
+</section>
+
+<section class="slide">
+  <h2>De dónde se parte</h2>
+  <svg class="diagrama" viewBox="0 0 960 500" role="img" aria-label="El TP final de MLOps I: un DAG de once tareas con Celery, un trainer aparte que corre un script, MinIO con nueve prefijos y una API abierta que sirve un artefacto">
+    <rect x="4" y="190" width="84" height="72" rx="4" fill="#FFFFFF" stroke="#C9D0DA" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="46" y="222" text-anchor="middle" fill="#5A6775">Portal de</text>
+    <text class="pieza-titulo" x="46" y="240" text-anchor="middle" fill="#5A6775">Chicago</text>
+    <rect x="763" y="376" width="150" height="56" rx="4" fill="#FFFFFF" stroke="#C9D0DA" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="838" y="409" text-anchor="middle" fill="#5A6775">Apps y analistas</text>
+    <rect class="contenedor" x="112" y="154" width="186" height="126" rx="7"/>
+    <image href="logos/docker.png" x="125" y="163" width="20" height="20"/>
+    <image href="logos/airflow.png" x="152" y="163" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="178">airflow</text>
+    <rect class="contenedor" x="332" y="154" width="156" height="126" rx="7"/>
+    <image href="logos/docker.png" x="345" y="163" width="20" height="20"/>
+    <image href="logos/py.png" x="372" y="163" width="19" height="19"/>
+    <text class="contenedor-nombre" x="397" y="178">trainer</text>
+    <rect class="contenedor" x="522" y="154" width="186" height="126" rx="7"/>
+    <image href="logos/docker.png" x="535" y="163" width="20" height="20"/>
+    <image href="logos/mlflow.png" x="562" y="163" width="52" height="19"/>
+    <rect class="contenedor" x="742" y="154" width="192" height="126" rx="7"/>
+    <image href="logos/docker.png" x="755" y="163" width="20" height="20"/>
+    <g transform="translate(782,163)" stroke="#2F6FB0" stroke-width="2.6" fill="none" stroke-linecap="round"><path d="M8,2 q-4,0 -4,4 v2 q0,2 -2.5,2 q2.5,0 2.5,2 v2 q0,4 4,4"/><path d="M14,2 q4,0 4,4 v2 q0,2 2.5,2 q-2.5,0 -2.5,2 v2 q0,4 -4,4"/></g>
+    <text class="contenedor-nombre" x="808" y="178">fastapi</text>
+    <rect class="contenedor" x="112" y="320" width="376" height="150" rx="7"/>
+    <image href="logos/docker.png" x="125" y="329" width="20" height="20"/>
+    <image href="logos/s3.png" x="152" y="329" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="344">minio</text>
+    <rect x="130" y="190" width="150" height="72" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo mono" x="205" y="214" text-anchor="middle" fill="#FFFFFF">etl_with_taskflow</text>
+    <text class="pieza-sub" x="205" y="241" text-anchor="middle" fill="#E8F0FB">11 tareas, con Celery</text>
+    <rect x="350" y="190" width="120" height="72" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="410" y="214" text-anchor="middle" fill="#FFFFFF">trainer</text>
+    <text class="pieza-sub" x="410" y="241" text-anchor="middle" fill="#E8F0FB">un script, a mano</text>
+    <rect x="540" y="190" width="150" height="72" rx="4" fill="#2F6FB0" stroke="#2F6FB0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="615" y="214" text-anchor="middle" fill="#FFFFFF">Tracking y Registry</text>
+    <text class="pieza-sub" x="615" y="241" text-anchor="middle" fill="#E8F0FB">el alias lo mueve</text>
+    <text class="pieza-sub" x="615" y="257" text-anchor="middle" fill="#E8F0FB">una persona</text>
+    <rect x="760" y="188" width="156" height="76" rx="4" fill="#1F4E79" stroke="#1F4E79" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="838" y="214" text-anchor="middle" fill="#FFFFFF">API REST</text>
+    <text class="pieza-sub" x="838" y="241" text-anchor="middle" fill="#E8F0FB">abierta, sin control</text>
+    <text class="pieza-sub" x="838" y="257" text-anchor="middle" fill="#E8F0FB">sirve un artefacto</text>
+    <rect x="144" y="356" width="122" height="72" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="205" y="380" text-anchor="middle" fill="#FFFFFF">s3://data</text>
+    <text class="pieza-sub" x="205" y="407" text-anchor="middle" fill="#E8F0FB">de 0-raw-data/</text>
+    <text class="pieza-sub" x="205" y="423" text-anchor="middle" fill="#E8F0FB">a ml-ready-data/</text>
+    <rect x="347" y="356" width="126" height="72" rx="4" fill="#2F6FB0" stroke="#2F6FB0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="410" y="380" text-anchor="middle" fill="#FFFFFF">s3://mlflow</text>
+    <text class="pieza-sub" x="410" y="407" text-anchor="middle" fill="#E8F0FB">el modelo</text>
+    <text class="pieza-sub" x="300" y="456" text-anchor="middle" fill="#5A6775">9 prefijos numerados: 348,95 MB por corrida</text>
+    <path class="flecha" d="M90,226 L121,226"/>
+    <path class="flecha" d="M167,268 L167,347"/>
+    <path class="flecha" d="M243,353 L243,268"/>
+    <path class="flecha" d="M270,392 L320,392 L320,300 L384,300 L384,266"/>
+    <path class="flecha" d="M436,266 L436,349"/>
+    <path class="flecha" d="M474,226 L532,226"/>
+    <path class="flecha" d="M698,226 L752,226"/>
+    <path class="flecha" d="M477,362 L790,362 L790,272"/>
+    <path class="flecha" d="M838,270 L838,372"/>
+    <text class="etiqueta" x="157" y="294.0" text-anchor="middle" transform="rotate(90 157 294.0)">escribe</text>
+    <text class="etiqueta" x="233" y="294.0" text-anchor="middle" transform="rotate(-90 233 294.0)">relee</text>
+    <text class="etiqueta" x="352" y="290" text-anchor="middle">ml-ready</text>
+    <text class="etiqueta" x="426" y="294.0" text-anchor="middle" transform="rotate(90 426 294.0)">guarda</text>
+    <text class="etiqueta" x="503.0" y="208" text-anchor="middle">manda</text>
+    <text class="etiqueta" x="503.0" y="222" text-anchor="middle">las métricas</text>
+    <text class="etiqueta" x="725.0" y="208" text-anchor="middle">resuelve</text>
+    <text class="etiqueta" x="725.0" y="222" text-anchor="middle">el alias</text>
+    <text class="etiqueta" x="640" y="352" text-anchor="middle">y baja el modelo, al arrancar</text>
+    <rect class="contenedor" x="112" y="14" width="596" height="112" rx="7"/>
+    <image href="logos/docker.png" x="125" y="23" width="20" height="20"/>
+    <image href="logos/postgres.png" x="152" y="23" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="38">postgres</text>
+    <rect x="150" y="52" width="180" height="56" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="240" y="68" text-anchor="middle" fill="#FFFFFF">airflow</text>
+    <text class="pieza-sub" x="240" y="95" text-anchor="middle" fill="#E8F0FB">la metadata de los DAGs</text>
+    <rect x="385" y="52" width="190" height="56" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="480" y="68" text-anchor="middle" fill="#FFFFFF">mlflow_db</text>
+    <text class="pieza-sub" x="480" y="95" text-anchor="middle" fill="#E8F0FB">experimentos y registro</text>
+    <path class="enlace" d="M205,126 L205,152"/>
+    <path class="enlace" d="M615,126 L615,152"/>
+  </svg>
+  <p class="pie-figura">El diagrama completo del TP final de MLOps I: <a class="link-diagrama" href="arquitectura-mlops1.png" target="_blank">arquitectura-mlops1.png</a></p>
+  <div class="pie">3</div>
+</section>
+
+<section class="slide">
+  <h2>Oportunidades de mejora</h2>
+  <div class="cuerpo">
+    <div>
+      <ul>
+        <li><strong>El pipeline es una cadena de archivos.</strong> Cada etapa depende de que la anterior deje el suyo en el lugar justo, sin un contrato entre ellas que se pueda verificar.</li>
+        <li><strong>El modelo no viaja entero.</strong> La codificación, el escalado y el umbral viven del lado del pipeline, así que servir es repetir esos pasos y confiar en que den igual.</li>
+        <li><strong>El ciclo de vida es manual.</strong> Entrenar, registrar, promover y recargar son comandos sueltos que alguien corre en orden.</li>
+        <li><strong>No hay control de acceso ni evidencia.</strong> Quién pregunta, de dónde sale cada versión y qué se rompe al tocar algo: ninguna de las tres tiene respuesta.</li>
+      </ul>
+    </div>
+    <div class="datos">
+      <div class="dato">
+        <div class="cifra">99%</div>
+        <div class="que">de arrestos predichos contra 15% reales: el modelo servido y el pipeline codifican distinto, con accuracy 0,16 y sin un solo error en el log</div>
+      </div>
+      <div class="dato secundario">
+        <div class="cifra">348,95 MB</div>
+        <div class="que">y 13 objetos por corrida, en nueve prefijos numerados: cada etapa reescribe el dato entero</div>
+      </div>
+    </div>
+  </div>
+  <p class="nota">Nada de esto falla a la vista: el pipeline termina en <code>success</code> y la API responde 200. Es la clase de cosa que solo aparece cuando se mide.</p>
+  <div class="pie">4</div>
+</section>
+
+
+
+<section class="slide">
+  <h2>Las mejoras: el dato y el modelo</h2>
+  <div class="cuerpo">
+    <div>
+      <ul>
+        <li><strong>El pipeline es un contrato, no una cadena de archivos.</strong> Cinco tareas, una por capa. El ETL publica la capa curada y eso dispara el entrenamiento: ninguno de los dos sabe del otro.</li>
+        <li><strong>El modelo se lleva todo lo que necesita.</strong> Las frecuencias, los escaladores y el umbral viajan adentro del artefacto: quien lo carga codifica y decide igual que la API.</li>
+        <li><strong>Promover es mover un alias.</strong> El servicio le pregunta al registro cada minuto y recarga sola, sin reiniciar nada.</li>
+        <li><strong>El desbalance lo maneja el modelo</strong>, con <code>scale_pos_weight</code> en vez de SMOTE: mejor AUC, mejor MCC y determinista.</li>
+      </ul>
+    </div>
+    <div class="datos">
+      <div class="dato">
+        <div class="cifra">0,4671 → 0,5716</div>
+        <div class="que">MCC en test: el umbral dejó de ser un 0,5 escrito en el código y lo elige el entrenamiento sobre validación</div>
+      </div>
+      <div class="dato secundario">
+        <div class="cifra">348,95 → 15,5 MB</div>
+        <div class="que">por corrida en el lake, contando el mes crudo que se baja: tres capas con nombre de dominio en vez de nueve prefijos numerados, y el crudo se escribe una sola vez</div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">5</div>
+</section>
+
+<section class="slide">
+  <h2>Las mejoras: la plataforma</h2>
+  <div class="cuerpo">
+    <div>
+      <ul>
+        <li><strong>Un solo protocolo, elegido midiendo.</strong> gRPC es más rápido y acá no compra nada: a este volumen ahorraría 1,35 segundos por día, y en lote REST le gana 6,92 ms contra 13,46.</li>
+        <li><strong>La API dejó de ser anónima.</strong> Cada request llega con un token que dice quién pregunta y con qué rol, con una cuota contada en reportes y no en llamadas. La auditoría guarda el hash de la entrada, no la entrada.</li>
+        <li><strong>Una credencial por servicio</strong> en el almacenamiento, en vez de la root compartida por diez de los doce.</li>
+        <li><strong>Linaje generado, no dibujado.</strong> El pipeline escribe un grafo mientras corre y contesta la pregunta que MLflow no puede: este mes vino mal, qué versiones reviso.</li>
+        <li><strong>CI en cada push</strong> y una model card con los límites del modelo.</li>
+      </ul>
+    </div>
+    <div class="datos">
+      <div class="dato">
+        <div class="cifra">401, 403, 429</div>
+        <div class="que">lo que antes era 200: sin token, con rol que no alcanza y pasada la cuota</div>
+      </div>
+      <div class="dato secundario">
+        <div class="cifra">341</div>
+        <div class="que">tests en verde en cada push, con MinIO levantado para que los del lake no se salteen</div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">6</div>
+</section>
+
+<section class="slide">
+  <h2>Mejoras que medimos y descartamos</h2>
+  <div class="tabla">
+    <div class="fila">
+      <div class="que">Categóricas nativas de XGBoost</div>
+      <div class="resultado">Peores que codificar por frecuencia: <code>MCC 0,5717 contra 0,5780</code>, unas cuatro veces el ruido del experimento.</div>
+    </div>
+    <div class="fila">
+      <div class="que">Selección por información mutua</div>
+      <div class="resultado">Elige exactamente las siete features del contrato, con las mismas métricas hasta el cuarto decimal. No decide nada, y cuando decide lo hace mal: con otro balanceo se quedaba con dos.</div>
+    </div>
+    <div class="fila">
+      <div class="que">Recorte de outliers</div>
+      <div class="resultado">Neutro: <code>±0,003</code> para cualquier lado. Cuesta 1,3% de filas reales y un parámetro más que mantener sincronizado.</div>
+    </div>
+    <div class="fila">
+      <div class="que">Reentrenar a diario</div>
+      <div class="resultado">La ventana cambia <code>0,3%</code> por día, menos que el ruido de elegir el umbral. Y el portal publica con 12 días de atraso.</div>
+    </div>
+    <div class="fila">
+      <div class="que">Streaming y federado</div>
+      <div class="resultado">El pipeline es mensual y la inferencia a pedido. El dato del portal es público y ya está centralizado.</div>
+    </div>
+  </div>
+  <p class="nota">Todas medidas sobre la misma ventana, el mismo corte y el mismo test, con las siete features fijas: si cambian dos cosas a la vez, la comparación no mide ninguna. No se descartaron por criterio ni por costo, sino porque para este problema <strong>no mejoraban nada</strong>, y ese nada es un número.</p>
+  <div class="pie">7</div>
+</section>
+
+<section class="slide">
+  <h2>La plataforma</h2>
+  <svg class="diagrama" viewBox="0 0 960 500" role="img" aria-label="La plataforma: Airflow con dos DAGs, MinIO con los dos buckets, MLflow, Neo4j y la API REST">
+    <rect x="2" y="190" width="84" height="72" rx="4" fill="#FFFFFF" stroke="#C9D0DA" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="44" y="222" text-anchor="middle" fill="#5A6775">Portal de</text>
+    <text class="pieza-titulo" x="44" y="240" text-anchor="middle" fill="#5A6775">Chicago</text>
+    <rect x="761" y="376" width="150" height="56" rx="4" fill="#FFFFFF" stroke="#C9D0DA" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="836" y="409" text-anchor="middle" fill="#5A6775">Apps y analistas</text>
+    <rect class="contenedor" x="112" y="154" width="344" height="126" rx="7"/>
+    <image href="logos/docker.png" x="125" y="163" width="20" height="20"/>
+    <image href="logos/airflow.png" x="152" y="163" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="178">airflow</text>
+    <rect class="contenedor" x="112" y="320" width="344" height="150" rx="7"/>
+    <image href="logos/docker.png" x="125" y="329" width="20" height="20"/>
+    <image href="logos/s3.png" x="152" y="329" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="344">minio</text>
+    <rect class="contenedor" x="492" y="154" width="196" height="126" rx="7"/>
+    <image href="logos/docker.png" x="505" y="163" width="20" height="20"/>
+    <image href="logos/mlflow.png" x="532" y="163" width="52" height="19"/>
+    <rect class="contenedor" x="492" y="320" width="196" height="150" rx="7"/>
+    <image href="logos/docker.png" x="505" y="329" width="20" height="20"/>
+    <g transform="translate(532,329)" stroke="#2F6FB0" stroke-width="2.4" fill="none"><circle cx="11" cy="3.5" r="2.6"/><circle cx="3.5" cy="16" r="2.6"/><circle cx="18" cy="16" r="2.6"/><path d="M9,6 l-4,7 M13,6 l4,7 M6,16 h9"/></g>
+    <text class="contenedor-nombre" x="558" y="344">neo4j</text>
+    <rect class="contenedor" x="738" y="154" width="196" height="126" rx="7"/>
+    <image href="logos/docker.png" x="751" y="163" width="20" height="20"/>
+    <g transform="translate(778,163)" stroke="#2F6FB0" stroke-width="2.6" fill="none" stroke-linecap="round"><path d="M8,2 q-4,0 -4,4 v2 q0,2 -2.5,2 q2.5,0 2.5,2 v2 q0,4 4,4"/><path d="M14,2 q4,0 4,4 v2 q0,2 2.5,2 q-2.5,0 -2.5,2 v2 q0,4 -4,4"/></g>
+    <text class="contenedor-nombre" x="804" y="178">rest</text>
+    <rect x="130" y="189" width="146" height="74" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo mono" x="203" y="214" text-anchor="middle" fill="#FFFFFF">etl_with_taskflow</text>
+    <text class="pieza-sub" x="203" y="241" text-anchor="middle" fill="#E8F0FB">5 tareas, una por capa</text>
+    <rect x="292" y="189" width="146" height="74" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo mono" x="365" y="214" text-anchor="middle" fill="#FFFFFF">train_arrest_model</text>
+    <text class="pieza-sub" x="365" y="241" text-anchor="middle" fill="#E8F0FB">peso de clase y umbral</text>
+    <rect x="130" y="353" width="122" height="74" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="191" y="378" text-anchor="middle" fill="#FFFFFF">s3://data</text>
+    <text class="pieza-sub" x="191" y="405" text-anchor="middle" fill="#E8F0FB">raw, enriched</text>
+    <text class="pieza-sub" x="191" y="421" text-anchor="middle" fill="#E8F0FB">y curated</text>
+    <rect x="314" y="353" width="122" height="74" rx="4" fill="#2F6FB0" stroke="#2F6FB0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="375" y="378" text-anchor="middle" fill="#FFFFFF">s3://mlflow</text>
+    <text class="pieza-sub" x="375" y="405" text-anchor="middle" fill="#E8F0FB">el modelo y sus</text>
+    <text class="pieza-sub" x="375" y="421" text-anchor="middle" fill="#E8F0FB">parámetros</text>
+    <text class="pieza-sub" x="284.0" y="456" text-anchor="middle" fill="#5A6775">versionado, con retención por capa</text>
+    <rect x="510" y="189" width="160" height="74" rx="4" fill="#2F6FB0" stroke="#2F6FB0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="590" y="214" text-anchor="middle" fill="#FFFFFF">Tracking y Registry</text>
+    <text class="pieza-sub" x="590" y="241" text-anchor="middle" fill="#E8F0FB">el alias lo mueve</text>
+    <text class="pieza-sub" x="590" y="257" text-anchor="middle" fill="#E8F0FB">el entrenamiento</text>
+    <rect x="510" y="357" width="160" height="74" rx="4" fill="#2F6FB0" stroke="#2F6FB0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="590" y="382" text-anchor="middle" fill="#FFFFFF">Grafo de linaje</text>
+    <text class="pieza-sub" x="590" y="409" text-anchor="middle" fill="#E8F0FB">cada partición y versión</text>
+    <rect x="757" y="184" width="158" height="84" rx="4" fill="#1F4E79" stroke="#1F4E79" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="836" y="214" text-anchor="middle" fill="#FFFFFF">API REST</text>
+    <text class="pieza-sub" x="836" y="241" text-anchor="middle" fill="#E8F0FB">token con rol, cuota</text>
+    <text class="pieza-sub" x="836" y="257" text-anchor="middle" fill="#E8F0FB">y auditoría</text>
+    <path class="flecha" d="M88,226 L124,226"/>
+    <path class="flecha" d="M153,263 L153,347"/>
+    <path class="flecha" d="M254,390 L307,390 L307,264"/>
+    <path class="flecha" d="M375,263 L375,347"/>
+    <path class="flecha" d="M438,226 L510.0,226"/>
+    <path class="flecha" d="M670.0,226 L757.0,226"/>
+    <path class="flecha tenue" d="M456,256 L462.0,256 L474.0,394 L506.0,394"/>
+    <path class="flecha" d="M836.0,268 L836.0,376"/>
+    <path class="flecha" d="M375,429 L375,482 L713.0,482 L713.0,277"/>
+    <text class="etiqueta" x="143" y="294.0" text-anchor="middle" transform="rotate(90 143 294.0)">escribe</text>
+    <text class="etiqueta" x="297" y="294.0" text-anchor="middle" transform="rotate(-90 297 294.0)">dispara</text>
+    <text class="etiqueta" x="365" y="294.0" text-anchor="middle" transform="rotate(90 365 294.0)">sube</text>
+    <text class="etiqueta" x="474.0" y="208" text-anchor="middle">registra</text>
+    <text class="etiqueta" x="474.0" y="222" text-anchor="middle">la versión</text>
+    <text class="etiqueta" x="713.5" y="208" text-anchor="middle">resuelve</text>
+    <text class="etiqueta" x="713.5" y="222" text-anchor="middle">el alias</text>
+    <text class="etiqueta" x="470.0" y="282" text-anchor="middle">escriben el linaje</text>
+    <rect class="contenedor" x="112" y="14" width="576" height="112" rx="7"/>
+    <image href="logos/docker.png" x="125" y="23" width="20" height="20"/>
+    <image href="logos/postgres.png" x="152" y="23" width="19" height="19"/>
+    <text class="contenedor-nombre" x="177" y="38">postgres</text>
+    <rect x="150" y="52" width="180" height="56" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="240" y="68" text-anchor="middle" fill="#FFFFFF">airflow</text>
+    <text class="pieza-sub" x="240" y="95" text-anchor="middle" fill="#E8F0FB">la metadata de los DAGs</text>
+    <rect x="385" y="52" width="190" height="56" rx="4" fill="#7FB0E0" stroke="#7FB0E0" stroke-width="1.5"/>
+    <text class="pieza-titulo" x="480" y="68" text-anchor="middle" fill="#FFFFFF">mlflow_db</text>
+    <text class="pieza-sub" x="480" y="95" text-anchor="middle" fill="#E8F0FB">experimentos y registro</text>
+    <path class="enlace" d="M302,126 L302,152"/>
+    <path class="enlace" d="M590.0,126 L590.0,152"/>
+    <text class="etiqueta" x="556" y="476" text-anchor="middle">y baja el modelo</text>
+  </svg>
+  <p class="pie-figura">El diagrama completo, con los doce servicios, sus puertos y los dos DAGs: <a class="link-diagrama" href="arquitectura.png" target="_blank">arquitectura.png</a></p>
+  <div class="pie">8</div>
+</section>
+
+<section class="slide">
+  <h2>Lo que falta</h2>
+  <div class="cuerpo">
+    <div>
+      <ul>
+        <li><strong>No hay cifrado en tránsito.</strong> El token viaja en claro dentro de la red del compose: en una instalación real va detrás de un proxy con certificado, que es configuración de despliegue.</li>
+        <li><strong>La cuota vive en memoria del proceso.</strong> Con más de una réplica el límite se multiplica. La plataforma corre una sola.</li>
+        <li><strong>No medí el error por grupo</strong> (ni por distrito ni por tipo de delito), y es lo primero que haría antes de darle cualquier uso operativo.</li>
+      </ul>
+    </div>
+    <div class="datos">
+      <div class="dato">
+        <div class="cifra">11 min</div>
+        <div class="que">de cero a sirviendo: borrar todo, levantar, bajar el año de datos, entrenar y servir</div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">9</div>
+</section>
+
+<section class="slide portada cierre">
+  <h1>¡Gracias!</h1>
+  <p class="bajada">Chau.</p>
+  <div class="firma">
+    <span>M. Belén Cattaneo, TP integrador</span>
+    <span>Octubre de 2026</span>
+  </div>
+</section>
+
+<div class="barra">
+  <button onclick="mover(-1)">←</button>
+  <span id="contador"></span>
+  <button onclick="mover(1)">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let actual = 0;
+
+  function mostrar(i) {
+    slides[actual].classList.remove('activa');
+    actual = Math.max(0, Math.min(slides.length - 1, i));
+    slides[actual].classList.add('activa');
+    document.getElementById('contador').textContent = `${actual + 1} / ${slides.length}`;
+    // La slide actual vive en la URL: así recargar no vuelve al principio, y se puede
+    // mandar el link de una slide puntual.
+    history.replaceState(null, '', '#' + (actual + 1));
+  }
+  function mover(paso) { mostrar(actual + paso); }
+
+  const pedida = parseInt(location.hash.slice(1), 10);
+  mostrar(pedida >= 1 && pedida <= slides.length ? pedida - 1 : 0);
+
+  // Servida por HTTP (`make slides`), la página se recarga sola cuando el archivo cambia y
+  // vuelve a la misma slide. Abierta como archivo suelto esto no corre.
+  if (location.protocol.startsWith('http')) {
+    let sello = null;
+    setInterval(async () => {
+      try {
+        const respuesta = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+        const ahora = respuesta.headers.get('last-modified');
+        if (sello && ahora !== sello) location.reload();
+        sello = ahora;
+      } catch (error) { /* el servidor se cayó: no pasa nada, se reintenta */ }
+    }, 1000);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); mover(1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); mover(-1); }
+    if (e.key === 'Home') mostrar(0);
+    if (e.key === 'End') mostrar(slides.length - 1);
+  });
+</script>
+
+</body>
+</html>
